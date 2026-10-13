@@ -94,7 +94,7 @@ def run(
             typer.echo(f"Already recorded for this period: {result[7:]}; no automatic retry")
             return
         typer.echo(f"Queued {result}")
-        send_mail()
+        send_mail(key=result)
     elif output is not None:
         typer.echo(f"Written {output}")
 
