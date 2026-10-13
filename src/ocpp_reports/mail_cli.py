@@ -61,7 +61,7 @@ def retry(key: str = typer.Argument(..., help="Delivery key from mail list")) ->
 
 
 @app.command("send")
-def send() -> None:
+def send(key: str | None = typer.Option(None, "--key", help="Send only this queued delivery")) -> None:
     """Send one pending message to the configured operator via TLS SMTP."""
     recipient = operator_address()
     host = os.environ.get("OCPP_REPORTS_SMTP_HOST", "")
@@ -80,12 +80,13 @@ def send() -> None:
     outbox = Outbox(db_path())
     # Enforce operator-only delivery even if the local SQLite DB was modified.
     pending = [item for item in outbox.list() if item["state"] == "pending"]
-    if pending and pending[0]["recipient"] != recipient:
+    target = next((item for item in pending if item["key"] == key), None) if key else (pending[0] if pending else None)
+    if target and target["recipient"] != recipient:
         typer.echo("Pending recipient differs from configured operator; refusing to send", err=True)
         raise typer.Exit(2)
     try:
         key = deliver_once(outbox, host=host, port=port, sender=sender,
-                           username=username, password=password, tls=tls)
+                           username=username, password=password, tls=tls, key=key)
     except Exception as exc:
         typer.echo(f"SMTP delivery failed: {type(exc).__name__}: {exc}", err=True)
         raise typer.Exit(1)
