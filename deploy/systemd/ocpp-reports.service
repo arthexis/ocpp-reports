@@ -1,0 +1,19 @@
+[Unit]
+Description=OCPP Reports scheduled operator mail delivery
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ocpp-reports
+Group=ocpp-reports
+EnvironmentFile=/etc/ocpp-reports/ocpp-reports.env
+WorkingDirectory=/var/lib/ocpp-reports
+ExecStart=/usr/bin/ocpp-reports scheduled-run
+StateDirectory=ocpp-reports
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/ocpp-reports
