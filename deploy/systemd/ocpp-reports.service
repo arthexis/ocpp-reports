@@ -8,6 +8,7 @@ Type=oneshot
 User=ocpp-reports
 Group=ocpp-reports
 EnvironmentFile=/etc/ocpp-reports/ocpp-reports.env
+Environment=OCPP_REPORTS_OUTBOX=/var/lib/ocpp-reports/outbox.sqlite3
 WorkingDirectory=/var/lib/ocpp-reports
 ExecStart=/usr/bin/ocpp-reports run --source /var/lib/ocpp-reports/summary.json --period previous-day --timezone America/Monterrey --send
 StateDirectory=ocpp-reports
