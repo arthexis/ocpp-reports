@@ -56,3 +56,27 @@ def test_reject_wrong_schema_and_malformed_rows():
     report["schema"] = "ocpp-csms/export/v1"
     with pytest.raises(ValueError):
         render_report(report, "csv")
+
+
+def test_numeric_identity_sort_not_lexicographic():
+    rows = [{"id": 10, "charger_id": "CP", "energy_wh": 1},
+            {"id": 2, "charger_id": "CP", "energy_wh": 2}]
+    assert [r["id"] for r in parsed(rows)] == ["2", "10"]
+
+
+@pytest.mark.parametrize("value", ["=2+2", "  =2+2", "\\t+SUM(1)", "\\r@evil", "\\ufeff=1"])
+def test_formula_prefixes_are_escaped(value):
+    result = parsed([{"id": 1, "charger_id": "CP", "rfid": value}])[0]
+    assert result["rfid"].startswith("'")
+
+
+@pytest.mark.parametrize("energy", [-1, True, 1.5, "1000"])
+def test_invalid_energy_is_rejected(energy):
+    with pytest.raises(ValueError, match="energy_wh"):
+        render_report(sample([{"id": 1, "charger_id": "CP", "energy_wh": energy}]), "csv")
+
+
+@pytest.mark.parametrize("identity", [True, "2", 2.0])
+def test_noninteger_transaction_identity_is_rejected(identity):
+    with pytest.raises(ValueError, match="id"):
+        render_report(sample([{"id": identity, "charger_id": "CP"}]), "csv")
