@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from math import isfinite
 from typing import Any
 
 SCHEMA = "ocpp-csms/export/v1"
@@ -56,6 +57,11 @@ def validate_export(page: Any) -> dict[str, Any]:
         if identity <= previous or identity > next_cursor:
             raise ValueError("Event IDs must be increasing within cursor")
         previous = identity
+        _timestamp(event.get("at"), "event.at")
+        if not isinstance(event.get("charger_id"), str) or not event["charger_id"]:
+            raise ValueError("Event charger_id is required")
+        if not isinstance(event.get("kind"), str) or not isinstance(event.get("action"), str):
+            raise ValueError("Event kind and action are required")
     if data["events"] and previous != next_cursor:
         raise ValueError("cursor.next must match last event")
     if not data["events"] and next_cursor != after:
@@ -72,7 +78,7 @@ def validate_export(page: Any) -> dict[str, Any]:
         _timestamp(sample.get("at"), "energy.at")
         for name in ("power_w", "energy_wh"):
             value = sample.get(name)
-            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value)):
                 raise ValueError(f"energy.{name} must be numeric or null")
     for transaction in data["transactions"]:
         if not isinstance(transaction, dict):
