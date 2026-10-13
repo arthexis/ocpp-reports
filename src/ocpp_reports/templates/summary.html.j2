@@ -1,3 +1,19 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>{{ title }}</title></head>
-<body><h1>{{ title }}</h1><p>{{ message }}</p></body></html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OCPP charging report</title></head>
+<body><main>
+<h1>OCPP charging report</h1>
+{% if provisional %}<p role="status"><strong>PROVISIONAL — incomplete or unverified data. Do not treat totals as final.</strong></p>{% endif %}
+<p>Source: {{ source_id }}</p>
+<p>Period: {{ period.since }} (inclusive) to {{ period.until }} (exclusive); timezone {{ period.timezone }}</p>
+<h2>Summary</h2>
+<p>Transactions: {{ summary.transactions }}</p>
+<p>Known energy: {{ "%.3f"|format(energy_kwh) }} kWh</p>
+<p>Transactions missing energy: {{ summary.missing_energy_transactions }}</p>
+<h2>Transactions</h2>
+<table><thead><tr><th scope="col">ID</th><th scope="col">Charger</th><th scope="col">Connector</th><th scope="col">State</th><th scope="col">Energy (Wh)</th></tr></thead>
+<tbody>{% for tx in transactions %}
+<tr><td>{{ tx.id }}</td><td>{{ tx.charger_id }}</td><td>{{ tx.connector_id if tx.connector_id is not none else "—" }}</td><td>{{ tx.state }}</td><td>{{ tx.energy_wh if tx.energy_wh is not none else "Missing" }}</td></tr>
+{% else %}<tr><td colspan="5">No transactions in this period</td></tr>{% endfor %}</tbody></table>
+<p>Report revision: {{ revision }}</p>
+</main></body></html>
