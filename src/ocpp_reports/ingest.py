@@ -1,0 +1,93 @@
+"""Offline, read-only CSMS export ingestion into Reports-owned SQLite."""
+from __future__ import annotations
+
+import hashlib
+import json
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from .csms_export import validate_export
+
+
+def load_page(path: str | Path) -> dict[str, Any]:
+    """Read a local producer page without modifying its source."""
+    with Path(path).open("r", encoding="utf-8") as stream:
+        return validate_export(json.load(stream))
+
+
+def _canonical(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+
+
+def _schema(db: sqlite3.Connection) -> None:
+    db.executescript("""
+    CREATE TABLE IF NOT EXISTS sources (
+        source_id TEXT PRIMARY KEY, cursor INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS events (
+        source_id TEXT NOT NULL, event_id INTEGER NOT NULL,
+        payload TEXT NOT NULL, PRIMARY KEY(source_id, event_id)
+    );
+    CREATE TABLE IF NOT EXISTS energy_samples (
+        source_id TEXT NOT NULL, event_id INTEGER NOT NULL,
+        sample_index INTEGER NOT NULL, payload TEXT NOT NULL,
+        PRIMARY KEY(source_id, event_id, sample_index)
+    );
+    CREATE TABLE IF NOT EXISTS transaction_observations (
+        source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
+        transaction_id INTEGER NOT NULL, page_after INTEGER NOT NULL,
+        page_next INTEGER NOT NULL, fingerprint TEXT NOT NULL,
+        payload TEXT NOT NULL, imported_at TEXT NOT NULL,
+        PRIMARY KEY(source_id, charger_id, transaction_id, page_after, page_next, fingerprint)
+    );
+    """)
+
+
+def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str | None = None) -> int:
+    """Persist one validated sequential page atomically; return current cursor.
+
+    Same-cursor replays may carry newer transaction observations. Immutable
+    event/sample conflicts fail, but transaction observations remain additive.
+    """
+    validate_export(page)
+    data = page["data"]
+    source = data["source_id"]
+    cursor = data["cursor"]
+    timestamp = imported_at or datetime.now(timezone.utc).isoformat()
+    with sqlite3.connect(database) as db:
+        _schema(db)
+        db.execute("INSERT OR IGNORE INTO sources(source_id) VALUES (?)", (source,))
+        current = db.execute("SELECT cursor FROM sources WHERE source_id=?", (source,)).fetchone()[0]
+        if cursor["after"] > current:
+            raise ValueError(f"Export cursor gap: expected {current}, got {cursor['after']}")
+        if cursor["after"] < current and cursor["next"] > current:
+            raise ValueError("Overlapping export cursor page")
+        for event in data["events"]:
+            identity = event["id"]
+            encoded = _canonical(event)
+            prior = db.execute("SELECT payload FROM events WHERE source_id=? AND event_id=?",
+                               (source, identity)).fetchone()
+            if prior is not None and prior[0] != encoded:
+                raise ValueError(f"Conflicting immutable event {identity}")
+            db.execute("INSERT OR IGNORE INTO events VALUES (?,?,?)", (source, identity, encoded))
+        for sample in data["energy"]:
+            event_id, index = sample["source_event_id"], sample["sample_index"]
+            encoded = _canonical(sample)
+            prior = db.execute("SELECT payload FROM energy_samples WHERE source_id=? AND event_id=? AND sample_index=?",
+                               (source, event_id, index)).fetchone()
+            if prior is not None and prior[0] != encoded:
+                raise ValueError(f"Conflicting energy sample {event_id}/{index}")
+            db.execute("INSERT OR IGNORE INTO energy_samples VALUES (?,?,?,?)",
+                       (source, event_id, index, encoded))
+        for tx in data["transactions"]:
+            encoded = _canonical(tx)
+            digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+            db.execute("""INSERT OR IGNORE INTO transaction_observations
+                VALUES (?,?,?,?,?,?,?,?)""",
+                (source, tx["charger_id"], tx["id"], cursor["after"], cursor["next"],
+                 digest, encoded, timestamp))
+        if cursor["after"] == current:
+            db.execute("UPDATE sources SET cursor=? WHERE source_id=?", (cursor["next"], source))
+        return db.execute("SELECT cursor FROM sources WHERE source_id=?", (source,)).fetchone()[0]
