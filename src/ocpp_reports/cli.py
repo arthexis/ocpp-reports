@@ -49,5 +49,26 @@ def generate(
     typer.echo("CSMS export adapter not yet implemented (B2); no files were written.", err=True)
     raise typer.Exit(3)
 
+@app.command("scheduled-run")
+def scheduled_run(
+    source: Path = typer.Option(..., exists=True, dir_okay=False, readable=True, help="Verified internal summary JSON"),
+    cadence: str = typer.Option("daily", help="daily, weekly or monthly"),
+    timezone: str = typer.Option("UTC", help="IANA reporting timezone"),
+    send: bool = typer.Option(False, "--send", help="Attempt SMTP handoff after queueing"),
+) -> None:
+    """Validate previous completed period and queue one operator report."""
+    from .scheduled_run import prepare_scheduled_report
+    from .mail_cli import db_path, operator_address, send as send_mail
+    from .outbox import Outbox
+    try:
+        key = prepare_scheduled_report(source=source, outbox=Outbox(db_path()),
+                                       operator=operator_address(), cadence=cadence, zone=timezone)
+    except (ValueError, KeyError, TypeError, OSError, json.JSONDecodeError) as exc:
+        typer.echo(f"Scheduled report refused: {exc}", err=True)
+        raise typer.Exit(2)
+    typer.echo(f"Queued {key}")
+    if send:
+        send_mail()
+
 if __name__ == "__main__":
     app()
