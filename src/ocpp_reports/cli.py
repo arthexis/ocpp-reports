@@ -5,8 +5,10 @@ import json
 import typer
 from . import __version__
 from .models import ReportRequest
+from .mail_cli import app as mail_app
 
-app = typer.Typer(help="Offline, read-only OCPP report generation.", no_args_is_help=True)
+app = typer.Typer(help="Offline OCPP report generation and operator mail delivery.", no_args_is_help=True)
+app.add_typer(mail_app, name="mail")
 
 @app.command()
 def status(json_output: bool = typer.Option(False, "-j", "--json", help="Machine-readable output")) -> None:
