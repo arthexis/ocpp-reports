@@ -58,6 +58,7 @@ def run(
     timezone: str = typer.Option("UTC", help="IANA reporting timezone"),
     output: Path | None = typer.Option(None, help="Write rendered text to a new file"),
     send: bool = typer.Option(False, "--send", help="Queue and attempt SMTP delivery"),
+    format: str = typer.Option("text", "--format", help="Manual output format: text or csv"),
 ) -> None:
     """Render one verified report; optionally save it or send it to the operator."""
     from .scheduled_run import prepare_scheduled_report
@@ -65,6 +66,10 @@ def run(
     from .outbox import Outbox
     from zoneinfo import ZoneInfo
     try:
+        if format not in ("text", "csv"):
+            raise ValueError("Format must be text or csv")
+        if format == "csv" and send:
+            raise ValueError("CSV is manual output only; --send requires text")
         if (since is None) != (until is None):
             raise ValueError("Both --since and --until are required together")
         if since is not None and period != "previous-day":
@@ -79,13 +84,13 @@ def run(
         if output is None and not send:
             rendered = prepare_scheduled_report(source=source, outbox=Outbox(db_path()),
                 operator="operator@localhost", cadence=cadence, zone=timezone,
-                since=start, until=end, queue=False)
+                since=start, until=end, queue=False, format=format)
             typer.echo(rendered)
             return
         result = prepare_scheduled_report(source=source, outbox=Outbox(db_path()),
             operator=operator_address() if send else "operator@localhost",
             cadence=cadence, zone=timezone, since=start, until=end,
-            output=output, queue=send)
+            output=output, queue=send, format=format)
     except (ValueError, KeyError, TypeError, OSError, json.JSONDecodeError) as exc:
         typer.echo(f"Report run refused: {exc}", err=True)
         raise typer.Exit(2)
