@@ -11,10 +11,19 @@ from .outbox import Outbox
 
 
 def prepare_scheduled_report(*, source: Path, outbox: Outbox, operator: str,
-                             cadence: str, zone: str, now: datetime | None = None) -> str:
+                             cadence: str = 'daily', zone: str = 'UTC', now: datetime | None = None,
+                             since: datetime | None = None, until: datetime | None = None,
+                             output: Path | None = None, queue: bool = True) -> str:
     """Queue only a complete, exact-period report; never invoke SMTP here."""
     now = now or datetime.now(timezone.utc)
-    start, end = previous_period(now, cadence=cadence, zone=zone)
+    if (since is None) != (until is None):
+        raise ValueError('Both since and until must be specified')
+    if since is not None:
+        if since.tzinfo is None or until.tzinfo is None or since >= until:
+            raise ValueError('Explicit period must be timezone-aware and ordered')
+        start, end = since.astimezone(timezone.utc), until.astimezone(timezone.utc)
+    else:
+        start, end = previous_period(now, cadence=cadence, zone=zone)
     document = json.loads(source.read_text(encoding="utf-8"))
     if document.get("schema") != "ocpp-reports/summary/v1":
         raise ValueError("Unsupported internal report schema")
@@ -38,4 +47,9 @@ def prepare_scheduled_report(*, source: Path, outbox: Outbox, operator: str,
         raise ValueError("Valid operator email required")
     rendered = render_report(document, format="text")
     subject = f"OCPP report {cadence}: {start.date().isoformat()} to {end.date().isoformat()}"
+    if output is not None:
+        with output.open('x', encoding='utf-8') as stream:
+            stream.write(rendered)
+    if not queue:
+        return rendered
     return outbox.enqueue(recipient=operator, subject=subject, body=rendered, revision=revision)
