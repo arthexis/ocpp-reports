@@ -18,15 +18,15 @@ def status(json_output: bool = typer.Option(False, "-j", "--json", help="Machine
 
 @app.command()
 def check(
-    since: datetime = typer.Option(..., help="Inclusive ISO timestamp with offset"),
-    until: datetime = typer.Option(..., help="Exclusive ISO timestamp with offset"),
+    since: str = typer.Option(..., help="Inclusive ISO timestamp with offset"),
+    until: str = typer.Option(..., help="Exclusive ISO timestamp with offset"),
     timezone: str = typer.Option("UTC", help="IANA timezone name"),
     json_output: bool = typer.Option(False, "-j", "--json"),
 ) -> None:
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
     try:
         ZoneInfo(timezone)
-        request = ReportRequest(since=since, until=until, timezone=timezone)
+        request = ReportRequest(since=datetime.fromisoformat(since.replace("Z", "+00:00")), until=datetime.fromisoformat(until.replace("Z", "+00:00")), timezone=timezone)
         request.validate_period()
     except (ValueError, ZoneInfoNotFoundError) as exc:
         typer.echo(f"Invalid reporting period: {exc}", err=True)
@@ -38,8 +38,8 @@ def check(
 def generate(
     source: Path = typer.Option(..., exists=True, file_okay=True, dir_okay=True, readable=True, help="CSMS export location"),
     output: Path = typer.Option(..., help="Reports-owned destination"),
-    since: datetime = typer.Option(...),
-    until: datetime = typer.Option(...),
+    since: str = typer.Option(...),
+    until: str = typer.Option(...),
     timezone: str = typer.Option("UTC"),
     json_output: bool = typer.Option(False, "-j", "--json"),
 ) -> None:
