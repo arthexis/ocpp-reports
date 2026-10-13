@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS deliveries (
     recipient TEXT NOT NULL,
     subject TEXT NOT NULL,
     body TEXT NOT NULL,
-    state TEXT NOT NULL CHECK(state IN ('pending','sending','sent','uncertain')),
+    state TEXT NOT NULL CHECK(state IN ('pending','sending','sent','failed')),
     attempts INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     claimed_at INTEGER,
@@ -69,14 +69,14 @@ class Outbox:
         with self.connect() as db:
             db.execute("UPDATE deliveries SET state='sent',sent_at=?,last_error=NULL WHERE key=? AND state='sending'", (int(time.time()), key))
 
-    def mark_uncertain(self, key: str, error: str):
+    def mark_failed(self, key: str, error: str):
         with self.connect() as db:
-            db.execute("UPDATE deliveries SET state='uncertain',last_error=? WHERE key=? AND state='sending'", (error[:2000], key))
+            db.execute("UPDATE deliveries SET state='failed',last_error=? WHERE key=? AND state='sending'", (error[:2000], key))
 
     def retry(self, key: str):
-        """Explicit operator retry: may duplicate email if previous SMTP acceptance was ambiguous."""
+        """Manual retry after checking inbox; may duplicate a previously accepted email."""
         with self.connect() as db:
-            db.execute("UPDATE deliveries SET state='pending',last_error=NULL WHERE key=? AND state='uncertain'", (key,))
+            db.execute("UPDATE deliveries SET state='pending',last_error=NULL WHERE key=? AND state IN ('failed','sending')", (key,))
 
     def list(self):
         with self.connect() as db:
