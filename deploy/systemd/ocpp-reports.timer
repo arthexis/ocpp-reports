@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule daily OCPP reports
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+Unit=ocpp-reports.service
+
+[Install]
+WantedBy=timers.target
