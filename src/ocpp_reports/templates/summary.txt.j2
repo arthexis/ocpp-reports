@@ -1,0 +1,11 @@
+OCPP charging report
+{% if provisional %}PROVISIONAL — incomplete or unverified data. Do not treat totals as final.
+{% endif %}Source: {{ source_id }}
+Period: {{ period.since }} (inclusive) to {{ period.until }} (exclusive)
+Timezone: {{ period.timezone }}
+Transactions: {{ summary.transactions }}
+Known energy: {{ "%.3f"|format(energy_kwh) }} kWh
+Transactions missing energy: {{ summary.missing_energy_transactions }}
+{% for tx in transactions %}Transaction {{ tx.id }} | {{ tx.charger_id }} | {{ tx.state }} | {{ tx.energy_wh if tx.energy_wh is not none else "Missing" }} Wh
+{% else %}No transactions in this period
+{% endfor %}Report revision: {{ revision }}
