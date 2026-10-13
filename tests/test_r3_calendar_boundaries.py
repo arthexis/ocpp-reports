@@ -49,7 +49,7 @@ def test_adjacent_periods_touch_without_overlap_or_gap(cadence, anchor):
     zone = "America/New_York"
     later_start, later_end = previous_period(anchor, cadence=cadence, zone=zone)
     local_start = later_start.astimezone(ZoneInfo(zone))
-    earlier_clock = local_start - timedelta(days=1)
+    earlier_clock = local_start + timedelta(hours=12)
     earlier_start, earlier_end = previous_period(earlier_clock, cadence=cadence, zone=zone)
     assert earlier_end == later_start
     assert earlier_start < earlier_end <= later_end
