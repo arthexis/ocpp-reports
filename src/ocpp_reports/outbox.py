@@ -91,10 +91,13 @@ class Outbox:
                 WHERE p.period_key=?""", (period_key,)).fetchone()
             return dict(row) if row else None
 
-    def claim(self) -> Delivery | None:
+    def claim(self, key: str | None = None) -> Delivery | None:
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT * FROM deliveries WHERE state='pending' ORDER BY created_at,key LIMIT 1").fetchone()
+            if key is None:
+                row = db.execute("SELECT * FROM deliveries WHERE state='pending' ORDER BY created_at,key LIMIT 1").fetchone()
+            else:
+                row = db.execute("SELECT * FROM deliveries WHERE state='pending' AND key=?", (key,)).fetchone()
             if row is None:
                 return None
             updated = db.execute("UPDATE deliveries SET state='sending',attempts=attempts+1,claimed_at=? WHERE key=? AND state='pending'", (int(time.time()), row["key"]))
