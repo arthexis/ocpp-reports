@@ -7,3 +7,9 @@ Period selection: `--period previous-day|previous-week|previous-month` (default 
 The systemd service uses the same `run` command, with `--send`. The daily timer uses `Persistent=true`, which triggers once after downtime, **not** once per missed period. The sample service expects a prepared summary at `/var/lib/ocpp-reports/summary.json`; deployment must arrange that input and SMTP environment securely.
 
 **Do not enable the timer yet.** B5.3 must implement durable per-period state and restart/replay protection, and B5.4 must verify full integration and deployment. No embedded scheduler or customer email delivery.
+
+## B5.3 recovery semantics
+
+A period reservation and its delivery are committed in one SQLite transaction. Repeated `run --send` invocations for the same source, operator, and UTC boundaries report an existing delivery and do not send again. The reservation persists across restarts. An interrupted SMTP attempt remains `sending`; a failed attempt remains `failed`. Neither is retried automatically. Inspect `ocpp-reports mail list`, check the operator inbox, and use `ocpp-reports mail retry KEY` then `ocpp-reports mail send` deliberately if necessary. SMTP acceptance is not proof of inbox delivery.
+
+B5.4 still needs an end-to-end deployment review, including report input freshness, SMTP configuration, and systemd timer safety.
