@@ -13,7 +13,7 @@ from .outbox import Outbox
 def prepare_scheduled_report(*, source: Path, outbox: Outbox, operator: str,
                              cadence: str = 'daily', zone: str = 'UTC', now: datetime | None = None,
                              since: datetime | None = None, until: datetime | None = None,
-                             output: Path | None = None, queue: bool = True) -> str:
+                             output: Path | None = None, queue: bool = True, format: str = "text") -> str:
     """Queue only a complete, exact-period report; never invoke SMTP here."""
     now = now or datetime.now(timezone.utc)
     if (since is None) != (until is None):
@@ -45,7 +45,11 @@ def prepare_scheduled_report(*, source: Path, outbox: Outbox, operator: str,
         raise ValueError("Stable report revision required")
     if not operator or "@" not in operator or "\r" in operator or "\n" in operator:
         raise ValueError("Valid operator email required")
-    rendered = render_report(document, format="text")
+    if format not in ("text", "csv"):
+        raise ValueError("Unsupported manual report format")
+    if queue and format != "text":
+        raise ValueError("SMTP delivery supports text reports only")
+    rendered = render_report(document, format=format)
     subject = f"OCPP report {cadence}: {start.date().isoformat()} to {end.date().isoformat()}"
     if output is not None:
         with output.open('x', encoding='utf-8') as stream:
