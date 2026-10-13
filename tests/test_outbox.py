@@ -30,7 +30,7 @@ def test_ambiguous_send_requires_explicit_retry(tmp_path):
         raise ConnectionError("connection dropped")
     with pytest.raises(ConnectionError):
         deliver_once(outbox, send=broken)
-    assert outbox.list()[0]["state"] == "uncertain"
+    assert outbox.list()[0]["state"] == "failed"
     assert deliver_once(outbox, send=lambda item: None) is None
     Outbox(path).retry(key)
     assert deliver_once(outbox, send=lambda item: None) == key
