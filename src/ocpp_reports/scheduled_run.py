@@ -52,4 +52,7 @@ def prepare_scheduled_report(*, source: Path, outbox: Outbox, operator: str,
             stream.write(rendered)
     if not queue:
         return rendered
-    return outbox.enqueue(recipient=operator, subject=subject, body=rendered, revision=revision)
+    period_key = f'{operator}|{document["source_id"]}|{start.isoformat()}|{end.isoformat()}'
+    key, created = outbox.enqueue_period(period_key=period_key, recipient=operator,
+                                         subject=subject, body=rendered, revision=revision)
+    return key if created else f'EXISTS:{key}'
