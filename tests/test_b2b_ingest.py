@@ -112,14 +112,14 @@ def test_new_page_failure_does_not_advance_cursor_or_store_partial_evidence(tmp_
 def test_rejects_cursor_boundary_mismatch(tmp_path, page):
     broken = copy.deepcopy(page)
     broken["data"]["cursor"]["next"] = 10
-    with pytest.raises(ValueError, match="boundaries"):
+    with pytest.raises(ValueError, match="cursor.next must match last event"):
         ingest_page(tmp_path / "reports.sqlite3", broken)
 
 
 def test_rejects_energy_from_other_page(tmp_path, page):
     broken = copy.deepcopy(page)
     broken["data"]["energy"][0]["source_event_id"] = 100
-    with pytest.raises(ValueError, match="outside page"):
+    with pytest.raises(ValueError, match="outside (this )?page"):
         ingest_page(tmp_path / "reports.sqlite3", broken)
 
 
@@ -144,5 +144,5 @@ def test_empty_page_cannot_advance_cursor(tmp_path, page):
     broken["data"]["events"] = []
     broken["data"]["energy"] = []
     broken["data"]["transactions"] = []
-    with pytest.raises(ValueError, match="Empty event page"):
+    with pytest.raises(ValueError, match="Empty page must not advance cursor"):
         ingest_page(tmp_path / "reports.sqlite3", broken)
