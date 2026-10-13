@@ -19,8 +19,11 @@ def render_report(report: dict[str, Any], format: str = "html") -> str:
     rows = report["transactions"]
     if not isinstance(rows, list) or not isinstance(summary, dict) or not isinstance(period, dict):
         raise ValueError("Malformed report")
+    if format == "csv":
+        from .csv_rendering import render_csv
+        return render_csv(report)
     if format not in ("html", "text"):
-        raise ValueError("Format must be html or text")
+        raise ValueError("Format must be html, text or csv")
     template_name = "summary.html.j2" if format == "html" else "summary.txt.j2"
     env = Environment(autoescape=select_autoescape(enabled_extensions=("html",), default_for_string=True),
                       undefined=StrictUndefined, keep_trailing_newline=True)
