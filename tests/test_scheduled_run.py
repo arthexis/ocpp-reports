@@ -28,7 +28,7 @@ def test_queues_once_for_same_revision(tmp_path):
     outbox = Outbox(tmp_path / "outbox.sqlite3")
     args = dict(source=source, outbox=outbox, operator="operator@example.org", cadence="daily", zone="UTC", now=NOW)
     key = prepare_scheduled_report(**args)
-    assert prepare_scheduled_report(**args) == key
+    assert prepare_scheduled_report(**args) == f"EXISTS:{key}"
     assert len(outbox.list()) == 1
 
 
@@ -66,3 +66,21 @@ def test_explicit_period_and_stdout(tmp_path):
         until=datetime.fromisoformat("2026-10-13T00:00:00+00:00"), queue=False)
     assert "OCPP charging report" in rendered
     assert outbox.list() == []
+
+def test_restart_reuses_period_and_does_not_queue_again(tmp_path):
+    source = fixture(tmp_path)
+    path = tmp_path / "outbox.sqlite3"
+    args = dict(source=source, operator="operator@example.org", cadence="daily", zone="UTC", now=NOW)
+    first = prepare_scheduled_report(outbox=Outbox(path), **args)
+    assert prepare_scheduled_report(outbox=Outbox(path), **args) == f"EXISTS:{first}"
+    assert len(Outbox(path).list()) == 1
+
+
+def test_period_reservation_survives_sending_state(tmp_path):
+    source = fixture(tmp_path)
+    outbox = Outbox(tmp_path / "outbox.sqlite3")
+    args = dict(source=source, outbox=outbox, operator="operator@example.org", cadence="daily", zone="UTC", now=NOW)
+    key = prepare_scheduled_report(**args)
+    assert outbox.claim().key == key
+    assert prepare_scheduled_report(**args) == f"EXISTS:{key}"
+    assert outbox.list()[0]["state"] == "sending"
