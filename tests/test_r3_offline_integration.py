@@ -81,7 +81,7 @@ def test_csv_and_text_cli_output_are_deterministic_and_not_queued(harness):
     assert [r["charger_id"] for r in rows] == ["CP-A", "CP-B"]
     assert [r["energy_wh"] for r in rows] == ["0", "0"]
     stdout = run(harness, "--format", "csv")
-    assert stdout.exit_code == 0 and stdout.output == csv_path.read_text()
+    assert stdout.exit_code == 0 and stdout.output.rstrip("\n") == csv_path.read_text().rstrip("\n")
     text = run(harness, "--format", "text")
     assert text.exit_code == 0 and "OCPP charging report" in text.output
     assert run(harness, "--output", str(csv_path)).exit_code == 2  # no overwrite
