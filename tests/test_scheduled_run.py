@@ -55,7 +55,8 @@ def test_cli_queues_without_sending(monkeypatch, tmp_path):
     monkeypatch.setenv("OCPP_REPORTS_OUTBOX", str(tmp_path / "outbox.sqlite3"))
     result = CliRunner().invoke(app, ["run", "--source", str(source), "--output", str(tmp_path / "report.txt")])
     assert result.exit_code == 0, result.output
-    assert (tmp_path / "report.txt").exists()\n    assert Outbox(tmp_path / "outbox.sqlite3").list() == []
+    assert (tmp_path / "report.txt").exists()
+    assert Outbox(tmp_path / "outbox.sqlite3").list() == []
 
 def test_explicit_period_and_stdout(tmp_path):
     source = fixture(tmp_path)
