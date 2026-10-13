@@ -34,6 +34,8 @@ jobs:
           python -m build --wheel
           python -m pip install --force-reinstall dist/*.whl
           ocpp-reports status --json
+          python -c "from importlib.resources import files; assert files('ocpp_reports').joinpath('templates/summary.html.j2').read_text().startswith('<!doctype html>')"
+          python -m pip check
 
   general:
     name: general
