@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime
 from typing import Any
 
 COLUMNS = ("id", "charger_id", "connector_id", "state", "active", "rfid",
@@ -18,7 +17,7 @@ def _safe(value: Any) -> str:
     if isinstance(value, (dict, list)):
         raise ValueError("CSV cell must be scalar")
     text = str(value)
-    if text and text.lstrip().startswith(("=", "+", "-", "@")) and not isinstance(value, (int, float)):
+    if text and text.lstrip("\\t\\r\\n \\ufeff").startswith(("=", "+", "-", "@")) and not isinstance(value, (int, float)):
         return "'" + text
     return text
 
@@ -37,14 +36,18 @@ def render_csv(report: dict[str, Any]) -> str:
     for row in rows:
         if not isinstance(row, dict) or row.get("id") is None or not row.get("charger_id"):
             raise ValueError("Transaction requires id and charger_id")
-        identity = (str(row["charger_id"]), str(row["id"]))
+        if isinstance(row["id"], bool) or not isinstance(row["id"], int):
+            raise ValueError("Transaction id must be an integer")
+        if not isinstance(row["charger_id"], str):
+            raise ValueError("charger_id must be a string")
+        identity = (row["charger_id"], row["id"])
         if identity in seen:
             raise ValueError("Duplicate transaction identity")
         seen.add(identity)
-        if row.get("energy_wh") is not None and (isinstance(row["energy_wh"], bool) or not isinstance(row["energy_wh"], (int, float))):
+        if row.get("energy_wh") is not None and (isinstance(row["energy_wh"], bool) or not isinstance(row["energy_wh"], int) or row["energy_wh"] < 0):
             raise ValueError("energy_wh must be numeric or null")
         normalized.append(row)
-    normalized.sort(key=lambda row: (str(row["charger_id"]), str(row["id"])))
+    normalized.sort(key=lambda row: (row["charger_id"], row["id"]))
     output = io.StringIO(newline="")
     writer = csv.writer(output, lineterminator="\n")
     writer.writerow(COLUMNS)
