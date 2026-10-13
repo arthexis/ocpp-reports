@@ -58,7 +58,7 @@ def run(
     timezone: str = typer.Option("UTC", help="IANA reporting timezone"),
     output: Path | None = typer.Option(None, help="Write rendered text to a new file"),
     send: bool = typer.Option(False, "--send", help="Queue and attempt SMTP delivery"),
-    format: str = typer.Option("text", "--format", help="Manual output format: text or csv"),
+    format: str = typer.Option("auto", "--format", help="Output format: auto, text or csv"),
 ) -> None:
     """Render one verified report; optionally save it or send it to the operator."""
     from .scheduled_run import prepare_scheduled_report
@@ -66,8 +66,10 @@ def run(
     from .outbox import Outbox
     from zoneinfo import ZoneInfo
     try:
-        if format not in ("text", "csv"):
-            raise ValueError("Format must be text or csv")
+        if format not in ("auto", "text", "csv"):
+            raise ValueError("Format must be auto, text or csv")
+        if format == "auto":
+            format = "csv" if output is not None and output.suffix.lower() == ".csv" else "text"
         if format == "csv" and send:
             raise ValueError("CSV is manual output only; --send requires text")
         if (since is None) != (until is None):
