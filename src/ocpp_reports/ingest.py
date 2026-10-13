@@ -65,8 +65,16 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
             raise ValueError(f"Export cursor gap: expected {current}, got {cursor['after']}")
         if cursor["after"] < current and cursor["next"] > current:
             raise ValueError("Overlapping export cursor page")
-        if cursor["after"] < current and cursor["next"] > current:
-            raise ValueError("Overlapping export cursor page")
+        # A replay of an older page may only verify existing immutable evidence.
+        # A new page must begin at the committed cursor; no silent overlaps.
+        if cursor["next"] < cursor["after"]:
+            raise ValueError("Export cursor regressed")
+        if data["events"]:
+            ids = [event["id"] for event in data["events"]]
+            if ids != sorted(set(ids)) or ids[0] <= cursor["after"] or ids[-1] != cursor["next"]:
+                raise ValueError("Event IDs do not match export cursor boundaries")
+        elif cursor["next"] != cursor["after"]:
+            raise ValueError("Empty event page advanced the cursor")
         for event in data["events"]:
             identity = event["id"]
             encoded = _canonical(event)
@@ -78,6 +86,8 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
                 raise ValueError(f"Previously imported event {identity} is missing")
             db.execute("INSERT OR IGNORE INTO events VALUES (?,?,?)", (source, identity, encoded))
         for sample in data["energy"]:
+            if sample["source_event_id"] not in {event["id"] for event in data["events"]}:
+                raise ValueError("Energy sample references event outside page")
             event_id, index = sample["source_event_id"], sample["sample_index"]
             encoded = _canonical(sample)
             prior = db.execute("SELECT payload FROM energy_samples WHERE source_id=? AND event_id=? AND sample_index=?",
