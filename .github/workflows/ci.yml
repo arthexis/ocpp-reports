@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: test-${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: python -m pip install -e '.[test]'
+      - name: Unit and contract tests with timings
+        run: python -m pytest -ra --durations=10
+      - name: CLI smoke
+        run: |
+          ocpp-reports --help
+          ocpp-reports status --json
+          ocpp-reports check --since 2026-10-01T00:00:00+00:00 --until 2026-10-02T00:00:00+00:00 --json
+      - name: Wheel build and install smoke
+        run: |
+          python -m pip install build
+          python -m build --wheel
+          python -m pip install --force-reinstall dist/*.whl
+          ocpp-reports status --json
+
+  general:
+    name: general
+    if: always()
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all test matrix jobs
+        env:
+          RESULT: ${{ needs.test.result }}
+        run: test "$RESULT" = success
