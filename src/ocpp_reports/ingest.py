@@ -85,8 +85,9 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
             if cursor["after"] < current and prior is None:
                 raise ValueError(f"Previously imported event {identity} is missing")
             db.execute("INSERT OR IGNORE INTO events VALUES (?,?,?)", (source, identity, encoded))
+        page_event_ids = {event["id"] for event in data["events"]}
         for sample in data["energy"]:
-            if sample["source_event_id"] not in {event["id"] for event in data["events"]}:
+            if sample["source_event_id"] not in page_event_ids:
                 raise ValueError("Energy sample references event outside page")
             event_id, index = sample["source_event_id"], sample["sample_index"]
             encoded = _canonical(sample)
