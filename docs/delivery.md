@@ -1,9 +1,11 @@
-# B4: durable SMTP outbox
+# B4: operator-only SMTP delivery
 
-The outbox uses a local SQLite database and immutable email payloads. Enqueue is idempotent by recipient, subject and report revision. A second enqueue with the same key and different content is rejected.
+The first release sends reports **only to the configured operator address**. The operator reviews and forwards them to customers manually. No customer recipient management, reconciliation workflow, or automatic retries.
 
-The send lifecycle is `pending → sending → sent`. The claim is committed **before** SMTP starts. If SMTP raises an exception, the delivery is marked `uncertain`; if the process crashes, it remains `sending`. Neither state is retried automatically, because SMTP may have accepted the message before the client lost its connection. An operator must reconcile the state and deliberately retry (which may result in duplicate email). A deterministic Message-ID helps trace attempts but is **not** an SMTP exactly-once guarantee.
+A small SQLite outbox retains immutable payloads and deduplicates by operator recipient, subject and report revision. Status is `pending`, `sending`, `sent` or `failed`. `sending` is an in-progress state, retained if the process crashes. `sent` means SMTP accepted the message, **not** that it arrived in the inbox.
 
-SMTP supports STARTTLS and implicit TLS, requires explicit host/port/sender, and never stores passwords in SQLite. The caller should source credentials from environment or a secure secret store. No scheduler or background worker is started.
+Failed sends are not automatically retried. If the scheduled email does not arrive, the operator can check status and deliberately retry a failed or interrupted send. A retry can duplicate an email if the server previously accepted it; inspect the inbox first. Deterministic Message-ID assists manual identification, but is not an exactly-once guarantee.
 
-**Next B4 tasks:** CLI enqueue/list/reconcile commands, safe attachment handling, SMTP config validation, explicit retry policy for known pre-send failures, and integration tests with a fake SMTP server. Do not send provisional reports automatically.
+SMTP requires TLS (STARTTLS or implicit TLS); credentials are never stored in the outbox.
+
+**Remaining work:** minimal CLI for queue/status/manual retry, one configured operator recipient, attachments, SMTP config validation and fake-server tests. Scheduling belongs to B5. Provisional reports must be labeled and must not be represented as final.
