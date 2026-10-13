@@ -84,3 +84,26 @@ def test_bad_json_rejected(tmp_path):
     source.write_text("{invalid", encoding="utf-8")
     with pytest.raises(json.JSONDecodeError):
         load_page(source)
+
+
+def test_new_page_failure_does_not_advance_cursor_or_store_partial_evidence(tmp_path, page):
+    db = tmp_path / "reports.sqlite3"
+    ingest_page(db, page)
+    later = copy.deepcopy(page)
+    later["data"]["cursor"] = {"after": 2, "next": 3, "more": False}
+    later["data"]["events"] = [
+        {"id": 3, "at": "2026-10-07T12:02:00Z", "charger_id": "cp-a",
+         "kind": "meter_values", "action": "MeterValues"}
+    ]
+    later["data"]["energy"] = [
+        {"source_event_id": 3, "sample_index": 0,
+         "at": "2026-10-07T12:02:00Z", "power_w": 3000, "energy_wh": 2000},
+        {"source_event_id": 3, "sample_index": 0,
+         "at": "2026-10-07T12:02:00Z", "power_w": 4000, "energy_wh": 2000},
+    ]
+    with pytest.raises(ValueError, match="Conflicting energy sample"):
+        ingest_page(db, later)
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT cursor FROM sources").fetchone()[0] == 2
+    assert _count(db, "events") == 2
+    assert _count(db, "energy_samples") == 1
