@@ -8,11 +8,12 @@ version = "0.1.0"
 description = "Offline-first read-only reporting for OCPP CSMS"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = "MIT"
 dependencies = ["pydantic>=2,<3", "typer>=0.26,<1", "Jinja2>=3.1,<4"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10", "pytest-cov>=6,<8"]
+build = ["build>=1,<2"]
 
 [project.scripts]
 ocpp-reports = "ocpp_reports.cli:app"
@@ -23,3 +24,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --durations=10"
+
+[tool.setuptools.package-data]
+ocpp_reports = ["templates/*.j2"]
