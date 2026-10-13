@@ -90,6 +90,9 @@ def run(
         typer.echo(f"Report run refused: {exc}", err=True)
         raise typer.Exit(2)
     if send:
+        if result.startswith("EXISTS:"):
+            typer.echo(f"Already recorded for this period: {result[7:]}; no automatic retry")
+            return
         typer.echo(f"Queued {result}")
         send_mail()
     elif output is not None:
