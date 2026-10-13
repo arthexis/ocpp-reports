@@ -16,8 +16,8 @@ def valid():
         "summary": {"transactions": 2, "known_energy_wh": 0,
                     "missing_energy_transactions": 1, "completeness": "partial"},
         "transactions": [
-            {"id": 1, "charger_id": "CP", "state": "completed", "energy_wh": 0},
-            {"id": 2, "charger_id": "CP", "state": "active", "energy_wh": None},
+            {"id": 1, "charger_id": "CP", "connector_id": 1, "state": "completed", "energy_wh": 0},
+            {"id": 2, "charger_id": "CP", "connector_id": None, "state": "active", "energy_wh": None},
         ],
         "revision": "r1",
     }
