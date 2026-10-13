@@ -53,6 +53,16 @@ def test_cli_queues_without_sending(monkeypatch, tmp_path):
     source.write_text(json.dumps(document))
     monkeypatch.setenv("OCPP_REPORTS_OPERATOR_EMAIL", "operator@example.org")
     monkeypatch.setenv("OCPP_REPORTS_OUTBOX", str(tmp_path / "outbox.sqlite3"))
-    result = CliRunner().invoke(app, ["scheduled-run", "--source", str(source)])
+    result = CliRunner().invoke(app, ["run", "--source", str(source), "--output", str(tmp_path / "report.txt")])
     assert result.exit_code == 0, result.output
-    assert Outbox(tmp_path / "outbox.sqlite3").list()[0]["state"] == "pending"
+    assert (tmp_path / "report.txt").exists()\n    assert Outbox(tmp_path / "outbox.sqlite3").list() == []
+
+def test_explicit_period_and_stdout(tmp_path):
+    source = fixture(tmp_path)
+    outbox = Outbox(tmp_path / "outbox.sqlite3")
+    from datetime import datetime
+    rendered = prepare_scheduled_report(source=source, outbox=outbox, operator="operator@localhost",
+        since=datetime.fromisoformat("2026-10-12T00:00:00+00:00"),
+        until=datetime.fromisoformat("2026-10-13T00:00:00+00:00"), queue=False)
+    assert "OCPP charging report" in rendered
+    assert outbox.list() == []
