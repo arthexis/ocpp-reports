@@ -58,10 +58,13 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
     timestamp = imported_at or datetime.now(timezone.utc).isoformat()
     with sqlite3.connect(database) as db:
         _schema(db)
+        db.execute("BEGIN IMMEDIATE")
         db.execute("INSERT OR IGNORE INTO sources(source_id) VALUES (?)", (source,))
         current = db.execute("SELECT cursor FROM sources WHERE source_id=?", (source,)).fetchone()[0]
         if cursor["after"] > current:
             raise ValueError(f"Export cursor gap: expected {current}, got {cursor['after']}")
+        if cursor["after"] < current and cursor["next"] > current:
+            raise ValueError("Overlapping export cursor page")
         if cursor["after"] < current and cursor["next"] > current:
             raise ValueError("Overlapping export cursor page")
         for event in data["events"]:
@@ -71,6 +74,8 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
                                (source, identity)).fetchone()
             if prior is not None and prior[0] != encoded:
                 raise ValueError(f"Conflicting immutable event {identity}")
+            if cursor["after"] < current and prior is None:
+                raise ValueError(f"Previously imported event {identity} is missing")
             db.execute("INSERT OR IGNORE INTO events VALUES (?,?,?)", (source, identity, encoded))
         for sample in data["energy"]:
             event_id, index = sample["source_event_id"], sample["sample_index"]
@@ -79,6 +84,8 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
                                (source, event_id, index)).fetchone()
             if prior is not None and prior[0] != encoded:
                 raise ValueError(f"Conflicting energy sample {event_id}/{index}")
+            if cursor["after"] < current and prior is None:
+                raise ValueError(f"Previously imported sample {event_id}/{index} is missing")
             db.execute("INSERT OR IGNORE INTO energy_samples VALUES (?,?,?,?)",
                        (source, event_id, index, encoded))
         for tx in data["transactions"]:
