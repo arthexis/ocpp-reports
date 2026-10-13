@@ -59,4 +59,32 @@ def test_invalid_format_rejected(tmp_path):
     result = CliRunner().invoke(app, ["run", "--source", str(source_file(tmp_path)),
                                      "--format", "html"])
     assert result.exit_code == 2
-    assert "Format must be text or csv" in result.output
+    assert "Format must be auto, text or csv" in result.output
+
+
+def test_infers_csv_from_extension_and_explicit_override(tmp_path, monkeypatch):
+    source = source_file(tmp_path)
+    monkeypatch.setenv("OCPP_REPORTS_OUTBOX", str(tmp_path / "outbox.sqlite3"))
+    runner = CliRunner()
+    csv_path = tmp_path / "inferred.CSV"
+    result = runner.invoke(app, ["run", "--source", str(source), "--output", str(csv_path)])
+    assert result.exit_code == 0, result.output
+    assert list(csv.DictReader(io.StringIO(csv_path.read_text())))[0]["energy_wh"] == "0"
+    text_path = tmp_path / "explicit.csv"
+    result = runner.invoke(app, ["run", "--source", str(source), "--format", "text",
+                                 "--output", str(text_path)])
+    assert result.exit_code == 0, result.output
+    assert "OCPP charging report" in text_path.read_text()
+    assert Outbox(tmp_path / "outbox.sqlite3").list() == []
+
+
+def test_inferred_csv_cannot_send(tmp_path, monkeypatch):
+    source = source_file(tmp_path)
+    monkeypatch.setenv("OCPP_REPORTS_OUTBOX", str(tmp_path / "outbox.sqlite3"))
+    path = tmp_path / "inferred.csv"
+    result = CliRunner().invoke(app, ["run", "--source", str(source),
+                                     "--output", str(path), "--send"])
+    assert result.exit_code == 2
+    assert "manual output only" in result.output
+    assert not path.exists()
+    assert not (tmp_path / "outbox.sqlite3").exists()
