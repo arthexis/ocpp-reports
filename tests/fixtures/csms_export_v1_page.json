@@ -10,25 +10,22 @@
     "events": [
       {
         "id": 1,
-        "occurred_at": "2026-10-07T12:00:00Z",
+        "at": "2026-10-07T12:00:00Z",
         "charger_id": "cp-a",
-        "kind": "ocpp",
+        "kind": "transaction_started",
         "action": "StartTransaction",
-        "direction": "in",
+        "connector_id": 1,
         "transaction_id": 7,
-        "id_tag": "REDACTED",
-        "payload": {}
+        "rfid": "REDACTED"
       },
       {
         "id": 2,
-        "occurred_at": "2026-10-07T12:01:00Z",
+        "at": "2026-10-07T12:01:00Z",
         "charger_id": "cp-a",
-        "kind": "ocpp",
+        "kind": "meter_values",
         "action": "MeterValues",
-        "direction": "in",
-        "transaction_id": 7,
-        "id_tag": null,
-        "payload": {}
+        "connector_id": 1,
+        "transaction_id": 7
       }
     ],
     "energy": [
