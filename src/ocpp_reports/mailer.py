@@ -30,8 +30,8 @@ def send_smtp(delivery: Delivery, *, host: str, port: int, sender: str,
         client.send_message(message)
 
 
-def deliver_once(outbox: Outbox, send=send_smtp, **settings) -> str | None:
-    delivery = outbox.claim()
+def deliver_once(outbox: Outbox, send=send_smtp, *, key: str | None = None, **settings) -> str | None:
+    delivery = outbox.claim(key=key)
     if delivery is None:
         return None
     try:

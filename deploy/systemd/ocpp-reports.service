@@ -1,0 +1,20 @@
+[Unit]
+Description=OCPP Reports scheduled operator mail delivery
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ocpp-reports
+Group=ocpp-reports
+EnvironmentFile=/etc/ocpp-reports/ocpp-reports.env
+Environment=OCPP_REPORTS_OUTBOX=/var/lib/ocpp-reports/outbox.sqlite3
+WorkingDirectory=/var/lib/ocpp-reports
+ExecStart=/usr/bin/ocpp-reports run --source /var/lib/ocpp-reports/summary.json --period previous-day --timezone America/Monterrey --send
+StateDirectory=ocpp-reports
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/ocpp-reports

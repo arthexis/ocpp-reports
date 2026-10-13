@@ -19,6 +19,11 @@ CREATE TABLE IF NOT EXISTS deliveries (
     sent_at INTEGER,
     last_error TEXT
 );
+CREATE TABLE IF NOT EXISTS report_periods (
+    period_key TEXT PRIMARY KEY,
+    delivery_key TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
 """
 
 @dataclass(frozen=True)
@@ -54,10 +59,45 @@ class Outbox:
                 raise ValueError("Idempotency collision: report revision or content changed")
         return key
 
-    def claim(self) -> Delivery | None:
+    def enqueue_period(self, *, period_key: str, recipient: str, subject: str,
+                       body: str, revision: str) -> tuple[str, bool]:
+        """Atomically reserve a reporting period and its immutable delivery.
+
+        Returns (delivery key, newly reserved). Existing periods are never
+        resent or rewritten automatically, even after crashes.
+        """
+        if not period_key:
+            raise ValueError("period key required")
+        key = hashlib.sha256(("\\0".join((recipient, subject, revision))).encode()).hexdigest()
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT * FROM deliveries WHERE state='pending' ORDER BY created_at,key LIMIT 1").fetchone()
+            existing = db.execute("SELECT delivery_key FROM report_periods WHERE period_key=?",
+                                  (period_key,)).fetchone()
+            if existing:
+                return existing["delivery_key"], False
+            db.execute("INSERT OR IGNORE INTO deliveries (key,recipient,subject,body,state,created_at) VALUES (?,?,?,?,?,?)",
+                       (key, recipient, subject, body, "pending", int(time.time())))
+            row = db.execute("SELECT recipient,subject,body FROM deliveries WHERE key=?", (key,)).fetchone()
+            if tuple(row) != (recipient, subject, body):
+                raise ValueError("Idempotency collision: report revision or content changed")
+            db.execute("INSERT INTO report_periods (period_key,delivery_key,created_at) VALUES (?,?,?)",
+                       (period_key, key, int(time.time())))
+            return key, True
+
+    def period_status(self, period_key: str) -> dict | None:
+        with self.connect() as db:
+            row = db.execute("""SELECT p.period_key,p.delivery_key,d.state,d.attempts,d.last_error
+                FROM report_periods p JOIN deliveries d ON d.key=p.delivery_key
+                WHERE p.period_key=?""", (period_key,)).fetchone()
+            return dict(row) if row else None
+
+    def claim(self, key: str | None = None) -> Delivery | None:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if key is None:
+                row = db.execute("SELECT * FROM deliveries WHERE state='pending' ORDER BY created_at,key LIMIT 1").fetchone()
+            else:
+                row = db.execute("SELECT * FROM deliveries WHERE state='pending' AND key=?", (key,)).fetchone()
             if row is None:
                 return None
             updated = db.execute("UPDATE deliveries SET state='sending',attempts=attempts+1,claimed_at=? WHERE key=? AND state='pending'", (int(time.time()), row["key"]))
