@@ -1,12 +1,9 @@
-# B5: external systemd scheduling
+# B5: unified one-shot run with external systemd timer
 
-This initial B5 chunk adds timezone-aware previous-period calculations and example systemd units. B5.2 adds `scheduled-run --source PATH [--cadence daily|weekly|monthly] [--timezone UTC] [--send]`. It accepts a **precomputed, verified internal summary JSON**, checks that its half-open period matches the previous completed period, rejects incomplete or provisional data, and queues one operator-only text email. Without `--send`, it does not contact SMTP. The source must be generated separately until B2 is integrated. **Do not enable the units yet**: the sample service lacks the required `--source` argument and B5.3 recovery work is pending.
+`ocpp-reports run --source verified-summary.json` validates a complete internal summary and prints a plain-text report. Use `--output report.txt` to write a new file, or `--send` to queue and attempt SMTP delivery to the configured operator. With no output or send, the report is printed. `--send` is opt-in.
 
-`previous_period(now, cadence, zone)` returns UTC-aware half-open boundaries for the previous *completed* local day, week (Monday–Monday), or calendar month. Local midnight handles daylight-saving transitions correctly.
+Period selection: `--period previous-day|previous-week|previous-month` (default previous-day), or explicit `--since ISO --until ISO` with timezone offsets. `--timezone America/Monterrey` selects local calendar boundaries for previous periods. The source's half-open interval must exactly match the requested interval. The source must already exist as a verified `ocpp-reports/summary/v1` document; B2 export integration remains separate.
 
-The sample timer triggers daily at 08:00 **in the systemd manager's local timezone**. `Persistent=true` catches missed calendar activations after shutdown; it does not replay every missed day individually. The runner must use a durable per-period key, refuse incomplete reports, and avoid duplicate sends.
+The systemd service uses the same `run` command, with `--send`. The daily timer uses `Persistent=true`, which triggers once after downtime, **not** once per missed period. The sample service expects a prepared summary at `/var/lib/ocpp-reports/summary.json`; deployment must arrange that input and SMTP environment securely.
 
-Next chunks:
-1. Implement a one-shot `scheduled-run` that reads an approved B2 internal summary, renders it through B3, queues via B4 and sends to the operator. Avoid assuming draft B2 has merged.
-2. Provide durable per-period state and restart/replay tests.
-3. Validate environment configuration, hardening, unit paths, and full CI; then enable deployment.
+**Do not enable the timer yet.** B5.3 must implement durable per-period state and restart/replay protection, and B5.4 must verify full integration and deployment. No embedded scheduler or customer email delivery.
