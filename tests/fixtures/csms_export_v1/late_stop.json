@@ -1,0 +1,53 @@
+{
+  "schema": "ocpp-csms/export/v1",
+  "data": {
+    "source_id": "fixture-source-a",
+    "exported_at": "2026-01-01T00:11:00Z",
+    "cursor": {
+      "after": 1,
+      "next": 2,
+      "more": false
+    },
+    "events": [
+      {
+        "id": 2,
+        "at": "2026-01-01T00:10:01Z",
+        "charger_id": "cp-a",
+        "kind": "transaction_stopped",
+        "action": "StopTransaction",
+        "transaction_id": 42
+      }
+    ],
+    "energy": [],
+    "transactions": [
+      {
+        "id": 42,
+        "charger_id": "cp-a",
+        "connector_id": 1,
+        "rfid": null,
+        "state": "stopped",
+        "active": false,
+        "started_at": "2026-01-01T00:00:01Z",
+        "stopped_at": "2026-01-01T00:10:01Z",
+        "meter_start_wh": 100,
+        "meter_stop_wh": 600,
+        "energy_wh": 500,
+        "last_activity_at": "2026-01-01T00:10:01Z",
+        "start_event_at": "2026-01-01T00:00:00Z",
+        "start_received_at": "2026-01-01T00:00:01Z",
+        "stop_event_at": "2026-01-01T00:10:00Z",
+        "stop_received_at": "2026-01-01T00:10:01Z",
+        "meter_sample_times": [],
+        "quality": {
+          "active": false,
+          "incomplete": false,
+          "missing_meter": false,
+          "recovered": false,
+          "inferred": false,
+          "corrected": false
+        }
+      }
+    ],
+    "status": {}
+  }
+}
