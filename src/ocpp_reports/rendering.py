@@ -6,14 +6,14 @@ from importlib.resources import files
 from typing import Any
 
 from jinja2 import Environment, StrictUndefined, select_autoescape
+from .validation import validate_summary
 
 TEMPLATES = files("ocpp_reports").joinpath("templates")
 
 
 def render_report(report: dict[str, Any], format: str = "html") -> str:
     """Render a versioned internal summary; never infer missing measurements."""
-    if report.get("schema") != "ocpp-reports/summary/v1":
-        raise ValueError("Unsupported report schema")
+    validate_summary(report)
     summary = report["summary"]
     period = report["period"]
     rows = report["transactions"]
