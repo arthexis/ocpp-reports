@@ -1,6 +1,6 @@
 # B5: external systemd scheduling
 
-This initial B5 chunk adds timezone-aware previous-period calculations and example systemd units. It does **not** yet implement `scheduled-run`; do not install or enable the units until the runner is implemented and validated.
+This initial B5 chunk adds timezone-aware previous-period calculations and example systemd units. B5.2 adds `scheduled-run --source PATH [--cadence daily|weekly|monthly] [--timezone UTC] [--send]`. It accepts a **precomputed, verified internal summary JSON**, checks that its half-open period matches the previous completed period, rejects incomplete or provisional data, and queues one operator-only text email. Without `--send`, it does not contact SMTP. The source must be generated separately until B2 is integrated. **Do not enable the units yet**: the sample service lacks the required `--source` argument and B5.3 recovery work is pending.
 
 `previous_period(now, cadence, zone)` returns UTC-aware half-open boundaries for the previous *completed* local day, week (Monday–Monday), or calendar month. Local midnight handles daylight-saving transitions correctly.
 
