@@ -42,10 +42,26 @@ def generate(
     until: str = typer.Option(...),
     timezone: str = typer.Option("UTC"),
     json_output: bool = typer.Option(False, "-j", "--json"),
+    format: str = typer.Option("json", "--format", help="json or csv"),
 ) -> None:
-    """Foundation only: do not generate reports until the real CSMS contract is frozen."""
-    typer.echo("CSMS export adapter not yet implemented (B2); no files were written.", err=True)
-    raise typer.Exit(3)
+    """Generate a deterministic report from saved CSMS export pages."""
+    from .reporting import build_report, render
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    try:
+        ZoneInfo(timezone)
+        if format not in {"json", "csv"}:
+            raise ValueError("format must be json or csv")
+        report = build_report(source, datetime.fromisoformat(since.replace("Z", "+00:00")), datetime.fromisoformat(until.replace("Z", "+00:00")), timezone)
+        if output.resolve() == source.resolve() or (source.is_dir() and source.resolve() in output.resolve().parents):
+            raise ValueError("Output must not overwrite or reside inside the source")
+        if output.exists():
+            raise ValueError("Output already exists; use a new revision path")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(render(report, format), encoding="utf-8")
+        typer.echo(json.dumps({"output": str(output), "revision": report["revision"]}) if json_output else f"Generated {output}")
+    except (ValueError, OSError, ZoneInfoNotFoundError) as exc:
+        typer.echo(f"Report generation failed: {exc}", err=True)
+        raise typer.Exit(2)
 
 if __name__ == "__main__":
     app()
