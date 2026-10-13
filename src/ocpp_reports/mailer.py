@@ -38,7 +38,7 @@ def deliver_once(outbox: Outbox, send=send_smtp, **settings) -> str | None:
         send(delivery, **settings)
     except Exception as exc:
         # SMTP acceptance can be ambiguous after a disconnect. Never silently retry.
-        outbox.mark_uncertain(delivery.key, f"{type(exc).__name__}: {exc}")
+        outbox.mark_failed(delivery.key, f"{type(exc).__name__}: {exc}")
         raise
     else:
         outbox.mark_sent(delivery.key)
