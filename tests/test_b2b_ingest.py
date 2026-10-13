@@ -107,3 +107,42 @@ def test_new_page_failure_does_not_advance_cursor_or_store_partial_evidence(tmp_
         assert conn.execute("SELECT cursor FROM sources").fetchone()[0] == 2
     assert _count(db, "events") == 2
     assert _count(db, "energy_samples") == 1
+
+
+def test_rejects_cursor_boundary_mismatch(tmp_path, page):
+    broken = copy.deepcopy(page)
+    broken["data"]["cursor"]["next"] = 10
+    with pytest.raises(ValueError, match="boundaries"):
+        ingest_page(tmp_path / "reports.sqlite3", broken)
+
+
+def test_rejects_energy_from_other_page(tmp_path, page):
+    broken = copy.deepcopy(page)
+    broken["data"]["energy"][0]["source_event_id"] = 100
+    with pytest.raises(ValueError, match="outside page"):
+        ingest_page(tmp_path / "reports.sqlite3", broken)
+
+
+def test_replay_old_page_after_later_page_does_not_rewind(tmp_path, page):
+    db = tmp_path / "reports.sqlite3"
+    ingest_page(db, page)
+    later = copy.deepcopy(page)
+    later["data"]["cursor"] = {"after": 2, "next": 3, "more": False}
+    later["data"]["events"] = [
+        {"id": 3, "at": "2026-10-07T12:02:00Z", "charger_id": "cp-a",
+         "kind": "meter_values", "action": "MeterValues"}
+    ]
+    later["data"]["energy"] = []
+    later["data"]["transactions"] = []
+    assert ingest_page(db, later) == 3
+    assert ingest_page(db, page) == 3
+    assert _count(db, "events") == 3
+
+
+def test_empty_page_cannot_advance_cursor(tmp_path, page):
+    broken = copy.deepcopy(page)
+    broken["data"]["events"] = []
+    broken["data"]["energy"] = []
+    broken["data"]["transactions"] = []
+    with pytest.raises(ValueError, match="Empty event page"):
+        ingest_page(tmp_path / "reports.sqlite3", broken)
