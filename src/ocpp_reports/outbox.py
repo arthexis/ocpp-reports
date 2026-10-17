@@ -81,7 +81,7 @@ class Outbox:
         digest = hashlib.sha256(content).hexdigest()
         key = hashlib.sha256(repr((recipient, subject, filename, digest)).encode()).hexdigest()
         folder = self.path.parent / "attachments"
-        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        folder.mkdir(parents=True, exist_ok=True, mode=0o2770)
         destination = self.attachment_path(digest)
         if not destination.exists():
             fd, temporary = tempfile.mkstemp(dir=folder)
@@ -90,7 +90,7 @@ class Outbox:
                     stream.write(content)
                     stream.flush()
                     os.fsync(stream.fileno())
-                os.chmod(temporary, 0o600)
+                os.chmod(temporary, 0o660)
                 os.replace(temporary, destination)
             finally:
                 if os.path.exists(temporary):
