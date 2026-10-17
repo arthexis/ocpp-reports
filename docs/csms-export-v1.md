@@ -25,3 +25,15 @@ Fixtures under `tests/fixtures/csms_export_v1/` are **sanitized contract illustr
 `ocpp_reports.transaction_projection.current_transactions(reports_db, source_id=None)` reads only Reports-owned SQLite and returns one latest observed transaction snapshot per `(source_id, charger_id, transaction_id)`, with source and observation provenance. Higher export page cursor wins; within the same cursor, the latest distinct stored observation wins. Replaying an older page cannot overwrite a later cursor's snapshot. All original observations remain stored for audit; energy from different revisions is never summed. The projection does not declare a transaction physically complete or make a report period final. This is a read-only query, not yet a warehouse-backed `generate` command.
 
 Current v1 cannot reliably detect same-source backup rollback with reused event IDs. That limitation must be handled by an explicit producer reset protocol in a separate change, not inferred from an empty page.
+
+## B2C offline report generation from Reports SQLite
+
+After importing export pages into a Reports-owned SQLite database, use:
+
+```sh
+ocpp-reports generate --source reports.sqlite3 --source-id fixture-source-a \
+  --since 2026-01-01T00:00:00Z --until 2026-01-02T00:00:00Z \
+  --timezone UTC --format csv --output report.csv
+```
+
+`--source-id` is optional only when the database contains exactly one source with observations. The command reads Reports SQLite without modifying it; the existing JSON-page `--source` path is unchanged. The generated revision is a digest of selected current observations and their stable evidence fingerprints, excluding volatile import timestamps. A late StopTransaction produces a new revision; missing Wh remains null, never zero. Non-completed/active transactions remain partial. This is not yet a guarantee of source completeness or a multi-source warehouse report.
