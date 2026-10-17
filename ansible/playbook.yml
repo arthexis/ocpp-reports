@@ -5,8 +5,9 @@
   become: false
   vars:
     reports_commit: "{{ lookup('pipe', 'git -C ' ~ playbook_dir ~ '/.. rev-parse HEAD') | trim }}"
-    reports_root: "/opt/ocpp-reports"
+    reports_root: "{{ lookup('env', 'OCPP_REPORTS_INSTALL_ROOT') | default('/opt/ocpp-reports', true) }}"
     reports_release: "{{ reports_root }}/releases/{{ reports_commit }}"
+    reports_cli_link: "{{ lookup('env', 'OCPP_REPORTS_CLI_LINK') | default('/usr/local/bin/ocpp-reports', true) }}"
   tasks:
     - name: Validate deployment host
       ansible.builtin.assert:
@@ -36,7 +37,7 @@
     - name: Link active Reports CLI
       ansible.builtin.file:
         src: "{{ reports_release }}/venv/bin/ocpp-reports"
-        dest: /usr/local/bin/ocpp-reports
+        dest: "{{ reports_cli_link }}"
         state: link
         force: true
       become: true
