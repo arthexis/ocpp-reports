@@ -103,8 +103,7 @@ def render(report: dict, fmt: str, *, profile: str | None = None, locations: dic
         from .csv_profiles import render_audi
         return render_audi(report, locations=locations)
     if fmt == "json":
-        return json.dumps(report, indent=2, sort_keys=True) + "
-"
+        return json.dumps(report, indent=2, sort_keys=True) + "\n"
     if fmt == "audi-csv":
         from .profiles import render_audi_csv
         return render_audi_csv(report)
