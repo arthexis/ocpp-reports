@@ -1,0 +1,42 @@
+---
+- name: Install OCPP Reports
+  hosts: localhost
+  connection: local
+  become: false
+  vars:
+    reports_commit: "{{ lookup('pipe', 'git rev-parse HEAD') | trim }}"
+    reports_root: "/opt/ocpp-reports"
+    reports_release: "{{ reports_root }}/releases/{{ reports_commit }}"
+  tasks:
+    - name: Validate deployment host
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['system'] == 'Linux'
+          - ansible_facts['architecture'] in ['aarch64', 'x86_64']
+    - name: Create Reports release directory
+      ansible.builtin.file:
+        path: "{{ reports_release }}"
+        state: directory
+        mode: '0755'
+      become: true
+    - name: Create isolated virtual environment
+      ansible.builtin.command:
+        cmd: "python3 -m venv {{ reports_release }}/venv"
+        creates: "{{ reports_release }}/venv/bin/python"
+      become: true
+    - name: Install pinned Reports checkout
+      ansible.builtin.command:
+        cmd: "{{ reports_release }}/venv/bin/pip install {{ playbook_dir }}/.."
+      become: true
+      changed_when: true
+    - name: Check installed CLI
+      ansible.builtin.command:
+        cmd: "{{ reports_release }}/venv/bin/ocpp-reports status --json"
+      changed_when: false
+    - name: Link active Reports CLI
+      ansible.builtin.file:
+        src: "{{ reports_release }}/venv/bin/ocpp-reports"
+        dest: /usr/local/bin/ocpp-reports
+        state: link
+        force: true
+      become: true
