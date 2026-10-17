@@ -46,3 +46,33 @@ def test_ingest_replay_and_reject_same_source_destination(tmp_path):
     rejected = runner.invoke(app, ["ingest", "--source", str(FIXTURES / "active.json"),
         "--database", str(FIXTURES / "active.json")])
     assert rejected.exit_code == 2
+
+
+def test_root_help_has_no_side_effects(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    for arguments in ([], ["--help"]):
+        result = runner.invoke(app, arguments)
+        assert "status" in result.output
+        assert "ingest" in result.output
+        assert "generate" in result.output
+        assert "run" in result.output
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_subcommand_help_and_json_flags():
+    for command in ("status", "ingest", "generate", "run", "config", "check", "mail"):
+        result = runner.invoke(app, [command, "--help"])
+        assert result.exit_code == 0, (command, result.output)
+    for command in ("status", "ingest", "generate", "check"):
+        result = runner.invoke(app, [command, "--help"])
+        assert "--json" in result.output, (command, result.output)
+
+
+def test_ingest_validation_failure_is_nonzero_and_read_only(tmp_path):
+    source = tmp_path / "invalid.json"
+    source.write_text("{}", encoding="utf-8")
+    destination = tmp_path / "warehouse.sqlite3"
+    result = runner.invoke(app, ["ingest", "--source", str(source),
+                                  "--database", str(destination), "--json"])
+    assert result.exit_code == 2, result.output
+    assert not destination.exists()
