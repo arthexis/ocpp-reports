@@ -91,3 +91,43 @@ def send(key: str | None = typer.Option(None, "--key", help="Send only this queu
         typer.echo(f"SMTP delivery failed: {type(exc).__name__}: {exc}", err=True)
         raise typer.Exit(1)
     typer.echo(f"SMTP accepted {key}" if key else "No pending messages")
+
+@app.command("send-file")
+def send_file(
+    report: Path = typer.Argument(..., exists=True, dir_okay=False, readable=True),
+    to: str | None = typer.Option(None, "--to"),
+    subject: str = typer.Option("OCPP charging report", "--subject"),
+    config: Path | None = typer.Option(None, "--config"),
+) -> None:
+    """Send an existing CSV/JSON report as an immutable MIME attachment."""
+    from .config import mail_settings
+    try:
+        if report.suffix.lower() not in {".csv", ".json"}:
+            raise ValueError("Only CSV and JSON report attachments are supported")
+        settings = mail_settings(config)
+        recipient = to or settings["recipient"]
+        if not recipient or "@" not in recipient or any(c in recipient for c in (chr(10), chr(13), " ")):
+            raise ValueError("Invalid recipient")
+        if not settings["host"] or not settings["sender"]:
+            raise ValueError("SMTP host and sender are required")
+        outbox = Outbox(db_path())
+        key = outbox.enqueue_attachment(
+            recipient=recipient, subject=subject,
+            body="Attached is the requested OCPP charging report.",
+            filename=report.name, content=report.read_bytes())
+        record = next(item for item in outbox.list() if item["key"] == key)
+        if record["state"] != "pending":
+            typer.echo(f"Existing delivery {key}: {record['state']}; no automatic resend")
+            return
+        delivered = deliver_once(outbox, host=settings["host"], port=settings["port"],
+                                 sender=settings["sender"], username=settings["username"],
+                                 password=settings["password"], tls=settings["tls"], key=key)
+        typer.echo(f"SMTP accepted {delivered}" if delivered else f"No pending delivery for {key}")
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Cannot send report: {exc}", err=True)
+        raise typer.Exit(2)
+    except Exception as exc:
+        typer.echo(f"SMTP delivery failed: {type(exc).__name__}", err=True)
+        raise typer.Exit(1)
+
+
