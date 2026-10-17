@@ -66,7 +66,7 @@ def test_subcommand_help_and_json_flags():
     for command in ("status", "ingest", "generate", "check"):
         result = runner.invoke(app, [command, "--help"])
         import re
-        plain = re.sub(r"\\x1b\\[[0-9;]*m", "", result.output)
+        plain = re.sub("\\x1b\\[[0-9;]*m", "", result.output)
         assert "--json" in plain, (command, plain)
 
 
