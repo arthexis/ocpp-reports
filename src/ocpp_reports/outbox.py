@@ -45,12 +45,12 @@ class Outbox:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             db.executescript(SCHEMA)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(deliveries)")}
+            for name in ("attachment_name", "attachment_sha256"):
+                if name not in columns:
+                    db.execute(f"ALTER TABLE deliveries ADD COLUMN {name} TEXT")
         if self.path.parent == Path("/var/lib/ocpp-reports"):
             self.path.chmod(0o660)
-            columns = {row[1] for row in db.execute('PRAGMA table_info(deliveries)')}
-            for name in ('attachment_name', 'attachment_sha256'):
-                if name not in columns:
-                    db.execute(f'ALTER TABLE deliveries ADD COLUMN {name} TEXT')
 
     def connect(self):
         db = sqlite3.connect(self.path, timeout=10)
