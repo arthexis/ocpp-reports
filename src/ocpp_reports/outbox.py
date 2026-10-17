@@ -1,6 +1,8 @@
 """SQLite-backed immutable email outbox with crash-safe claims."""
 from __future__ import annotations
 import hashlib
+import os
+import tempfile
 import sqlite3
 import time
 from pathlib import Path
@@ -33,6 +35,9 @@ class Delivery:
     subject: str
     body: str
     attempts: int
+    attachment_name: str | None = None
+    attachment_path: Path | None = None
+    attachment_sha256: str | None = None
 
 class Outbox:
     def __init__(self, path: str | Path):
@@ -40,6 +45,10 @@ class Outbox:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             db.executescript(SCHEMA)
+            columns = {row[1] for row in db.execute('PRAGMA table_info(deliveries)')}
+            for name in ('attachment_name', 'attachment_sha256'):
+                if name not in columns:
+                    db.execute(f'ALTER TABLE deliveries ADD COLUMN {name} TEXT')
 
     def connect(self):
         db = sqlite3.connect(self.path, timeout=10)
@@ -103,7 +112,7 @@ class Outbox:
             updated = db.execute("UPDATE deliveries SET state='sending',attempts=attempts+1,claimed_at=? WHERE key=? AND state='pending'", (int(time.time()), row["key"]))
             if updated.rowcount != 1:
                 return None
-            return Delivery(row["key"], row["recipient"], row["subject"], row["body"], row["attempts"] + 1)
+            return Delivery(row["key"], row["recipient"], row["subject"], row["body"], row["attempts"] + 1, row["attachment_name"], self.attachment_path(row["attachment_sha256"]) if row["attachment_sha256"] else None, row["attachment_sha256"])
 
     def mark_sent(self, key: str):
         with self.connect() as db:
