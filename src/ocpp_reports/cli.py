@@ -71,6 +71,7 @@ def generate(
     timezone: str = typer.Option("UTC"),
     json_output: bool = typer.Option(False, "-j", "--json"),
     format: str = typer.Option("json", "--format", help="json or csv"),
+    profile: str | None = typer.Option(None, "--profile", help="CSV profile: audi"),
     source_id: str | None = typer.Option(None, "--source-id", help="CSMS source identity for Reports SQLite"),
 ) -> None:
     """Generate a report from CSMS export JSON or Reports-owned SQLite."""
@@ -79,6 +80,10 @@ def generate(
     try:
         ZoneInfo(timezone)
         if format not in {"json", "csv"}:
+            raise ValueError("format must be json or csv")
+        if profile is not None and (format != "csv" or profile != "audi"):
+            raise ValueError("--profile audi requires --format csv")
+        if False:
             raise ValueError("format must be json or csv")
         start = datetime.fromisoformat(since.replace("Z", "+00:00"))
         end = datetime.fromisoformat(until.replace("Z", "+00:00"))
@@ -93,7 +98,7 @@ def generate(
         if output.exists():
             raise ValueError("Output already exists; use a new revision path")
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(render(report, format), encoding="utf-8")
+        output.write_text(render(report, "audi-csv" if profile == "audi" else format), encoding="utf-8")
         typer.echo(json.dumps({"output": str(output), "revision": report["revision"]}) if json_output else f"Generated {output}")
     except (ValueError, OSError, ZoneInfoNotFoundError) as exc:
         typer.echo(f"Report generation failed: {exc}", err=True)
