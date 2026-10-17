@@ -38,7 +38,7 @@ def build_report(source: Path, since: datetime, until: datetime, tz: str) -> dic
     for (_, txid), tx in sorted(by_identity.items()):
         at = parse_time(tx.started_at) or parse_time(tx.last_activity_at)
         if at is not None and start <= at < end:
-            selected.append({"id": txid, "charger_id": tx.charger_id, "connector_id": tx.connector_id, "rfid": tx.rfid, "state": tx.state, "active": tx.active, "started_at": tx.started_at, "stopped_at": tx.stopped_at, "energy_wh": tx.energy_wh})
+            selected.append({"id": txid, "charger_id": tx.charger_id, "connector_id": tx.connector_id, "rfid": tx.rfid, "state": tx.state, "active": tx.active, "started_at": tx.started_at, "stopped_at": tx.stopped_at, "energy_wh": tx.energy_wh, "meter_start_wh": getattr(tx, "meter_start_wh", None), "meter_stop_wh": getattr(tx, "meter_stop_wh", None), "stop_reason": getattr(tx, "stop_reason", None)})
     total_wh = sum(row["energy_wh"] for row in selected if row["energy_wh"] is not None)
     missing = sum(row["energy_wh"] is None for row in selected)
     report = {"schema": "ocpp-reports/summary/v1", "source_id": next(iter(sources)), "period": {"since": since.isoformat(), "until": until.isoformat(), "timezone": tz, "semantics": "[since,until)"}, "summary": {"transactions": len(selected), "known_energy_wh": total_wh, "missing_energy_transactions": missing, "completeness": "partial" if missing else "complete"}, "transactions": selected, "evidence": evidence}
@@ -72,7 +72,8 @@ def build_report_from_database(database: Path, since: datetime, until: datetime,
             continue
         selected.append({key: tx.get(key) for key in
                          ("id", "charger_id", "connector_id", "rfid", "state",
-                          "active", "started_at", "stopped_at", "energy_wh")})
+                          "active", "started_at", "stopped_at", "energy_wh",
+                          "meter_start_wh", "meter_stop_wh", "stop_reason")})
         evidence.append({"charger_id": tx["charger_id"], "transaction_id": tx["id"],
                          "page_next": item["evidence"]["page_next"],
                          "fingerprint": item["evidence"]["fingerprint"]})
@@ -98,6 +99,9 @@ def build_report_from_database(database: Path, since: datetime, until: datetime,
 def render(report: dict, fmt: str) -> str:
     if fmt == "json":
         return json.dumps(report, indent=2, sort_keys=True) + "\n"
+    if fmt == "audi-csv":
+        from .profiles import render_audi_csv
+        return render_audi_csv(report)
     if fmt == "csv":
         from .rendering import render_report
         return render_report(report, "csv")
