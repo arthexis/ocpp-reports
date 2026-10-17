@@ -45,15 +45,23 @@ def generate(
     timezone: str = typer.Option("UTC"),
     json_output: bool = typer.Option(False, "-j", "--json"),
     format: str = typer.Option("json", "--format", help="json or csv"),
+    source_id: str | None = typer.Option(None, "--source-id", help="CSMS source identity for Reports SQLite"),
 ) -> None:
-    """Generate a deterministic report from saved CSMS export pages."""
-    from .reporting import build_report, render
+    """Generate a report from CSMS export JSON or Reports-owned SQLite."""
+    from .reporting import build_report, build_report_from_database, render
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
     try:
         ZoneInfo(timezone)
         if format not in {"json", "csv"}:
             raise ValueError("format must be json or csv")
-        report = build_report(source, datetime.fromisoformat(since.replace("Z", "+00:00")), datetime.fromisoformat(until.replace("Z", "+00:00")), timezone)
+        start = datetime.fromisoformat(since.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(until.replace("Z", "+00:00"))
+        if source.suffix.lower() in {".sqlite", ".sqlite3", ".db"}:
+            report = build_report_from_database(source, start, end, timezone, source_id=source_id)
+        else:
+            if source_id is not None:
+                raise ValueError("--source-id is only supported for Reports SQLite")
+            report = build_report(source, start, end, timezone)
         if output.resolve() == source.resolve() or (source.is_dir() and source.resolve() in output.resolve().parents):
             raise ValueError("Output must not overwrite or reside inside the source")
         if output.exists():
