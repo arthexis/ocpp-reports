@@ -11,7 +11,7 @@ app = typer.Typer(help="Inspect and manually operate the local email outbox.", n
 
 
 def db_path() -> Path:
-    return Path(os.environ.get("OCPP_REPORTS_OUTBOX", "~/.local/state/ocpp-reports/outbox.sqlite3")).expanduser()
+    return Path(os.environ.get("OCPP_REPORTS_OUTBOX", "/var/lib/ocpp-reports/outbox.sqlite3")).expanduser()
 
 
 def operator_address() -> str:
