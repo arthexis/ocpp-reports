@@ -44,7 +44,11 @@ class Outbox:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
-            db.executescript(SCHEMA)
+            # Serialize schema inspection and migration across concurrent processes.
+            db.execute("BEGIN IMMEDIATE")
+            for statement in SCHEMA.split(";"):
+                if statement.strip():
+                    db.execute(statement)
             columns = {row[1] for row in db.execute("PRAGMA table_info(deliveries)")}
             for name in ("attachment_name", "attachment_sha256"):
                 if name not in columns:
