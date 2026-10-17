@@ -6,9 +6,50 @@ import typer
 from . import __version__
 from .models import ReportRequest
 from .mail_cli import app as mail_app
+from .config import DEFAULT_CONFIG, load_config
 
 app = typer.Typer(help="Offline OCPP report generation and operator mail delivery.", no_args_is_help=True)
 app.add_typer(mail_app, name="mail")
+
+@app.command("config")
+def config_command(
+    show: bool = typer.Option(False, "--show", help="Show non-secret configuration"),
+    check: bool = typer.Option(False, "--check", help="Validate configuration without editing"),
+) -> None:
+    """Edit the system-wide TOML configuration with nano."""
+    import os
+    import subprocess
+    from .config import mail_settings
+    if show and check:
+        raise typer.BadParameter("Choose --show or --check")
+    if not show and not check:
+        if not __import__("sys").stdin.isatty():
+            typer.echo("Configuration editing requires an interactive terminal", err=True)
+            raise typer.Exit(2)
+        command = ["nano", str(DEFAULT_CONFIG)] if os.access(DEFAULT_CONFIG, os.W_OK) else ["sudo", "-e", str(DEFAULT_CONFIG)]
+        environment = dict(os.environ)
+        if command[0] == "sudo":
+            environment["SUDO_EDITOR"] = "nano"
+        try:
+            completed = subprocess.run(command, env=environment, check=False)
+        except OSError as exc:
+            typer.echo(f"Cannot launch editor: {exc}", err=True)
+            raise typer.Exit(2)
+        if completed.returncode:
+            raise typer.Exit(completed.returncode)
+    try:
+        document = load_config()
+        mail_settings()
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Configuration invalid: {exc}", err=True)
+        raise typer.Exit(2)
+    if show:
+        safe = {key: value for key, value in document.items() if key != "mail"}
+        safe["mail"] = {key: value for key, value in document.get("mail", {}).items() if key not in {"password", "secret", "token"}}
+        typer.echo(json.dumps(safe, indent=2, sort_keys=True))
+    else:
+        typer.echo(f"Configuration valid: {DEFAULT_CONFIG}")
+
 
 @app.command()
 def status(json_output: bool = typer.Option(False, "-j", "--json", help="Machine-readable output")) -> None:
