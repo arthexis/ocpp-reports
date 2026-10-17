@@ -1,0 +1,7 @@
+# Verified CSMS export contract (B0a/B0b)
+
+Producer: [ocpp-csms/export_contract.py](https://github.com/arthexis/ocpp-csms/blob/main/src/ocpp_csms/export_contract.py); transaction serializer: [transactions/contracts.py](https://github.com/arthexis/ocpp-csms/blob/main/src/ocpp_csms/transactions/contracts.py).
+
+The producer returns `{"schema":"ocpp-csms/export/v1","data":{...}}`. The data contains `source_id`, `cursor` (`after`, `next`, `more`), `events`, `energy`, `transactions`, and `status`. Transaction fields are `id`, `charger_id`, `connector_id`, `rfid`, `state`, `active`, `started_at`, `stopped_at`, `meter_start_wh`, `meter_stop_wh`, `energy_wh`, `last_activity_at`. Energy is in **Wh**, not kWh or kW. CSMS export currently serializes transactions using `local_time=True`: timestamps are received-at timestamps with fallbacks, not necessarily original charge-point event times. The exporter returns transactions related to the current event page, not a complete historical snapshot.
+
+B2 consumes saved JSON pages and never imports or invokes CSMS. Additional fields are tolerated; unknown schema versions and cursor regression are rejected. Reports are deterministic from the supplied files. The current report groups by transaction start/received time, not energy sample time. Partial data, corrected transactions and overlapping export pages require further reconciliation before B2 can be considered production-complete.

@@ -27,5 +27,6 @@ def test_generate_is_not_false_success(tmp_path):
     source.write_text("{}")
     output = tmp_path / "report.json"
     result = runner.invoke(app, ["generate", "--source", str(source), "--output", str(output), "--since", "2026-10-01T00:00:00+00:00", "--until", "2026-10-02T00:00:00+00:00"])
-    assert result.exit_code == 3
+    assert result.exit_code != 0
+    assert "Report generation failed" in result.output
     assert not output.exists()
