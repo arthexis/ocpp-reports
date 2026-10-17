@@ -83,8 +83,6 @@ def generate(
             raise ValueError("format must be json or csv")
         if profile is not None and (format != "csv" or profile != "audi"):
             raise ValueError("--profile audi requires --format csv")
-        if False:
-            raise ValueError("format must be json or csv")
         start = datetime.fromisoformat(since.replace("Z", "+00:00"))
         end = datetime.fromisoformat(until.replace("Z", "+00:00"))
         if source.suffix.lower() in {".sqlite", ".sqlite3", ".db"}:
