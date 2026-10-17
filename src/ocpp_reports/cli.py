@@ -71,18 +71,21 @@ def generate(
     timezone: str = typer.Option("UTC"),
     json_output: bool = typer.Option(False, "-j", "--json"),
     format: str = typer.Option("json", "--format", help="json or csv"),
-    profile: str | None = typer.Option(None, "--profile", help="CSV profile: audi"),
-    source_id: str | None = typer.Option(None, "--source-id", help="CSMS source identity for Reports SQLite"),\n    profile: str | None = typer.Option(None, "--profile", help="CSV layout profile: audi"),\n    locations: Path | None = typer.Option(None, "--locations", help="JSON map of charger ID to location"),
+    source_id: str | None = typer.Option(None, "--source-id", help="CSMS source identity for Reports SQLite"),
+    profile: str | None = typer.Option(None, "--profile", help="CSV layout profile: audi"),
+    locations: Path | None = typer.Option(None, "--locations", help="JSON map of charger ID to location"),
 ) -> None:
     """Generate a report from CSMS export JSON or Reports-owned SQLite."""
     from .reporting import build_report, build_report_from_database, render
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
     try:
         ZoneInfo(timezone)
-        if profile is not None and (profile != "audi" or format != "csv"):\n            raise ValueError("--profile audi requires --format csv")\n        if locations is not None and profile != "audi":\n            raise ValueError("--locations requires --profile audi")\n        if format not in {"json", "csv"}:
-            raise ValueError("format must be json or csv")
-        if profile is not None and (format != "csv" or profile != "audi"):
+        if profile is not None and (profile != "audi" or format != "csv"):
             raise ValueError("--profile audi requires --format csv")
+        if locations is not None and profile != "audi":
+            raise ValueError("--locations requires --profile audi")
+        if format not in {"json", "csv"}:
+            raise ValueError("format must be json or csv")
         start = datetime.fromisoformat(since.replace("Z", "+00:00"))
         end = datetime.fromisoformat(until.replace("Z", "+00:00"))
         if source.suffix.lower() in {".sqlite", ".sqlite3", ".db"}:
@@ -96,7 +99,10 @@ def generate(
         if output.exists():
             raise ValueError("Output already exists; use a new revision path")
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(render(report, "audi-csv" if profile == "audi" else format), encoding="utf-8")
+        location_map = json.loads(locations.read_text(encoding="utf-8")) if locations else None
+        if location_map is not None and (not isinstance(location_map, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in location_map.items())):
+            raise ValueError("--locations must be a JSON object mapping charger IDs to location names")
+        output.write_text(render(report, format, profile=profile, locations=location_map), encoding="utf-8")
         typer.echo(json.dumps({"output": str(output), "revision": report["revision"]}) if json_output else f"Generated {output}")
     except (ValueError, OSError, ZoneInfoNotFoundError) as exc:
         typer.echo(f"Report generation failed: {exc}", err=True)
