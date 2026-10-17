@@ -68,6 +68,46 @@ class Outbox:
                 raise ValueError("Idempotency collision: report revision or content changed")
         return key
 
+    def attachment_path(self, digest: str) -> Path:
+        return self.path.parent / "attachments" / digest
+
+    def enqueue_attachment(self, *, recipient: str, subject: str, body: str,
+                           filename: str, content: bytes) -> str:
+        """Store immutable content before atomically registering the delivery."""
+        if not recipient or "@" not in recipient or any(ch in recipient for ch in (chr(10), chr(13))):
+            raise ValueError("Invalid recipient")
+        if not filename or Path(filename).name != filename or not content:
+            raise ValueError("Invalid attachment")
+        digest = hashlib.sha256(content).hexdigest()
+        key = hashlib.sha256(repr((recipient, subject, filename, digest)).encode()).hexdigest()
+        folder = self.path.parent / "attachments"
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        destination = self.attachment_path(digest)
+        if not destination.exists():
+            fd, temporary = tempfile.mkstemp(dir=folder)
+            try:
+                with os.fdopen(fd, "wb") as stream:
+                    stream.write(content)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.chmod(temporary, 0o600)
+                os.replace(temporary, destination)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+        if hashlib.sha256(destination.read_bytes()).hexdigest() != digest:
+            raise ValueError("Stored attachment checksum mismatch")
+        with self.connect() as db:
+            db.execute("INSERT OR IGNORE INTO deliveries "
+                       "(key,recipient,subject,body,state,created_at,attachment_name,attachment_sha256) "
+                       "VALUES (?,?,?,?,?,?,?,?)",
+                       (key, recipient, subject, body, "pending", int(time.time()), filename, digest))
+            row = db.execute("SELECT recipient,subject,body,attachment_name,attachment_sha256 "
+                             "FROM deliveries WHERE key=?", (key,)).fetchone()
+            if tuple(row) != (recipient, subject, body, filename, digest):
+                raise ValueError("Idempotency collision")
+        return key
+
     def enqueue_period(self, *, period_key: str, recipient: str, subject: str,
                        body: str, revision: str) -> tuple[str, bool]:
         """Atomically reserve a reporting period and its immutable delivery.
