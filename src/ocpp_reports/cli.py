@@ -19,6 +19,32 @@ def status(json_output: bool = typer.Option(False, "-j", "--json", help="Machine
         typer.echo(f"ocpp-reports {__version__}: foundation ready (offline)")
 
 @app.command()
+def ingest(
+    source: Path = typer.Option(..., exists=True, dir_okay=False, readable=True,
+                                help="One local CSMS export/v1 JSON page"),
+    database: Path = typer.Option(..., "--database", help="Reports-owned SQLite destination"),
+    json_output: bool = typer.Option(False, "-j", "--json"),
+) -> None:
+    """Import one export page atomically; never modify CSMS evidence."""
+    from .ingest import ingest_page, load_page
+    try:
+        if source.resolve() == database.resolve():
+            raise ValueError("Source and destination must differ")
+        if database.exists() and database.is_dir():
+            raise ValueError("Database destination must be a file")
+        page = load_page(source)
+        database.parent.mkdir(parents=True, exist_ok=True)
+        cursor = ingest_page(database, page)
+        result = {"source_id": page["data"]["source_id"], "cursor": cursor,
+                  "database": str(database)}
+        typer.echo(json.dumps(result, sort_keys=True) if json_output
+                   else f"Ingested {result['source_id']} through event {cursor}")
+    except (ValueError, OSError, json.JSONDecodeError) as exc:
+        typer.echo(f"Ingest refused: {exc}", err=True)
+        raise typer.Exit(2)
+
+
+@app.command()
 def check(
     since: str = typer.Option(..., help="Inclusive ISO timestamp with offset"),
     until: str = typer.Option(..., help="Exclusive ISO timestamp with offset"),
@@ -46,12 +72,18 @@ def generate(
     json_output: bool = typer.Option(False, "-j", "--json"),
     format: str = typer.Option("json", "--format", help="json or csv"),
     source_id: str | None = typer.Option(None, "--source-id", help="CSMS source identity for Reports SQLite"),
+    profile: str | None = typer.Option(None, "--profile", help="CSV layout profile: audi"),
+    locations: Path | None = typer.Option(None, "--locations", help="JSON map of charger ID to location"),
 ) -> None:
     """Generate a report from CSMS export JSON or Reports-owned SQLite."""
     from .reporting import build_report, build_report_from_database, render
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
     try:
         ZoneInfo(timezone)
+        if profile is not None and (profile != "audi" or format != "csv"):
+            raise ValueError("--profile audi requires --format csv")
+        if locations is not None and profile != "audi":
+            raise ValueError("--locations requires --profile audi")
         if format not in {"json", "csv"}:
             raise ValueError("format must be json or csv")
         start = datetime.fromisoformat(since.replace("Z", "+00:00"))
@@ -67,68 +99,15 @@ def generate(
         if output.exists():
             raise ValueError("Output already exists; use a new revision path")
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(render(report, format), encoding="utf-8")
+        location_map = json.loads(locations.read_text(encoding="utf-8")) if locations else None
+        if location_map is not None and (not isinstance(location_map, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in location_map.items())):
+            raise ValueError("--locations must be a JSON object mapping charger IDs to location names")
+        output.write_text(render(report, format, profile=profile, locations=location_map), encoding="utf-8")
         typer.echo(json.dumps({"output": str(output), "revision": report["revision"]}) if json_output else f"Generated {output}")
     except (ValueError, OSError, ZoneInfoNotFoundError) as exc:
         typer.echo(f"Report generation failed: {exc}", err=True)
         raise typer.Exit(2)
 
-
-@app.command("run")
-def run(
-    source: Path = typer.Option(..., exists=True, dir_okay=False, readable=True, help="Verified internal summary JSON"),
-    period: str = typer.Option("previous-day", help="previous-day, previous-week, previous-month"),
-    since: str | None = typer.Option(None, help="Explicit inclusive ISO timestamp with offset"),
-    until: str | None = typer.Option(None, help="Explicit exclusive ISO timestamp with offset"),
-    timezone: str = typer.Option("UTC", help="IANA reporting timezone"),
-    output: Path | None = typer.Option(None, help="Write rendered text to a new file"),
-    send: bool = typer.Option(False, "--send", help="Queue and attempt SMTP delivery"),
-    format: str = typer.Option("auto", "--format", help="Output format: auto, text or csv"),
-) -> None:
-    """Render one verified report; optionally save it or send it to the operator."""
-    from .scheduled_run import prepare_scheduled_report
-    from .mail_cli import db_path, operator_address, send as send_mail
-    from .outbox import Outbox
-    from zoneinfo import ZoneInfo
-    try:
-        if format not in ("auto", "text", "csv"):
-            raise ValueError("Format must be auto, text or csv")
-        if format == "auto":
-            format = "csv" if output is not None and output.suffix.lower() == ".csv" else "text"
-        if format == "csv" and send:
-            raise ValueError("CSV is manual output only; --send requires text")
-        if (since is None) != (until is None):
-            raise ValueError("Both --since and --until are required together")
-        if since is not None and period != "previous-day":
-            raise ValueError("Do not combine explicit bounds with --period")
-        cadence = {"previous-day": "daily", "previous-week": "weekly", "previous-month": "monthly"}.get(period)
-        if cadence is None:
-            raise ValueError("Invalid --period")
-        ZoneInfo(timezone)
-        parse = lambda value: datetime.fromisoformat(value.replace("Z", "+00:00"))
-        start = parse(since) if since is not None else None
-        end = parse(until) if until is not None else None
-        if output is None and not send:
-            rendered = prepare_scheduled_report(source=source, outbox=Outbox(db_path()),
-                operator="operator@localhost", cadence=cadence, zone=timezone,
-                since=start, until=end, queue=False, format=format)
-            typer.echo(rendered)
-            return
-        result = prepare_scheduled_report(source=source, outbox=Outbox(db_path()),
-            operator=operator_address() if send else "operator@localhost",
-            cadence=cadence, zone=timezone, since=start, until=end,
-            output=output, queue=send, format=format)
-    except (ValueError, KeyError, TypeError, OSError, json.JSONDecodeError) as exc:
-        typer.echo(f"Report run refused: {exc}", err=True)
-        raise typer.Exit(2)
-    if send:
-        if result.startswith("EXISTS:"):
-            typer.echo(f"Already recorded for this period: {result[7:]}; no automatic retry")
-            return
-        typer.echo(f"Queued {result}")
-        send_mail(key=result)
-    elif output is not None:
-        typer.echo(f"Written {output}")
 
 @app.command("run")
 def run(
