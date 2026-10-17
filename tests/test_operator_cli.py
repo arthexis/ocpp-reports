@@ -65,7 +65,9 @@ def test_subcommand_help_and_json_flags():
         assert result.exit_code == 0, (command, result.output)
     for command in ("status", "ingest", "generate", "check"):
         result = runner.invoke(app, [command, "--help"])
-        assert "--json" in result.output, (command, result.output)
+        import re
+        plain = re.sub(r"\\x1b\\[[0-9;]*m", "", result.output)
+        assert "--json" in plain, (command, plain)
 
 
 def test_ingest_validation_failure_is_nonzero_and_read_only(tmp_path):
