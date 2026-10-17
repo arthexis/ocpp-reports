@@ -9,6 +9,60 @@
     reports_release: "{{ reports_root }}/releases/{{ reports_commit }}"
     reports_cli_link: "{{ lookup('env', 'OCPP_REPORTS_CLI_LINK') | default('/usr/local/bin/ocpp-reports', true) }}"
   tasks:
+    - name: Ensure shared OCPP operator group exists
+      ansible.builtin.group:
+        name: ocpp
+        state: present
+      become: true
+    - name: Ensure Reports service identity exists
+      ansible.builtin.user:
+        name: ocpp-reports
+        group: ocpp
+        system: true
+        create_home: false
+        shell: /usr/sbin/nologin
+      become: true
+    - name: Add invoking operator to OCPP group
+      ansible.builtin.user:
+        name: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+        groups: ocpp
+        append: true
+      when: (lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true)) not in ['root', '']
+      become: true
+    - name: Create shared OCPP configuration directory
+      ansible.builtin.file:
+        path: /etc/ocpp-reports
+        state: directory
+        owner: root
+        group: ocpp
+        mode: '2770'
+      become: true
+    - name: Install initial Reports TOML without overwriting operator edits
+      ansible.builtin.copy:
+        dest: /etc/ocpp-reports/config.toml
+        content: |
+          [mail]
+          host = ""
+          port = 587
+          tls = "starttls"
+          from = ""
+          to = ""
+        owner: root
+        group: ocpp
+        mode: '0660'
+        force: false
+      become: true
+    - name: Create shared Reports state and attachment directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: ocpp-reports
+        group: ocpp
+        mode: '2770'
+      loop:
+        - /var/lib/ocpp-reports
+        - /var/lib/ocpp-reports/attachments
+      become: true
     - name: Validate deployment host
       ansible.builtin.assert:
         that:
