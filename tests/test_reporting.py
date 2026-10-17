@@ -1,9 +1,13 @@
 import json
+import csv
+import io
 from datetime import datetime, timezone
 from pathlib import Path
 import pytest
 from ocpp_reports.export import read_page
 from ocpp_reports.reporting import build_report, render
+from ocpp_reports.rendering import render_report
+from ocpp_reports.csv_rendering import COLUMNS
 
 def sample(tmp_path):
     source = tmp_path / "export.json"
@@ -34,3 +38,18 @@ def test_no_source_write(tmp_path):
     before = path.read_bytes()
     build_report(path,datetime(2026,10,1,tzinfo=timezone.utc),datetime(2026,10,2,tzinfo=timezone.utc),"UTC")
     assert path.read_bytes() == before
+
+
+def test_generate_csv_uses_shared_schema_and_formula_escaping(tmp_path):
+    path = sample(tmp_path)
+    raw = json.loads(path.read_text())
+    raw['data']['transactions'][0]['rfid'] = '\t=1+1'
+    path.write_text(json.dumps(raw), encoding='utf-8')
+    report = build_report(path, datetime(2026, 10, 1, tzinfo=timezone.utc), datetime(2026, 10, 2, tzinfo=timezone.utc), 'UTC')
+    output = render(report, 'csv')
+    assert output == render_report(report, 'csv')
+    assert output == render(report, 'csv')
+    rows = list(csv.DictReader(io.StringIO(output)))
+    assert tuple(rows[0]) == COLUMNS
+    assert rows[0]['rfid'] == "'\t=1+1"
+    assert rows[0]['energy_wh'] == '2300'
