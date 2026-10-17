@@ -3,8 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
-import csv
-import io
 import json
 from zoneinfo import ZoneInfo
 from .export import read_page, Transaction
@@ -51,10 +49,6 @@ def render(report: dict, fmt: str) -> str:
     if fmt == "json":
         return json.dumps(report, indent=2, sort_keys=True) + "\n"
     if fmt == "csv":
-        output = io.StringIO()
-        columns = ["id", "charger_id", "connector_id", "rfid", "state", "active", "started_at", "stopped_at", "energy_wh"]
-        writer = csv.DictWriter(output, fieldnames=columns)
-        writer.writeheader()
-        writer.writerows(report["transactions"])
-        return output.getvalue()
+        from .rendering import render_report
+        return render_report(report, "csv")
     raise ValueError(f"Unsupported format: {fmt}")
