@@ -37,3 +37,7 @@ ocpp-reports generate --source reports.sqlite3 --source-id fixture-source-a \
 ```
 
 `--source-id` is optional only when the database contains exactly one source with observations. The command reads Reports SQLite without modifying it; the existing JSON-page `--source` path is unchanged. The generated revision is a digest of selected current observations and their stable evidence fingerprints, excluding volatile import timestamps. A late StopTransaction produces a new revision; missing Wh remains null, never zero. Non-completed/active transactions remain partial. This is not yet a guarantee of source completeness or a multi-source warehouse report.
+
+## Generate from Reports-owned SQLite
+
+`ocpp-reports generate --source reports.sqlite3 --source-id SOURCE --since 2026-01-01T00:00:00Z --until 2026-01-02T00:00:00Z --output report.json` reads the current transaction projection, not the producer's database. `--format csv` uses the shared CSV renderer. JSON export-page generation remains supported. Source selection is required if the database has multiple sources; empty-source selection must be explicit. The report counts each latest transaction once, keeps unknown energy null, and uses a deterministic revision based on selected evidence. Reporting periods are half-open. This projection does not imply that an incomplete transaction has ended.
