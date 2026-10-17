@@ -13,7 +13,7 @@
         "id": 1,
         "at": "2026-01-01T00:00:01Z",
         "charger_id": "cp-a",
-        "kind": "transaction_started",
+        "kind": "ocpp",
         "action": "StartTransaction",
         "transaction_id": 42
       }
@@ -41,10 +41,7 @@
         "quality": {
           "active": true,
           "incomplete": true,
-          "missing_meter": true,
-          "recovered": false,
-          "inferred": false,
-          "corrected": false
+          "missing_meter": true
         }
       }
     ],
