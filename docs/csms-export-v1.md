@@ -15,7 +15,13 @@ Transaction snapshot additive fields: `start_event_at`, `start_received_at`, `st
 ## Compatibility and known gaps
 Accept additive unknown keys, reject unsupported major schema versions, malformed cursor shapes, impossible cursor regressions and invalid field types before committing any state. Replays must be idempotent. No `transaction_changes`, `changes_after`, second SQLite DB or forwarder.
 
-Event-page transaction snapshots and status use a single SQLite read snapshot. Internal runtime/recovery events are not currently part of the OCPP event cursor; derived-only transitions cannot be assumed to generate a new export page. Backup rollback with unchanged source ID and cursor reuse is not yet detectable; do not claim reset safety without an explicit producer protocol.
+Event-page transaction snapshots and status use a single SQLite read snapshot. The current CSMS design (issue #244, superseding earlier recovery proposals) treats SQLite OCPP evidence as authoritative and preserves incomplete transactions without synthesizing StopTransaction or recovery transitions. A late real StopTransaction is a new event and its transaction snapshot is exported on the event cursor. Query-time inferred boundaries are not source events; they must not be exported or treated as proof of completion. No separate transaction-change cursor is planned. Backup rollback with unchanged source ID and cursor reuse is not yet detectable; do not claim reset safety without an explicit producer protocol.
 
 ## B2A fixture policy
 Fixtures under `tests/fixtures/csms_export_v1/` are **sanitized contract illustrations**, not captured field output or proof of deployment. Replace/verify against the merged producer's actual JSON before declaring the contract frozen. Keep stable deterministic values and avoid real RFIDs or customer identifiers. Validate one active page, a later stop page, and an empty page with no cursor progress.
+
+## B2B3 current transaction projection
+
+`ocpp_reports.transaction_projection.current_transactions(reports_db, source_id=None)` reads only Reports-owned SQLite and returns one latest observed transaction snapshot per `(source_id, charger_id, transaction_id)`, with source and observation provenance. Higher export page cursor wins; within the same cursor, the latest distinct stored observation wins. Replaying an older page cannot overwrite a later cursor's snapshot. All original observations remain stored for audit; energy from different revisions is never summed. The projection does not declare a transaction physically complete or make a report period final. This is a read-only query, not yet a warehouse-backed `generate` command.
+
+Current v1 cannot reliably detect same-source backup rollback with reused event IDs. That limitation must be handled by an explicit producer reset protocol in a separate change, not inferred from an empty page.
