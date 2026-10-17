@@ -72,14 +72,14 @@ def generate(
     json_output: bool = typer.Option(False, "-j", "--json"),
     format: str = typer.Option("json", "--format", help="json or csv"),
     profile: str | None = typer.Option(None, "--profile", help="CSV profile: audi"),
-    source_id: str | None = typer.Option(None, "--source-id", help="CSMS source identity for Reports SQLite"),
+    source_id: str | None = typer.Option(None, "--source-id", help="CSMS source identity for Reports SQLite"),\n    profile: str | None = typer.Option(None, "--profile", help="CSV layout profile: audi"),\n    locations: Path | None = typer.Option(None, "--locations", help="JSON map of charger ID to location"),
 ) -> None:
     """Generate a report from CSMS export JSON or Reports-owned SQLite."""
     from .reporting import build_report, build_report_from_database, render
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
     try:
         ZoneInfo(timezone)
-        if format not in {"json", "csv"}:
+        if profile is not None and (profile != "audi" or format != "csv"):\n            raise ValueError("--profile audi requires --format csv")\n        if locations is not None and profile != "audi":\n            raise ValueError("--locations requires --profile audi")\n        if format not in {"json", "csv"}:
             raise ValueError("format must be json or csv")
         if profile is not None and (format != "csv" or profile != "audi"):
             raise ValueError("--profile audi requires --format csv")
