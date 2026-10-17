@@ -55,11 +55,17 @@ def config_command(
 
 @app.command()
 def status(json_output: bool = typer.Option(False, "-j", "--json", help="Machine-readable output")) -> None:
-    result = {"name": "ocpp-reports", "version": __version__, "state": "foundation", "network_required": False}
+    from .diagnostics import inspect_status
+    result = inspect_status()
+    result["version"] = __version__
     if json_output:
         typer.echo(json.dumps(result, sort_keys=True))
     else:
-        typer.echo(f"ocpp-reports {__version__}: foundation ready (offline)")
+        typer.echo(f"ocpp-reports {__version__}: {result['state']} (offline)")
+        typer.echo(f"Config: {result['config']['state']}")
+        typer.echo(f"Warehouse: {result['warehouse']['state']}")
+        for source in result['warehouse']['sources']:
+            typer.echo(f"  {source['source_id']}: cursor={source['cursor']}")
 
 @app.command()
 def ingest(
