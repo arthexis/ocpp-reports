@@ -13,7 +13,7 @@
         "id": 2,
         "at": "2026-01-01T00:10:01Z",
         "charger_id": "cp-a",
-        "kind": "ocpp",
+        "kind": "transaction_stopped",
         "action": "StopTransaction",
         "transaction_id": 42
       }
