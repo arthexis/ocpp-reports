@@ -64,7 +64,7 @@ def test_numeric_identity_sort_not_lexicographic():
     assert [r["id"] for r in parsed(rows)] == ["2", "10"]
 
 
-@pytest.mark.parametrize("value", ["=2+2", "  =2+2", "\\t+SUM(1)", "\\r@evil", "\\ufeff=1"])
+@pytest.mark.parametrize("value", ["=2+2", "  =2+2", "\t+SUM(1)", "\r@evil", "\ufeff=1", "\n-1"])
 def test_formula_prefixes_are_escaped(value):
     result = parsed([{"id": 1, "charger_id": "CP", "rfid": value}])[0]
     assert result["rfid"].startswith("'")
@@ -80,3 +80,8 @@ def test_invalid_energy_is_rejected(energy):
 def test_noninteger_transaction_identity_is_rejected(identity):
     with pytest.raises(ValueError, match="id"):
         render_report(sample([{"id": identity, "charger_id": "CP"}]), "csv")
+
+
+def test_formula_prefixes_preserve_real_leading_controls():
+    for value in ('\t=1+1', '\r@evil', '\ufeff+SUM(1)', '\n-2'):
+        assert parsed([{'id': 1, 'charger_id': 'CP', 'rfid': value}])[0]['rfid'] == "'" + value

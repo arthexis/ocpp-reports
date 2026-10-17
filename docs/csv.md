@@ -6,4 +6,4 @@ Columns (v1, fixed order): `id,charger_id,connector_id,state,active,rfid,started
 
 Untrusted text beginning with spreadsheet formula operators (`=`, `+`, `-`, `@`, including after leading spaces) is prefixed with a single quote to reduce spreadsheet formula execution risk. Numeric measurements remain numeric. Standard Python CSV quoting handles Unicode, commas, quotes and newlines.
 
-B2's export ingestion and revisions remain on the backlog. A later integration change can expose `run --format text|html|csv` (default text), after specifying whether email delivery uses a text body plus CSV attachment. No changes to SMTP or scheduling are included here.
+`generate --format csv` and `run --format csv` now use the same validated CSV renderer and fixed columns. `generate` reads CSMS export pages; `run` reads a verified internal summary. `run` defaults to text and supports CSV as manual output only; `--send` with CSV is explicitly rejected. HTML remains available through the rendering API, not the `run` CLI. No changes to SMTP or scheduling are included here.

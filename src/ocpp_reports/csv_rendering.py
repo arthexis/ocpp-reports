@@ -18,7 +18,7 @@ def _safe(value: Any) -> str:
     if isinstance(value, (dict, list)):
         raise ValueError("CSV cell must be scalar")
     text = str(value)
-    if text and text.lstrip("\\t\\r\\n \\ufeff").startswith(("=", "+", "-", "@")) and not isinstance(value, (int, float)):
+    if text and text.lstrip("\t\r\n \ufeff").startswith(("=", "+", "-", "@")) and not isinstance(value, (int, float)):
         return "'" + text
     return text
 
