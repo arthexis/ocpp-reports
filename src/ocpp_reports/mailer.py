@@ -1,6 +1,8 @@
 """SMTP transport; credentials are never persisted in the outbox."""
 from __future__ import annotations
 import os
+import hashlib
+import mimetypes
 import smtplib
 import ssl
 from email.message import EmailMessage
@@ -20,6 +22,13 @@ def send_smtp(delivery: Delivery, *, host: str, port: int, sender: str,
     message["Subject"] = delivery.subject
     message["Message-ID"] = f"<{delivery.key}@ocpp-reports.local>"
     message.set_content(delivery.body)
+    if delivery.attachment_path is not None:
+        payload = delivery.attachment_path.read_bytes()
+        if hashlib.sha256(payload).hexdigest() != delivery.attachment_sha256:
+            raise ValueError("Attachment checksum mismatch")
+        mime, _ = mimetypes.guess_type(delivery.attachment_name or "")
+        major, minor = (mime or "application/octet-stream").split("/", 1)
+        message.add_attachment(payload, maintype=major, subtype=minor, filename=delivery.attachment_name)
     context = ssl.create_default_context()
     client_type = smtplib.SMTP_SSL if tls == "ssl" else smtplib.SMTP
     with client_type(host, port, timeout=timeout, **({"context": context} if tls == "ssl" else {})) as client:
