@@ -8,8 +8,10 @@ from .models import ReportRequest
 from .mail_cli import app as mail_app
 from .config import DEFAULT_CONFIG, load_config
 
-app = typer.Typer(help="Offline OCPP report generation and operator mail delivery.", no_args_is_help=True)
+app = typer.Typer(help="OCPP Reports operator CLI: inspect, ingest, generate and deliver reports.", no_args_is_help=True)
 app.add_typer(mail_app, name="mail")
+
+# Commands are explicit one-shot operations; invoking the root never ingests or sends.
 
 @app.command("config")
 def config_command(
@@ -161,7 +163,7 @@ def run(
     send: bool = typer.Option(False, "--send", help="Queue and attempt SMTP delivery"),
     format: str = typer.Option("auto", "--format", help="Output format: auto, text or csv"),
 ) -> None:
-    """Render one verified report; optionally save it or send it to the operator."""
+    """Run one configured reporting period; optionally save or deliver the result."""
     from .scheduled_run import prepare_scheduled_report
     from .mail_cli import db_path, operator_address, send as send_mail
     from .outbox import Outbox
