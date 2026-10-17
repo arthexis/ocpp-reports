@@ -37,13 +37,37 @@ jobs:
           python -c "from importlib.resources import files; assert files('ocpp_reports').joinpath('templates/summary.html.j2').read_text().startswith('<!doctype html>')"
           python -m pip check
 
+  ansible_integration:
+    name: Ansible deployment integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Ansible
+        run: python3 -m pip install ansible-core
+      - name: Run real deploy.sh into isolated CI directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          export OCPP_REPORTS_INSTALL_ROOT="${RUNNER_TEMP}/ocpp-reports"
+          export OCPP_REPORTS_CLI_LINK="${RUNNER_TEMP}/ocpp-reports-cli"
+          bash deploy.sh
+          test -x "$OCPP_REPORTS_CLI_LINK"
+          "$OCPP_REPORTS_CLI_LINK" status --json
+          test -x "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)/venv/bin/ocpp-reports"
+          bash deploy.sh
+          "$OCPP_REPORTS_CLI_LINK" status --json
+
   general:
     name: general
     if: always()
-    needs: [test]
+    needs: [test, ansible_integration]
     runs-on: ubuntu-latest
     steps:
       - name: Require all test matrix jobs
         env:
           RESULT: ${{ needs.test.result }}
-        run: test "$RESULT" = success
+          ANSIBLE_RESULT: ${{ needs.ansible_integration.result }}
+        run: |
+          test "$RESULT" = success
+          test "$ANSIBLE_RESULT" = success
