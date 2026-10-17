@@ -29,12 +29,22 @@ def inspect_status(*, config: Path | None = None, database: Path | None = None) 
         result["config"]["state"] = "invalid"
         result["config"]["error"] = type(exc).__name__
 
-    if database.exists():
+    try:
+        database_present = database.exists()
+    except OSError as exc:
+        database_present = False
+        result["warehouse"]["state"] = "inaccessible"
+        result["warehouse"]["error"] = type(exc).__name__
+
+    if database_present:
         try:
             # URI mode=ro guarantees that status cannot initialize or migrate SQLite.
             with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
                 rows = db.execute("SELECT source_id, cursor FROM sources ORDER BY source_id").fetchall()
             result["warehouse"]["state"] = "ready"
+            with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
+                last_import = db.execute("SELECT MAX(imported_at) FROM transaction_observations").fetchone()[0]
+            result["warehouse"]["last_transaction_import_at"] = last_import
             result["warehouse"]["sources"] = [
                 {"source_id": source, "cursor": cursor} for source, cursor in rows
             ]
@@ -44,6 +54,6 @@ def inspect_status(*, config: Path | None = None, database: Path | None = None) 
     result["state"] = "ready" if (
         result["config"]["state"] == "valid" and result["warehouse"]["state"] == "ready"
     ) else "degraded" if (
-        "invalid" in (result["config"]["state"], result["warehouse"]["state"])
+        any(state in ("invalid", "inaccessible") for state in (result["config"]["state"], result["warehouse"]["state"]))
     ) else "unconfigured"
     return result
