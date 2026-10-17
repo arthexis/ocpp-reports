@@ -96,8 +96,8 @@ def build_report_from_database(database: Path, since: datetime, until: datetime,
     render_report(report, "csv")  # Shared summary validation before returning.
     return report
 
-def render(report: dict, fmt: str) -> str:
-    if fmt == "json":
+def render(report: dict, fmt: str, *, profile: str | None = None, locations: dict | None = None) -> str:
+    if profile is not None:\n        if fmt != "csv" or profile != "audi":\n            raise ValueError("Profile audi requires CSV format")\n        from .csv_profiles import render_audi\n        return render_audi(report, locations=locations)\n    if fmt == "json":
         return json.dumps(report, indent=2, sort_keys=True) + "\n"
     if fmt == "audi-csv":
         from .profiles import render_audi_csv
