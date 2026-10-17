@@ -45,6 +45,56 @@ def build_report(source: Path, since: datetime, until: datetime, tz: str) -> dic
     report["revision"] = sha256(json.dumps(report, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return report
 
+
+def build_report_from_database(database: Path, since: datetime, until: datetime,
+                               tz: str, *, source_id: str | None = None) -> dict:
+    """Build a report from Reports-owned SQLite, never the producer database."""
+    from .transaction_projection import current_transactions
+    from .rendering import render_report
+    ZoneInfo(tz)
+    if (since.tzinfo is None or until.tzinfo is None
+            or since.utcoffset() is None or until.utcoffset() is None
+            or since >= until):
+        raise ValueError("Expected ordered timezone-aware half-open period")
+    observations = current_transactions(database, source_id=source_id)
+    sources = {item["source_id"] for item in observations}
+    if source_id is None:
+        if len(sources) != 1:
+            raise ValueError("Specify --source-id for an empty or multi-source database")
+        source_id = next(iter(sources))
+    selected = []
+    evidence = []
+    start, end = since.astimezone(timezone.utc), until.astimezone(timezone.utc)
+    for item in observations:
+        tx = item["transaction"]
+        at = parse_time(tx.get("started_at")) or parse_time(tx.get("last_activity_at"))
+        if at is None or not start <= at < end:
+            continue
+        selected.append({key: tx.get(key) for key in
+                         ("id", "charger_id", "connector_id", "rfid", "state",
+                          "active", "started_at", "stopped_at", "energy_wh")})
+        evidence.append({"charger_id": tx["charger_id"], "transaction_id": tx["id"],
+                         "page_next": item["evidence"]["page_next"],
+                         "fingerprint": item["evidence"]["fingerprint"]})
+    selected.sort(key=lambda row: (row["charger_id"], row["id"]))
+    evidence.sort(key=lambda row: (row["charger_id"], row["transaction_id"]))
+    missing = sum(row["energy_wh"] is None for row in selected)
+    report = {
+        "schema": "ocpp-reports/summary/v1", "source_id": source_id,
+        "period": {"since": since.isoformat(), "until": until.isoformat(),
+                   "timezone": tz, "semantics": "[since,until)"},
+        "summary": {
+            "transactions": len(selected),
+            "known_energy_wh": sum(row["energy_wh"] for row in selected if row["energy_wh"] is not None),
+            "missing_energy_transactions": missing,
+            "completeness": "partial" if missing or any(row["active"] or row["state"] != "completed" for row in selected) else "complete",
+        },
+        "transactions": selected, "evidence": evidence,
+    }
+    report["revision"] = sha256(json.dumps(report, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    render_report(report, "csv")  # Shared summary validation before returning.
+    return report
+
 def render(report: dict, fmt: str) -> str:
     if fmt == "json":
         return json.dumps(report, indent=2, sort_keys=True) + "\n"
