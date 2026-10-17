@@ -97,8 +97,14 @@ def build_report_from_database(database: Path, since: datetime, until: datetime,
     return report
 
 def render(report: dict, fmt: str, *, profile: str | None = None, locations: dict | None = None) -> str:
-    if profile is not None:\n        if fmt != "csv" or profile != "audi":\n            raise ValueError("Profile audi requires CSV format")\n        from .csv_profiles import render_audi\n        return render_audi(report, locations=locations)\n    if fmt == "json":
-        return json.dumps(report, indent=2, sort_keys=True) + "\n"
+    if profile is not None:
+        if fmt != "csv" or profile != "audi":
+            raise ValueError("Profile audi requires CSV format")
+        from .csv_profiles import render_audi
+        return render_audi(report, locations=locations)
+    if fmt == "json":
+        return json.dumps(report, indent=2, sort_keys=True) + "
+"
     if fmt == "audi-csv":
         from .profiles import render_audi_csv
         return render_audi_csv(report)
