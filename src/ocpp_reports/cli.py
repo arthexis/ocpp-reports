@@ -220,6 +220,9 @@ def run(
         elif source_id is not None:
             raise ValueError("--source-id is only valid for Reports SQLite")
         if format in {"json", "csv"}:
+            period_info = document.get("period")
+            if not isinstance(period_info, dict) or parse(period_info["since"]) != start or parse(period_info["until"]) != end:
+                raise ValueError("Report period does not match requested interval")
             location_map = json.loads(locations.read_text(encoding="utf-8")) if locations else None
             if location_map is not None and (not isinstance(location_map, dict) or
                     not all(isinstance(k, str) and isinstance(v, str) for k, v in location_map.items())):
