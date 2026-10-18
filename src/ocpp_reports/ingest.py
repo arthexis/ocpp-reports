@@ -24,7 +24,7 @@ def _canonical(value: Any) -> str:
 def _schema(db: sqlite3.Connection) -> None:
     db.executescript("""
     CREATE TABLE IF NOT EXISTS sources (
-        source_id TEXT PRIMARY KEY, cursor INTEGER NOT NULL DEFAULT 0
+        source_id TEXT PRIMARY KEY, cursor INTEGER NOT NULL DEFAULT 0,\n        last_ingested_at TEXT
     );
     CREATE TABLE IF NOT EXISTS events (
         source_id TEXT NOT NULL, event_id INTEGER NOT NULL,
@@ -43,6 +43,9 @@ def _schema(db: sqlite3.Connection) -> None:
         PRIMARY KEY(source_id, charger_id, transaction_id, page_after, page_next, fingerprint)
     );
     """)
+    columns = {row[1] for row in db.execute("PRAGMA table_info(sources)")}
+    if "last_ingested_at" not in columns:
+        db.execute("ALTER TABLE sources ADD COLUMN last_ingested_at TEXT")
 
 
 def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str | None = None) -> int:
@@ -108,4 +111,5 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
                  digest, encoded, timestamp))
         if cursor["after"] == current:
             db.execute("UPDATE sources SET cursor=? WHERE source_id=?", (cursor["next"], source))
+        db.execute("UPDATE sources SET last_ingested_at=? WHERE source_id=?", (timestamp, source))
         return db.execute("SELECT cursor FROM sources WHERE source_id=?", (source,)).fetchone()[0]

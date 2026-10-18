@@ -50,7 +50,7 @@ def test_csv_send_rejected_without_output_or_queue(tmp_path, monkeypatch):
     result = CliRunner().invoke(app, ["run", "--source", str(source), "--format", "csv",
                                      "--output", str(target), "--send"])
     assert result.exit_code == 2
-    assert "manual output only" in result.output
+    assert "--send requires text" in result.output
     assert not target.exists()
     assert not (tmp_path / "outbox.sqlite3").exists()
 
@@ -59,7 +59,7 @@ def test_invalid_format_rejected(tmp_path):
     result = CliRunner().invoke(app, ["run", "--source", str(source_file(tmp_path)),
                                      "--format", "html"])
     assert result.exit_code == 2
-    assert "Format must be auto, text or csv" in result.output
+    assert "Format must be auto, text, json or csv" in result.output
 
 
 def test_infers_csv_from_extension_and_explicit_override(tmp_path, monkeypatch):
@@ -85,6 +85,6 @@ def test_inferred_csv_cannot_send(tmp_path, monkeypatch):
     result = CliRunner().invoke(app, ["run", "--source", str(source),
                                      "--output", str(path), "--send"])
     assert result.exit_code == 2
-    assert "manual output only" in result.output
+    assert "--send requires text" in result.output
     assert not path.exists()
     assert not (tmp_path / "outbox.sqlite3").exists()
