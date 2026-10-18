@@ -259,6 +259,8 @@ def run(
             return
         if output is not None:
             output.parent.mkdir(parents=True, exist_ok=True)
+        if document.get("summary", {}).get("completeness") != "complete" or document.get("summary", {}).get("missing_energy_transactions") != 0:
+            raise ValueError("Refusing to schedule incomplete or provisional report")
         result = prepare_scheduled_report(source=source, document=document, outbox=Outbox(db_path()),
             operator=operator_address() if send else "operator@localhost",
             cadence=cadence, zone=timezone, since=start, until=end,
