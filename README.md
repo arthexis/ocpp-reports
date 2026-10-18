@@ -35,3 +35,7 @@ ocpp-reports run --source verified-summary.json --period previous-day --send
 ```
 
 `--since` and `--until` are a half-open, offset-aware interval and must be supplied together. `--period` supports `previous-day`, `previous-week`, and `previous-month` when explicit bounds are omitted. Output files are create-only; the source is never overwritten. `--send` requires text output, a complete report, and configured mail delivery. CSV/JSON output never sends email. `check` remains available.
+
+### Reporting timezone
+
+`run` uses `UTC` by default, or `America/Monterrey` when `--profile audi` is selected. Pass `--timezone IANA_ZONE` to override either default. The selected zone determines previous-day/week/month boundaries and how the Audi CSV timestamps are displayed. Explicit `--since` and `--until` retain their supplied offsets. Previously verified summaries retain their own recorded reporting period and timezone; changing the zone requires generating a new summary from source data.
