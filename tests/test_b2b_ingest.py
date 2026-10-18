@@ -208,5 +208,7 @@ def test_existing_observations_backfilled_into_projection(tmp_path):
     ingest_page(db, _producer_page("active.json"))
     with sqlite3.connect(db) as conn:
         conn.execute("DELETE FROM current_transactions")
-    ingest_page(db, _producer_page("empty.json"))
+    empty = _producer_page("empty.json")
+    empty["data"]["cursor"].update(after=1, next=1)
+    ingest_page(db, empty)
     assert current_transactions(db)[0]["transaction"]["state"] == "open"
