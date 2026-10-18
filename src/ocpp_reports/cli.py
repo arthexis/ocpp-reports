@@ -164,7 +164,7 @@ def run(
     period: str = typer.Option("previous-day", help="previous-day, previous-week, previous-month"),
     since: str | None = typer.Option(None, help="Explicit inclusive ISO timestamp with offset"),
     until: str | None = typer.Option(None, help="Explicit exclusive ISO timestamp with offset"),
-    timezone: str = typer.Option("UTC", help="IANA reporting timezone"),
+    timezone: str | None = typer.Option(None, help="IANA reporting timezone; defaults by profile"),
     output: Path | None = typer.Option(None, help="Write rendered text to a new file"),
     send: bool = typer.Option(False, "--send", help="Queue and attempt SMTP delivery"),
     format: str = typer.Option("auto", "--format", help="Output format: auto, text, json or csv"),
@@ -195,6 +195,7 @@ def run(
         cadence = {"previous-day": "daily", "previous-week": "weekly", "previous-month": "monthly"}.get(period)
         if cadence is None:
             raise ValueError("Invalid --period")
+        timezone = timezone or ("America/Monterrey" if profile == "audi" else "UTC")
         ZoneInfo(timezone)
         parse = lambda value: datetime.fromisoformat(value.replace("Z", "+00:00"))
         start = parse(since) if since is not None else None
