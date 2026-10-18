@@ -58,3 +58,34 @@ For JSON exports, validate root structure and inspect a sanitized sample with na
 ## H0 exit criterion
 
 Close H0 only when at least one genuine, authorized historical CSMS artifact and one genuine Arthexis-family artifact have been inventoried and sampled safely, or the user explicitly accepts a reduced source scope. Until then, proceed with architecture discussion only; adapter mappings are provisional.
+
+
+## Host evidence update (2026-10-18)
+
+The field-host [inventory comment](https://github.com/arthexis/ocpp-reports/issues/18#issuecomment-6246266793) identifies actual CSMS schema-2 (8,955 events), schema-3 (15,404 events), and four older Arthexis SQLite snapshots (317, 14, 38 and 229 transactions respectively). This **supersedes** the earlier statement that no deployed historical artifacts were found. The physical backups are **not in GitHub**, and their contents have not been independently inspected by this PR.
+
+CSMS schema-2 is contained in schema-3, which is contained in schema-6 by matching event ID/payload: these are nested snapshots, not additive transaction sources. The older Arthexis generations include missing OCPP IDs, missing stops, missing meter readings, naive timestamps and unverified energy units. No newer Arthexis backend snapshot is known.
+
+### H0a metadata collection on the host
+
+Copy or otherwise acquire a consistent, quiescent backup **before** inspection. Never point the utility at a live SQLite/WAL database: immutable reads deliberately ignore WAL and could miss committed data. The tool does not start any historical service, import its code or extract raw rows.
+
+```sh
+python3 scripts/h0_inventory.py \\
+  /home/arthe/ocpp-csms-data/ocpp-csms.sqlite3.schema-2.bak \\
+  /home/arthe/ocpp-csms-data/ocpp-csms.sqlite3.schema-3.bak \\
+  /home/arthe/arthexis.bkp/db.sqlite3 \\
+  /home/arthe/arthexis.bkp2/db.sqlite3 \\
+  /home/arthe/arthexis.bkp3/db.sqlite3 \\
+  /home/arthe/arthexis/db.sqlite3 \\
+  --output h0-inventory.json
+```
+
+The output is a create-only JSON manifest with source filename, size, SHA-256, SQLite schema version, integrity result, selected table names/columns/counts and available time bounds. It deliberately omits row values, IDs, payloads and meter readings. **Column names and filenames may still reveal implementation details; review the manifest before sharing.** Hashes identify artifacts and are not anonymization. Do not commit backups, full dumps or raw transaction/RFID data.
+
+### Remaining H0b gate
+
+- [ ] Run the inventory tool on authorized offline copies and review the manifest.
+- [ ] Produce separate, deliberately sanitized fixture records with stable pseudonymous join keys (this metadata tool intentionally does **not** do row extraction).
+- [ ] Establish actual timezone and meter-energy unit semantics from historical producer code and source evidence.
+- [ ] Resolve source lineage/identity, native transaction key fallback and observed overlap before freezing adapter mappings.
