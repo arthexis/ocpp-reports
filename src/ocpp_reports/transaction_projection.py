@@ -1,4 +1,4 @@
-"""Read-only deterministic projection of the latest imported transaction evidence."""
+"""Read the transaction projection reconciled atomically by ingest."""
 from __future__ import annotations
 
 import json
@@ -10,17 +10,20 @@ from typing import Any
 def current_transactions(database: str | Path, *, source_id: str | None = None) -> list[dict[str, Any]]:
     """One current snapshot per source/CP/transaction; never sum revisions.
 
-    Highest export cursor wins. Within the same cursor, the last distinct
-    observation wins. An old-page replay cannot replace a newer-page snapshot.
+    Ingest maintains this table atomically with evidence and its cursor.
     This is an observation projection, not a guarantee of physical finality.
     """
     with sqlite3.connect(f"file:{Path(database).resolve()}?mode=ro", uri=True) as db:
         db.row_factory = sqlite3.Row
+        table_exists = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='current_transactions'"
+        ).fetchone()
         query = """
             SELECT source_id, charger_id, transaction_id, page_after, page_next,
                    fingerprint, payload, imported_at
-            FROM transaction_observations
+            FROM {table}
         """
+        query = query.format(table="current_transactions" if table_exists else "transaction_observations")
         parameters: tuple[str, ...] = ()
         if source_id is not None:
             query += " WHERE source_id = ?"
