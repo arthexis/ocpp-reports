@@ -81,6 +81,7 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
     timestamp = imported_at or datetime.now(timezone.utc).isoformat()
     with sqlite3.connect(database) as db:
         _schema(db)
+        db.commit()  # schema backfill writes must finish before the page transaction
         db.execute("BEGIN IMMEDIATE")
         db.execute("INSERT OR IGNORE INTO sources(source_id) VALUES (?)", (source,))
         current = db.execute("SELECT cursor FROM sources WHERE source_id=?", (source,)).fetchone()[0]
