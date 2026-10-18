@@ -245,11 +245,16 @@ def run(
             return
         if locations is not None:
             raise ValueError("--locations requires CSV format")
-        if output is None and not send:
-            rendered = prepare_scheduled_report(source=source, document=document, outbox=Outbox(db_path()),
-                operator="operator@localhost", cadence=cadence, zone=timezone,
-                since=start, until=end, queue=False, format=format)
-            typer.echo(rendered)
+        if not send:
+            from .rendering import render_report
+            rendered = render_report(document, "text")
+            if output is None:
+                typer.echo(rendered, nl=False)
+            else:
+                output.parent.mkdir(parents=True, exist_ok=True)
+                with output.open("x", encoding="utf-8") as stream:
+                    stream.write(rendered)
+                typer.echo(f"Written {output}")
             return
         if output is not None:
             output.parent.mkdir(parents=True, exist_ok=True)
