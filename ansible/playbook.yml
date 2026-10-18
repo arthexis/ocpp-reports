@@ -79,9 +79,27 @@
         cmd: "python3 -m venv {{ reports_release }}/venv"
         creates: "{{ reports_release }}/venv/bin/python"
       become: true
-    - name: Install pinned Reports checkout
+    - name: Create release-local package staging directory
+      ansible.builtin.file:
+        path: "{{ reports_release }}/source"
+        state: directory
+        mode: '0755'
+      become: true
+
+    - name: Stage pinned Reports package files in the owned release
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../{{ item }}"
+        dest: "{{ reports_release }}/source/{{ item }}"
+        mode: preserve
+      loop:
+        - pyproject.toml
+        - README.md
+        - src/
+      become: true
+
+    - name: Install Reports from owned release staging
       ansible.builtin.command:
-        cmd: "{{ reports_release }}/venv/bin/pip install {{ playbook_dir }}/.."
+        cmd: "{{ reports_release }}/venv/bin/pip install {{ reports_release }}/source"
       become: true
       changed_when: true
     - name: Check installed CLI
