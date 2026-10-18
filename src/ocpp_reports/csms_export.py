@@ -37,6 +37,8 @@ def validate_export(page: Any) -> dict[str, Any]:
         raise ValueError("Export data must be an object")
     if not isinstance(data.get("source_id"), str) or not data["source_id"].strip():
         raise ValueError("Export source_id is required")
+    if "exported_at" in data:
+        _timestamp(data["exported_at"], "exported_at")
     cursor = data.get("cursor")
     if not isinstance(cursor, dict):
         raise ValueError("Export cursor must be an object")
@@ -86,11 +88,31 @@ def validate_export(page: Any) -> dict[str, Any]:
         _integer(transaction.get("id"), "transaction.id")
         if not isinstance(transaction.get("charger_id"), str) or not transaction["charger_id"]:
             raise ValueError("Transaction charger_id is required")
-        for name in ("started_at", "stopped_at", "last_activity_at"):
+        for name in ("started_at", "stopped_at", "last_activity_at",
+                     "start_event_at", "start_received_at", "stop_event_at", "stop_received_at"):
             if transaction.get(name) is not None:
                 _timestamp(transaction[name], f"transaction.{name}")
         for name in ("energy_wh", "meter_start_wh", "meter_stop_wh"):
             value = transaction.get(name)
             if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))):
                 raise ValueError(f"transaction.{name} must be numeric or null")
+        if "meter_sample_times" in transaction:
+            samples = transaction["meter_sample_times"]
+            if not isinstance(samples, list):
+                raise ValueError("transaction.meter_sample_times must be a list")
+            for sample in samples:
+                if not isinstance(sample, dict):
+                    raise ValueError("transaction meter sample must be an object")
+                _integer(sample.get("payload_index"), "meter_sample_times.payload_index")
+                _integer(sample.get("sample_index"), "meter_sample_times.sample_index")
+                for field in ("event_at", "received_at"):
+                    if sample.get(field) is not None:
+                        _timestamp(sample[field], f"meter_sample_times.{field}")
+        if "quality" in transaction:
+            quality = transaction["quality"]
+            if not isinstance(quality, dict):
+                raise ValueError("transaction.quality must be an object")
+            for field in ("active", "incomplete", "missing_meter", "recovered", "inferred", "corrected"):
+                if field in quality and type(quality[field]) is not bool:
+                    raise ValueError(f"transaction.quality.{field} must be boolean")
     return page
