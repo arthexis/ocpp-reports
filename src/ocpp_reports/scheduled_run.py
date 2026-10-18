@@ -13,7 +13,8 @@ from .outbox import Outbox
 def prepare_scheduled_report(*, source: Path, outbox: Outbox, operator: str,
                              cadence: str = 'daily', zone: str = 'UTC', now: datetime | None = None,
                              since: datetime | None = None, until: datetime | None = None,
-                             output: Path | None = None, queue: bool = True, format: str = "text",\n                             document: dict | None = None) -> str:
+                             output: Path | None = None, queue: bool = True, format: str = "text",
+                             document: dict | None = None) -> str:
     """Queue only a complete, exact-period report; never invoke SMTP here."""
     now = now or datetime.now(timezone.utc)
     if (since is None) != (until is None):
@@ -24,7 +25,8 @@ def prepare_scheduled_report(*, source: Path, outbox: Outbox, operator: str,
         start, end = since.astimezone(timezone.utc), until.astimezone(timezone.utc)
     else:
         start, end = previous_period(now, cadence=cadence, zone=zone)
-    if document is None:\n        document = json.loads(source.read_text(encoding="utf-8"))
+    if document is None:
+        document = json.loads(source.read_text(encoding="utf-8"))
     if document.get("schema") != "ocpp-reports/summary/v1":
         raise ValueError("Unsupported internal report schema")
     period = document.get("period")
@@ -43,7 +45,8 @@ def prepare_scheduled_report(*, source: Path, outbox: Outbox, operator: str,
     revision = document.get("revision")
     if not isinstance(revision, str) or not revision.strip():
         raise ValueError("Stable report revision required")
-    if not operator or "@" not in operator or "\r" in operator or "\n" in operator:
+    if not operator or "@" not in operator or "\r" in operator or "
+" in operator:
         raise ValueError("Valid operator email required")
     if format not in ("text", "csv"):
         raise ValueError("Unsupported manual report format")
