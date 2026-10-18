@@ -8,7 +8,7 @@ from .models import ReportRequest
 from .mail_cli import app as mail_app
 from .config import DEFAULT_CONFIG, load_config
 
-app = typer.Typer(help="OCPP Reports operator CLI: inspect, ingest, generate and deliver reports.", no_args_is_help=True)
+app = typer.Typer(help="OCPP Reports operator CLI: inspect, ingest, run and deliver reports.", no_args_is_help=True)
 app.add_typer(mail_app, name="mail")
 
 # Commands are explicit one-shot operations; invoking the root never ingests or sends.
@@ -159,6 +159,106 @@ def generate(
 
 
 @app.command("run")
+def run(
+    source: Path = typer.Option(..., exists=True, file_okay=True, dir_okay=True, readable=True, help="CSMS export, Reports SQLite or summary JSON"),
+    period: str = typer.Option("previous-day", help="previous-day, previous-week, previous-month"),
+    since: str | None = typer.Option(None, help="Explicit inclusive ISO timestamp with offset"),
+    until: str | None = typer.Option(None, help="Explicit exclusive ISO timestamp with offset"),
+    timezone: str = typer.Option("UTC", help="IANA reporting timezone"),
+    output: Path | None = typer.Option(None, help="Write rendered text to a new file"),
+    send: bool = typer.Option(False, "--send", help="Queue and attempt SMTP delivery"),
+    format: str = typer.Option("auto", "--format", help="Output format: auto, text, json or csv"),\n    source_id: str | None = typer.Option(None, "--source-id"),\n    profile: str | None = typer.Option(None, "--profile"),\n    locations: Path | None = typer.Option(None, "--locations"),\n    json_output: bool = typer.Option(False, "-j", "--json"),
+) -> None:
+    """Run one configured reporting period; optionally save or deliver the result."""
+    from .reporting import build_report, build_report_from_database, render\n    from .schedule import previous_period\n    from datetime import timezone as utc_timezone\n    from .scheduled_run import prepare_scheduled_report
+    from .mail_cli import db_path, operator_address, send as send_mail
+    from .outbox import Outbox
+    from zoneinfo import ZoneInfo
+    try:
+        if format not in ("auto", "text", "json", "csv"):
+            raise ValueError("Format must be auto, text, json or csv")
+        if format == "auto":
+            format = output.suffix.lower().lstrip(".") if output is not None and output.suffix.lower() in {".csv", ".json"} else "text"
+        if format != "text" and send:
+            raise ValueError("--send requires text")
+        if (since is None) != (until is None):
+            raise ValueError("Both --since and --until are required together")
+        if since is not None and period != "previous-day":
+            raise ValueError("Do not combine explicit bounds with --period")
+        cadence = {"previous-day": "daily", "previous-week": "weekly", "previous-month": "monthly"}.get(period)
+        if cadence is None:
+            raise ValueError("Invalid --period")
+        ZoneInfo(timezone)
+        parse = lambda value: datetime.fromisoformat(value.replace("Z", "+00:00"))
+        start = parse(since) if since is not None else None
+        end = parse(until) if until is not None else None
+        if start is None:
+            start, end = previous_period(datetime.now(utc_timezone.utc), cadence=cadence, zone=timezone)
+        if start.tzinfo is None or end.tzinfo is None or start >= end:
+            raise ValueError("Expected ordered timezone-aware reporting bounds")
+        if profile is not None and (profile != "audi" or format != "csv"):
+            raise ValueError("--profile audi requires --format csv")
+        if locations is not None and profile != "audi":
+            raise ValueError("--locations requires --profile audi")
+        if output is not None and (output.resolve() == source.resolve() or
+                (source.is_dir() and source.resolve() in output.resolve().parents)):
+            raise ValueError("Output must not overwrite or reside inside the source")
+        if output is not None and output.exists():
+            raise ValueError("Output already exists; use a new revision path")
+        document = None
+        if source.is_file() and source.suffix.lower() == ".json":
+            candidate = json.loads(source.read_text(encoding="utf-8"))
+            if isinstance(candidate, dict) and candidate.get("schema") == "ocpp-reports/summary/v1":
+                document = candidate
+        if document is None:
+            if source.suffix.lower() in {".sqlite", ".sqlite3", ".db"}:
+                document = build_report_from_database(source, start, end, timezone, source_id=source_id)
+            else:
+                if source_id is not None:
+                    raise ValueError("--source-id is only valid for Reports SQLite")
+                document = build_report(source, start, end, timezone)
+        elif source_id is not None:
+            raise ValueError("--source-id is only valid for Reports SQLite")
+        if format in {"json", "csv"}:
+            location_map = json.loads(locations.read_text(encoding="utf-8")) if locations else None
+            if location_map is not None and (not isinstance(location_map, dict) or
+                    not all(isinstance(k, str) and isinstance(v, str) for k, v in location_map.items())):
+                raise ValueError("--locations must map charger IDs to location names")
+            rendered = render(document, format, profile=profile, locations=location_map)
+            if output is None:
+                typer.echo(rendered, nl=False)
+            else:
+                output.parent.mkdir(parents=True, exist_ok=True)
+                with output.open("x", encoding="utf-8") as stream:
+                    stream.write(rendered)
+                typer.echo(json.dumps({"output": str(output), "revision": document["revision"]}) if json_output else f"Written {output}")
+            return
+        if locations is not None:
+            raise ValueError("--locations requires CSV format")
+        if output is None and not send:
+            rendered = prepare_scheduled_report(source=source, document=document, outbox=Outbox(db_path()),
+                operator="operator@localhost", cadence=cadence, zone=timezone,
+                since=start, until=end, queue=False, format=format)
+            typer.echo(rendered)
+            return
+        result = prepare_scheduled_report(source=source, outbox=Outbox(db_path()),
+            operator=operator_address() if send else "operator@localhost",
+            cadence=cadence, zone=timezone, since=start, until=end,
+            output=output, queue=send, format=format)
+    except (ValueError, KeyError, TypeError, OSError, json.JSONDecodeError) as exc:
+        typer.echo(f"Report run refused: {exc}", err=True)
+        raise typer.Exit(2)
+    if send:
+        if result.startswith("EXISTS:"):
+            typer.echo(f"Already recorded for this period: {result[7:]}; no automatic retry")
+            return
+        typer.echo(f"Queued {result}")
+        send_mail(key=result)
+    elif output is not None:
+        typer.echo(f"Written {output}")
+
+if __name__ == "__main__":
+    app()@app.command("run")
 def run(
     source: Path = typer.Option(..., exists=True, dir_okay=False, readable=True, help="Verified internal summary JSON"),
     period: str = typer.Option("previous-day", help="previous-day, previous-week, previous-month"),
