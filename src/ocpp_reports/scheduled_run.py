@@ -45,8 +45,7 @@ def prepare_scheduled_report(*, source: Path, outbox: Outbox, operator: str,
     revision = document.get("revision")
     if not isinstance(revision, str) or not revision.strip():
         raise ValueError("Stable report revision required")
-    if not operator or "@" not in operator or "\r" in operator or "
-" in operator:
+    if not operator or "@" not in operator or "\r" in operator or "\\n" in operator:
         raise ValueError("Valid operator email required")
     if format not in ("text", "csv"):
         raise ValueError("Unsupported manual report format")
