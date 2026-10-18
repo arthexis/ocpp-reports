@@ -68,7 +68,7 @@ def test_partial_summary_is_manual_only(tmp_path, monkeypatch):
     source = tmp_path / "partial.json"
     source.write_text(json.dumps({
         "schema": "ocpp-reports/summary/v1", "source_id": "csms-a",
-        "period": {"since": "2026-01-01T00:00:00Z", "until": "2026-01-02T00:00:00Z"},
+        "period": {"since": "2026-01-01T00:00:00Z", "until": "2026-01-02T00:00:00Z", "timezone": "UTC"},
         "summary": {"transactions": 1, "known_energy_wh": 0,
                     "missing_energy_transactions": 1, "completeness": "partial"},
         "transactions": [{"id": 1, "charger_id": "CP1", "connector_id": 1,
@@ -90,7 +90,7 @@ def test_send_complete_report_once_with_stubbed_smtp(tmp_path, monkeypatch):
     source = tmp_path / "complete.json"
     source.write_text(json.dumps({
         "schema": "ocpp-reports/summary/v1", "source_id": "csms-a",
-        "period": {"since": "2026-01-01T00:00:00Z", "until": "2026-01-02T00:00:00Z"},
+        "period": {"since": "2026-01-01T00:00:00Z", "until": "2026-01-02T00:00:00Z", "timezone": "UTC"},
         "summary": {"transactions": 0, "known_energy_wh": 0,
                     "missing_energy_transactions": 0, "completeness": "complete"},
         "transactions": [], "revision": "complete-r1",
