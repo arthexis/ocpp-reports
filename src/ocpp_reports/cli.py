@@ -65,7 +65,7 @@ def status(json_output: bool = typer.Option(False, "-j", "--json", help="Machine
         typer.echo(f"Config: {result['config']['state']}")
         typer.echo(f"Warehouse: {result['warehouse']['state']}")
         for source in result['warehouse']['sources']:
-            typer.echo(f"  {source['source_id']}: cursor={source['cursor']}")
+            typer.echo(f"  {source['source_id']}: cursor={source['cursor']}, last_ingested_at={source['last_ingested_at'] or 'never'}")
 
 @app.command()
 def ingest(
