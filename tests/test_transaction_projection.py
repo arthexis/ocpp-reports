@@ -117,3 +117,55 @@ def test_cli_generate_from_sqlite(tmp_path):
         "2026-01-01T00:00:00Z", "--until", "2026-01-02T00:00:00Z"])
     assert result.exit_code == 0, result.output
     assert "completeness" in output.read_text(encoding="utf-8")
+
+
+def test_b2b1_later_cursor_wins_even_after_older_page_replay(tmp_path):
+    """Event cursor order, not import wall-clock time, selects the projection."""
+    database = tmp_path / "reports.sqlite3"
+    active, stopped = fixture("active.json"), fixture("late_stop.json")
+    ingest_page(database, active, imported_at="2026-01-01T00:01:00Z")
+    ingest_page(database, stopped, imported_at="2026-01-01T00:02:00Z")
+    # A previously seen page can be replayed with a later import timestamp.
+    ingest_page(database, active, imported_at="2026-01-02T00:00:00Z")
+    current = current_transactions(database)
+    assert len(current) == 1
+    assert current[0]["transaction"]["state"] == "stopped"
+    assert current[0]["transaction"]["energy_wh"] == 500
+    assert current[0]["evidence"]["page_next"] == 2
+
+
+def test_b2b1_identity_includes_charge_point_and_source(tmp_path):
+    """Equal transaction IDs on different CPs must never overwrite each other."""
+    database = tmp_path / "reports.sqlite3"
+    first = fixture("active.json")
+    second = copy.deepcopy(first)
+    second["data"]["source_id"] = "fixture-source-b"
+    second["data"]["events"][0]["charger_id"] = "cp-b"
+    second["data"]["transactions"][0]["charger_id"] = "cp-b"
+    ingest_page(database, first)
+    ingest_page(database, second)
+    rows = current_transactions(database)
+    assert {(r["source_id"], r["transaction"]["charger_id"], r["transaction"]["id"])
+            for r in rows} == {
+                ("fixture-source-a", "cp-a", 42),
+                ("fixture-source-b", "cp-b", 42),
+            }
+
+
+def test_b2b1_revisions_are_not_added_to_energy_total(tmp_path):
+    from datetime import datetime, timezone
+    from ocpp_reports.reporting import build_report_from_database
+    database = tmp_path / "reports.sqlite3"
+    ingest_page(database, fixture("active.json"))
+    ingest_page(database, fixture("late_stop.json"))
+    # Replay of both pages must not count two transaction versions.
+    ingest_page(database, fixture("active.json"))
+    ingest_page(database, fixture("late_stop.json"))
+    report = build_report_from_database(
+        database,
+        datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime(2026, 1, 2, tzinfo=timezone.utc),
+        "UTC",
+    )
+    assert report["summary"]["transactions"] == 1
+    assert report["summary"]["known_energy_wh"] == 500
