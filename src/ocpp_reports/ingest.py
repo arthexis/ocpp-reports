@@ -35,6 +35,13 @@ def _schema(db: sqlite3.Connection) -> None:
         sample_index INTEGER NOT NULL, payload TEXT NOT NULL,
         PRIMARY KEY(source_id, event_id, sample_index)
     );
+    CREATE TABLE IF NOT EXISTS current_transactions (
+        source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
+        transaction_id INTEGER NOT NULL, page_after INTEGER NOT NULL,
+        page_next INTEGER NOT NULL, fingerprint TEXT NOT NULL,
+        payload TEXT NOT NULL, imported_at TEXT NOT NULL,
+        PRIMARY KEY(source_id, charger_id, transaction_id)
+    );
     CREATE TABLE IF NOT EXISTS transaction_observations (
         source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
         transaction_id INTEGER NOT NULL, page_after INTEGER NOT NULL,
@@ -105,10 +112,25 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
         for tx in data["transactions"]:
             encoded = _canonical(tx)
             digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+            values = (source, tx["charger_id"], tx["id"], cursor["after"], cursor["next"],
+                      digest, encoded, timestamp)
             db.execute("""INSERT OR IGNORE INTO transaction_observations
-                VALUES (?,?,?,?,?,?,?,?)""",
-                (source, tx["charger_id"], tx["id"], cursor["after"], cursor["next"],
-                 digest, encoded, timestamp))
+                VALUES (?,?,?,?,?,?,?,?)""", values)
+            # Reconcile the materialized projection in the same transaction as
+            # evidence and cursor. Old-page replays cannot regress its state.
+            current_tx = db.execute("""SELECT page_next, page_after, fingerprint
+                FROM current_transactions
+                WHERE source_id=? AND charger_id=? AND transaction_id=?""",
+                (source, tx["charger_id"], tx["id"])).fetchone()
+            position = (cursor["next"], cursor["after"])
+            if current_tx is None or position > (current_tx[0], current_tx[1]) or (
+                position == (current_tx[0], current_tx[1]) and digest != current_tx[2]
+            ):
+                db.execute("""INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)
+                    ON CONFLICT(source_id,charger_id,transaction_id) DO UPDATE SET
+                    page_after=excluded.page_after, page_next=excluded.page_next,
+                    fingerprint=excluded.fingerprint, payload=excluded.payload,
+                    imported_at=excluded.imported_at""", values)
         if cursor["after"] == current:
             db.execute("UPDATE sources SET cursor=? WHERE source_id=?", (cursor["next"], source))
         db.execute("UPDATE sources SET last_ingested_at=? WHERE source_id=?", (timestamp, source))
