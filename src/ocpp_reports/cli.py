@@ -167,10 +167,17 @@ def run(
     timezone: str = typer.Option("UTC", help="IANA reporting timezone"),
     output: Path | None = typer.Option(None, help="Write rendered text to a new file"),
     send: bool = typer.Option(False, "--send", help="Queue and attempt SMTP delivery"),
-    format: str = typer.Option("auto", "--format", help="Output format: auto, text, json or csv"),\n    source_id: str | None = typer.Option(None, "--source-id"),\n    profile: str | None = typer.Option(None, "--profile"),\n    locations: Path | None = typer.Option(None, "--locations"),\n    json_output: bool = typer.Option(False, "-j", "--json"),
+    format: str = typer.Option("auto", "--format", help="Output format: auto, text, json or csv"),
+    source_id: str | None = typer.Option(None, "--source-id"),
+    profile: str | None = typer.Option(None, "--profile"),
+    locations: Path | None = typer.Option(None, "--locations"),
+    json_output: bool = typer.Option(False, "-j", "--json"),
 ) -> None:
     """Run one configured reporting period; optionally save or deliver the result."""
-    from .reporting import build_report, build_report_from_database, render\n    from .schedule import previous_period\n    from datetime import timezone as utc_timezone\n    from .scheduled_run import prepare_scheduled_report
+    from .reporting import build_report, build_report_from_database, render
+    from .schedule import previous_period
+    from datetime import timezone as utc_timezone
+    from .scheduled_run import prepare_scheduled_report
     from .mail_cli import db_path, operator_address, send as send_mail
     from .outbox import Outbox
     from zoneinfo import ZoneInfo
