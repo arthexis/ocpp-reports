@@ -89,3 +89,20 @@ The output is a create-only JSON manifest with source filename, size, SHA-256, S
 - [ ] Produce separate, deliberately sanitized fixture records with stable pseudonymous join keys (this metadata tool intentionally does **not** do row extraction).
 - [ ] Establish actual timezone and meter-energy unit semantics from historical producer code and source evidence.
 - [ ] Resolve source lineage/identity, native transaction key fallback and observed overlap before freezing adapter mappings.
+
+
+### H0b bounded sanitized fixtures (code ready; field evidence pending)
+
+`scripts/h0_fixtures.py` reads a **quiescent offline SQLite backup** with `mode=ro&immutable=1` and exports at most five records per recognized table by default. Only explicit, audited field names are eligible: timestamps, limited numeric meter/energy fields, a few known action/unit enums and **salted pseudonyms** for local row IDs. It does **not** export RFID, raw OCPP JSON payloads, charger IDs, customer names, or arbitrary strings. The salt must remain private and must be shared across runs only when cross-snapshot pseudonym stability is desired. Pseudonymized IDs alone do not prove cross-database identity.
+
+```sh
+# On Gway-001, only AFTER the field-test readiness gate is met:
+export H0_FIXTURE_SALT="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+python3 scripts/h0_fixtures.py /path/to/quiescent-copy.sqlite3 \\
+  --output /path/outside/backups/h0-fixtures.json --limit 5
+unset H0_FIXTURE_SALT
+```
+
+Review the generated output manually before sharing or committing. The file is created exclusively (`x` mode), so existing outputs cannot be overwritten. The tool is **not** a production data export, does not resolve timezone or energy units, and does not prove overlap; these are H0b validation tasks. Fixture schema is `h0-sanitized-fixtures/v1`. CI tests use synthetic records only.
+
+**H0b remaining work:** inspect actual metadata manifest, verify column mappings and historical producer units, determine naive timestamp interpretation, assess source lineage and create an agent acceptance script with expected counts. Do not claim H0 complete until that evidence is available.
