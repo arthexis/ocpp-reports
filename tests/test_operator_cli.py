@@ -12,12 +12,12 @@ runner = CliRunner()
 def test_help_exposes_single_cli_commands():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0, result.output
-    for command in ("status", "ingest", "generate", "run"):
+    for command in ("status", "ingest", "run"):
         assert command in result.output
     assert runner.invoke(app, []).exit_code != 0
 
 
-def test_ingest_then_generate_from_reports_database(tmp_path):
+def test_ingest_then_run_from_reports_database(tmp_path):
     database = tmp_path / "reports.sqlite3"
     for name, expected in (("active.json", 1), ("late_stop.json", 2)):
         result = runner.invoke(app, ["ingest", "--source", str(FIXTURES / name),
@@ -25,7 +25,7 @@ def test_ingest_then_generate_from_reports_database(tmp_path):
         assert result.exit_code == 0, result.output
         assert json.loads(result.output)["cursor"] == expected
     output = tmp_path / "summary.json"
-    result = runner.invoke(app, ["generate", "--source", str(database),
+    result = runner.invoke(app, ["run", "--source", str(database),
         "--source-id", "fixture-source-a",
         "--since", "2026-01-01T00:00:00Z", "--until", "2026-01-02T00:00:00Z",
         "--output", str(output)])
@@ -54,16 +54,16 @@ def test_root_help_has_no_side_effects(tmp_path, monkeypatch):
         result = runner.invoke(app, arguments)
         assert "status" in result.output
         assert "ingest" in result.output
-        assert "generate" in result.output
+        assert "run" in result.output
         assert "run" in result.output
     assert list(tmp_path.iterdir()) == []
 
 
 def test_subcommand_help_and_json_flags():
-    for command in ("status", "ingest", "generate", "run", "config", "check", "mail"):
+    for command in ("status", "ingest", "run", "config", "check", "mail"):
         result = runner.invoke(app, [command, "--help"])
         assert result.exit_code == 0, (command, result.output)
-    for command in ("status", "ingest", "generate", "check"):
+    for command in ("status", "ingest", "run", "check"):
         result = runner.invoke(app, [command, "--help"])
         import re
         plain = re.sub("\\x1b\\[[0-9;]*m", "", result.output)
