@@ -40,3 +40,13 @@ def test_systemd_service_uses_unified_run_and_writable_state():
     assert "OCPP_REPORTS_OUTBOX=/var/lib/ocpp-reports/outbox.sqlite3" in service
     assert "StateDirectory=ocpp-reports" in service
     assert "--send" in service
+
+
+def test_ansible_installs_from_privileged_release_staging_not_runner_checkout():
+    playbook = (Path(__file__).resolve().parents[1] / "ansible/playbook.yml").read_text()
+    assert "Stage pinned Reports package files in the owned release" in playbook
+    assert "- pyproject.toml" in playbook
+    assert "- README.md" in playbook
+    assert "- src/" in playbook
+    assert "pip install {{ reports_release }}/source" in playbook
+    assert "pip install {{ playbook_dir }}/.." not in playbook
