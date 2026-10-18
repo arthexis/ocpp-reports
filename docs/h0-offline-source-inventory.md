@@ -106,3 +106,37 @@ unset H0_FIXTURE_SALT
 Review the generated output manually before sharing or committing. The file is created exclusively (`x` mode), so existing outputs cannot be overwritten. The tool is **not** a production data export, does not resolve timezone or energy units, and does not prove overlap; these are H0b validation tasks. Fixture schema is `h0-sanitized-fixtures/v1`. CI tests use synthetic records only.
 
 **H0b remaining work:** inspect actual metadata manifest, verify column mappings and historical producer units, determine naive timestamp interpretation, assess source lineage and create an agent acceptance script with expected counts. Do not claim H0 complete until that evidence is available.
+
+
+### H0b semantics gate and Gway-001 handoff
+
+`scripts/h0_readiness.py` compares an H0 inventory, sanitized fixtures and a **manually reviewed** source policy. It checks artifact hashes, SQLite schema versions, sample-table existence/counts, source signatures, explicit lineage, timezone, energy units and evidence citations. A failed or unknown assertion exits with code 2. This is **not** proof of the declared assertions: an operator must review the actual evidence and policy; arbitrary self-declarations are not validation.
+
+Example policy (replace SHA and assertions **only after verifying actual historical producer behavior**):
+
+```json
+{
+  "sources": {
+    "REPLACE_WITH_REAL_SHA256": {
+      "lineage_id": "REVIEWED_APPLIANCE_LINEAGE",
+      "timezone": "UTC",
+      "energy_unit": "kWh",
+      "evidence": "REPLACE_WITH_REVIEWED_CODE_OR_FIELD_EVIDENCE_REFERENCE"
+    }
+  }
+}
+```
+
+The above is illustrative and **must not** be used as an accepted policy. For source generations with no energy fields, use `not_applicable` only when justified by actual schema. Never infer a timezone from a naive timestamp or assume an Arthexis numeric value is kWh. CSMS v2/v3 event snapshots share lineage but the inventory alone cannot deduplicate their records. Future adapters must compare native event identity/payload hashes; do not sum snapshot counts.
+
+**Agent handoff once readiness conditions are met:** run metadata inventory on all six quiescent copies; run fixture extractor for each with a private salt and distinct output path; review all outputs for sensitive content; prepare one policy entry per artifact SHA with cited evidence; run:
+
+```sh
+python3 scripts/h0_readiness.py --inventory h0-inventory.json \\
+  --policy h0-policy.json --fixtures h0-fixture-*.json \\
+  --output h0-readiness.json
+```
+
+Expected: code 0 and `ready: true` only when every policy assertion and fixture-to-artifact check passes. Code 2 means field acceptance is **blocked**; preserve the diagnostics and resolve uncertainties, rather than weakening the checks. Compare original SHA-256 before/after and ensure no new SQLite journals or writes. No backup, salt, raw identifiers or unreviewed fixtures should be uploaded to GitHub.
+
+**Current gate remains closed:** the real field manifests, sanitized fixtures, verified timezone/energy semantics and lineage evidence are not yet available in this repository. These checks are preparatory, not a claim that H0b has been field-validated.
