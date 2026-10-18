@@ -79,6 +79,13 @@
         cmd: "python3 -m venv {{ reports_release }}/venv"
         creates: "{{ reports_release }}/venv/bin/python"
       become: true
+    - name: Create release-local package staging directory
+      ansible.builtin.file:
+        path: "{{ reports_release }}/source"
+        state: directory
+        mode: '0755'
+      become: true
+
     - name: Stage pinned Reports package files in the owned release
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../{{ item }}"
