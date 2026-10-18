@@ -50,6 +50,19 @@ def _schema(db: sqlite3.Connection) -> None:
         PRIMARY KEY(source_id, charger_id, transaction_id, page_after, page_next, fingerprint)
     );
     """)
+    # Backfill projections from existing observation history when upgrading
+    # a Reports warehouse. Never discard its original evidence.
+    db.execute("""
+        INSERT OR IGNORE INTO current_transactions
+        SELECT source_id, charger_id, transaction_id, page_after, page_next,
+               fingerprint, payload, imported_at
+        FROM (
+            SELECT *, ROW_NUMBER() OVER (
+                PARTITION BY source_id, charger_id, transaction_id
+                ORDER BY page_next DESC, page_after DESC, rowid DESC
+            ) AS rank FROM transaction_observations
+        ) WHERE rank = 1
+    """)
     columns = {row[1] for row in db.execute("PRAGMA table_info(sources)")}
     if "last_ingested_at" not in columns:
         db.execute("ALTER TABLE sources ADD COLUMN last_ingested_at TEXT")
