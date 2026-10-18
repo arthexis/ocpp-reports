@@ -52,8 +52,10 @@ def extract(path: Path, *, salt: str, limit: int = 5) -> dict:
         tables = {r[0] for r in db.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         )}
+        with path.open("rb") as source:
+            digest = hashlib.file_digest(source, "sha256").hexdigest()
         result = {"format": "h0-sanitized-fixtures/v1",
-                  "artifact_sha256": hashlib.file_digest(path.open("rb"), "sha256").hexdigest(),
+                  "artifact_sha256": digest,
                   "user_version": db.execute("PRAGMA user_version").fetchone()[0],
                   "rows": {}, "warnings": [
                       "Energy units and naive timestamp timezone are unverified",
