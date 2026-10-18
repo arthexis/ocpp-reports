@@ -111,3 +111,22 @@ def test_send_complete_report_once_with_stubbed_smtp(tmp_path, monkeypatch):
     assert len(calls) == 1
     records = Outbox(tmp_path / "outbox.sqlite3").list()
     assert len(records) == 1 and records[0]["state"] == "sent"
+
+def test_profile_timezone_default_and_explicit_override(tmp_path):
+    source = FIXTURES / "late_stop.json"
+    base = ["run", "--source", str(source), *BOUNDS, "--format", "json"]
+    default = runner.invoke(app, base)
+    assert default.exit_code == 0, default.output
+    assert json.loads(default.stdout)["period"]["timezone"] == "UTC"
+    # Audi requires CSV; its default zone is visible in a generated JSON summary
+    # only through an explicit override on the standard profile.
+    overridden = runner.invoke(app, base + ["--timezone", "America/Monterrey"])
+    assert overridden.exit_code == 0, overridden.output
+    assert json.loads(overridden.stdout)["period"]["timezone"] == "America/Monterrey"
+    audi = runner.invoke(app, ["run", "--source", str(source), *BOUNDS,
+                               "--format", "csv", "--profile", "audi"])
+    assert audi.exit_code == 0, audi.output
+    explicit = runner.invoke(app, ["run", "--source", str(source), *BOUNDS,
+                                   "--format", "csv", "--profile", "audi",
+                                   "--timezone", "UTC"])
+    assert explicit.exit_code == 0, explicit.output
