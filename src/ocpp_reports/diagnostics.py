@@ -40,13 +40,15 @@ def inspect_status(*, config: Path | None = None, database: Path | None = None) 
         try:
             # URI mode=ro guarantees that status cannot initialize or migrate SQLite.
             with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
-                rows = db.execute("SELECT source_id, cursor FROM sources ORDER BY source_id").fetchall()
+                columns = {row[1] for row in db.execute("PRAGMA table_info(sources)")}
+                has_ingested_at = "last_ingested_at" in columns
+                selection = "source_id, cursor, last_ingested_at" if has_ingested_at else "source_id, cursor, NULL"
+                rows = db.execute(f"SELECT {selection} FROM sources ORDER BY source_id").fetchall()
             result["warehouse"]["state"] = "ready"
-            with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
-                last_import = db.execute("SELECT MAX(imported_at) FROM transaction_observations").fetchone()[0]
-            result["warehouse"]["last_transaction_import_at"] = last_import
+            result["warehouse"]["last_ingested_at"] = max((row[2] for row in rows if row[2]), default=None)
             result["warehouse"]["sources"] = [
-                {"source_id": source, "cursor": cursor} for source, cursor in rows
+                {"source_id": source, "cursor": cursor, "last_ingested_at": ingested_at}
+                for source, cursor, ingested_at in rows
             ]
         except (OSError, sqlite3.Error, ValueError) as exc:
             result["warehouse"]["state"] = "invalid"
