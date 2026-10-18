@@ -146,3 +146,69 @@ def test_empty_page_cannot_advance_cursor(tmp_path, page):
     broken["data"]["transactions"] = []
     with pytest.raises(ValueError, match="Empty page must not advance cursor"):
         ingest_page(tmp_path / "reports.sqlite3", broken)
+
+PRODUCER_PAGES = Path(__file__).parent / "fixtures" / "csms_export_v1"
+
+
+def _producer_page(name):
+    return json.loads((PRODUCER_PAGES / name).read_text(encoding="utf-8"))
+
+
+def test_late_stop_reconciles_during_ingest_without_double_counting(tmp_path):
+    from ocpp_reports.transaction_projection import current_transactions
+    db = tmp_path / "reports.sqlite3"
+    active = _producer_page("active.json")
+    stopped = _producer_page("late_stop.json")
+    assert ingest_page(db, active) == 1
+    assert current_transactions(db)[0]["transaction"]["energy_wh"] is None
+    assert ingest_page(db, stopped) == 2
+    assert ingest_page(db, active) == 2  # old evidence must not regress projection
+    assert ingest_page(db, stopped) == 2
+    [latest] = current_transactions(db)
+    assert latest["transaction"]["energy_wh"] == 500
+    assert latest["transaction"]["stopped_at"] is not None
+    assert _count(db, "transaction_observations") == 2
+    assert _count(db, "current_transactions") == 1
+    assert _count(db, "events") == 2
+
+
+def test_ingest_projection_is_atomic_on_conflict(tmp_path):
+    from ocpp_reports.transaction_projection import current_transactions
+    db = tmp_path / "reports.sqlite3"
+    ingest_page(db, _producer_page("active.json"))
+    bad = _producer_page("late_stop.json")
+    bad["data"]["energy"] = [
+        {"source_event_id": 2, "sample_index": 0,
+         "at": "2026-01-01T00:10:01Z", "power_w": 100, "energy_wh": 500},
+        {"source_event_id": 2, "sample_index": 0,
+         "at": "2026-01-01T00:10:01Z", "power_w": 200, "energy_wh": 500},
+    ]
+    with pytest.raises(ValueError, match="Conflicting energy sample"):
+        ingest_page(db, bad)
+    assert current_transactions(db)[0]["transaction"]["state"] == "open"
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT cursor FROM sources").fetchone()[0] == 1
+
+
+def test_ingest_projection_isolated_by_source(tmp_path):
+    from ocpp_reports.transaction_projection import current_transactions
+    db = tmp_path / "reports.sqlite3"
+    first = _producer_page("active.json")
+    other = copy.deepcopy(first)
+    other["data"]["source_id"] = "fixture-source-b"
+    ingest_page(db, first)
+    ingest_page(db, other)
+    assert len(current_transactions(db)) == 2
+    assert len(current_transactions(db, source_id="fixture-source-b")) == 1
+
+
+def test_existing_observations_backfilled_into_projection(tmp_path):
+    from ocpp_reports.transaction_projection import current_transactions
+    db = tmp_path / "reports.sqlite3"
+    ingest_page(db, _producer_page("active.json"))
+    with sqlite3.connect(db) as conn:
+        conn.execute("DELETE FROM current_transactions")
+    empty = _producer_page("empty.json")
+    empty["data"]["cursor"].update(after=1, next=1)
+    ingest_page(db, empty)
+    assert current_transactions(db)[0]["transaction"]["state"] == "open"

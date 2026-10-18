@@ -35,6 +35,13 @@ def _schema(db: sqlite3.Connection) -> None:
         sample_index INTEGER NOT NULL, payload TEXT NOT NULL,
         PRIMARY KEY(source_id, event_id, sample_index)
     );
+    CREATE TABLE IF NOT EXISTS current_transactions (
+        source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
+        transaction_id INTEGER NOT NULL, page_after INTEGER NOT NULL,
+        page_next INTEGER NOT NULL, fingerprint TEXT NOT NULL,
+        payload TEXT NOT NULL, imported_at TEXT NOT NULL,
+        PRIMARY KEY(source_id, charger_id, transaction_id)
+    );
     CREATE TABLE IF NOT EXISTS transaction_observations (
         source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
         transaction_id INTEGER NOT NULL, page_after INTEGER NOT NULL,
@@ -42,6 +49,19 @@ def _schema(db: sqlite3.Connection) -> None:
         payload TEXT NOT NULL, imported_at TEXT NOT NULL,
         PRIMARY KEY(source_id, charger_id, transaction_id, page_after, page_next, fingerprint)
     );
+    """)
+    # Backfill projections from existing observation history when upgrading
+    # a Reports warehouse. Never discard its original evidence.
+    db.execute("""
+        INSERT OR IGNORE INTO current_transactions
+        SELECT source_id, charger_id, transaction_id, page_after, page_next,
+               fingerprint, payload, imported_at
+        FROM (
+            SELECT *, ROW_NUMBER() OVER (
+                PARTITION BY source_id, charger_id, transaction_id
+                ORDER BY page_next DESC, page_after DESC, rowid DESC
+            ) AS rank FROM transaction_observations
+        ) WHERE rank = 1
     """)
     columns = {row[1] for row in db.execute("PRAGMA table_info(sources)")}
     if "last_ingested_at" not in columns:
@@ -61,6 +81,7 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
     timestamp = imported_at or datetime.now(timezone.utc).isoformat()
     with sqlite3.connect(database) as db:
         _schema(db)
+        db.commit()  # schema backfill writes must finish before the page transaction
         db.execute("BEGIN IMMEDIATE")
         db.execute("INSERT OR IGNORE INTO sources(source_id) VALUES (?)", (source,))
         current = db.execute("SELECT cursor FROM sources WHERE source_id=?", (source,)).fetchone()[0]
@@ -105,10 +126,25 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
         for tx in data["transactions"]:
             encoded = _canonical(tx)
             digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+            values = (source, tx["charger_id"], tx["id"], cursor["after"], cursor["next"],
+                      digest, encoded, timestamp)
             db.execute("""INSERT OR IGNORE INTO transaction_observations
-                VALUES (?,?,?,?,?,?,?,?)""",
-                (source, tx["charger_id"], tx["id"], cursor["after"], cursor["next"],
-                 digest, encoded, timestamp))
+                VALUES (?,?,?,?,?,?,?,?)""", values)
+            # Reconcile the materialized projection in the same transaction as
+            # evidence and cursor. Old-page replays cannot regress its state.
+            current_tx = db.execute("""SELECT page_next, page_after, fingerprint
+                FROM current_transactions
+                WHERE source_id=? AND charger_id=? AND transaction_id=?""",
+                (source, tx["charger_id"], tx["id"])).fetchone()
+            position = (cursor["next"], cursor["after"])
+            if current_tx is None or position > (current_tx[0], current_tx[1]) or (
+                position == (current_tx[0], current_tx[1]) and digest != current_tx[2]
+            ):
+                db.execute("""INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)
+                    ON CONFLICT(source_id,charger_id,transaction_id) DO UPDATE SET
+                    page_after=excluded.page_after, page_next=excluded.page_next,
+                    fingerprint=excluded.fingerprint, payload=excluded.payload,
+                    imported_at=excluded.imported_at""", values)
         if cursor["after"] == current:
             db.execute("UPDATE sources SET cursor=? WHERE source_id=?", (cursor["next"], source))
         db.execute("UPDATE sources SET last_ingested_at=? WHERE source_id=?", (timestamp, source))
