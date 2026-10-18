@@ -68,3 +68,35 @@ def test_validation_does_not_mutate_export(page):
 
 def test_fixture_is_byte_stable(page):
     assert json.loads(json.dumps(page, sort_keys=True)) == page
+
+PRODUCER_FIXTURES = Path(__file__).parent / "fixtures" / "csms_export_v1"
+
+
+@pytest.mark.parametrize("name", ["active.json", "late_stop.json", "empty.json"])
+def test_producer_shaped_pages(name):
+    page = json.loads((PRODUCER_FIXTURES / name).read_text(encoding="utf-8"))
+    assert validate_export(page) is page
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda p: p["data"].update(exported_at="not-a-date"),
+    lambda p: p["data"]["transactions"][0].update(start_received_at="2026-01-01T00:00:00"),
+    lambda p: p["data"]["transactions"][0].update(meter_sample_times="invalid"),
+    lambda p: p["data"]["transactions"][0].update(meter_sample_times=[{"payload_index": 0, "sample_index": 0, "event_at": "bad", "received_at": None}]),
+    lambda p: p["data"]["transactions"][0].update(quality={"incomplete": "false"}),
+])
+def test_producer_additive_metadata_rejects_malformed_values(mutate):
+    page = json.loads((PRODUCER_FIXTURES / "active.json").read_text(encoding="utf-8"))
+    mutate(page)
+    with pytest.raises(ValueError):
+        validate_export(page)
+
+
+def test_producer_additive_metadata_accepts_nulls_and_future_fields():
+    page = json.loads((PRODUCER_FIXTURES / "active.json").read_text(encoding="utf-8"))
+    tx = page["data"]["transactions"][0]
+    tx["meter_sample_times"] = [{"payload_index": 0, "sample_index": 0,
+                                 "event_at": None, "received_at": "2026-01-01T00:01:00Z"}]
+    tx["quality"]["future_flag"] = {"value": "unknown"}
+    tx["future_metadata"] = True
+    assert validate_export(page) is page
