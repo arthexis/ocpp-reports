@@ -29,6 +29,11 @@
         that:
           - not reports_role_file.stat.exists or reports_role_file.stat.isreg
           - not reports_role_file.stat.exists or (reports_role_saved.content | b64decode | trim) == reports_role
+    - name: Inspect existing Reports CLI
+      ansible.builtin.stat:
+        path: "{{ reports_cli_link }}"
+        follow: false
+      register: reports_previous_cli
     - name: Inspect previous installation without role marker
       ansible.builtin.stat:
         path: "{{ reports_root }}/releases"
@@ -36,7 +41,7 @@
     - name: Refuse adoption of an unmarked existing installation
       ansible.builtin.assert:
         that:
-          - reports_role_file.stat.exists or not reports_previous_releases.stat.exists
+          - reports_role_file.stat.exists or (not reports_previous_releases.stat.exists and not reports_previous_cli.stat.exists)
         fail_msg: "Existing Reports installation has no role marker; uninstall before deploying."
   tasks:
     - name: Ensure shared OCPP operator group exists
@@ -142,7 +147,7 @@
     - name: Persist immutable Reports role after successful installation
       ansible.builtin.copy:
         dest: "{{ reports_root }}/role"
-        content: "{{ reports_role }}\\n"
+        content: "{{ reports_role }}"
         owner: root
         group: root
         mode: '0644'
