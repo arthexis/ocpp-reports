@@ -19,7 +19,8 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
         db.execute("BEGIN")
         tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         sources = [dict(r) for r in db.execute(
-            "SELECT source_id,cursor,last_ingested_at FROM sources ORDER BY source_id"
+            "SELECT source_id,cursor,last_ingested_at FROM sources" + (" WHERE source_id=?" if source_id else "") + " ORDER BY source_id",
+            (source_id,) if source_id else ()
         )] if "sources" in tables else []
         connectors = []
         if "connector_state" in tables:
@@ -49,7 +50,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             rows = db.execute(f"SELECT source_id,{column},payload FROM {table}" +
                               clause + f" ORDER BY {ordering} DESC LIMIT ?", (*args, limit))
             return [{"source_id": r["source_id"], **json.loads(r["payload"])} for r in rows]
-        transactions = recent("current_transactions", "imported_at", "transaction_id")
+        transactions = recent("current_transactions", "COALESCE(json_extract(payload, '$.stopped_at'), json_extract(payload, '$.started_at'), imported_at)", "transaction_id")
         events = recent("events", "event_id", "event_id")
     return {"sources": sources, "connectors": connectors,
             "transactions": transactions, "events": events}
