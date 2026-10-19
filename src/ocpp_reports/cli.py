@@ -288,5 +288,20 @@ def run(
     elif output is not None:
         typer.echo(f"Written {output}")
 
+
+@app.command("serve")
+def serve(
+    database: Path = typer.Option(..., "--database", help="Reports SQLite warehouse"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Local bind address"),
+    port: int = typer.Option(8080, "--port", min=1, max=65535),
+) -> None:
+    """Serve the read-only dashboard; external exposure requires a secure proxy."""
+    if host not in {"127.0.0.1", "::1", "localhost"}:
+        typer.echo("Refusing non-loopback bind; use an authenticated HTTPS reverse proxy", err=True)
+        raise typer.Exit(2)
+    import uvicorn
+    from .web import create_app
+    uvicorn.run(create_app(database), host=host, port=port)
+
 if __name__ == "__main__":
     app()
