@@ -1,0 +1,17 @@
+[Unit]
+Description=OCPP Reports Forwarder
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ocpp-reports
+Group=ocpp
+EnvironmentFile=/etc/ocpp-reports/forwarder.env
+ExecStart=/usr/local/bin/ocpp-reports forward --database /var/lib/ocpp-reports/warehouse.sqlite --state /var/lib/ocpp-reports/forwarder.sqlite --source-id ${REPORTS_SOURCE_ID} --endpoint ${REPORTS_COLLECTOR_URL} --token-file /etc/ocpp-reports/forwarder-token
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
