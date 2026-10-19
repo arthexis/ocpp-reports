@@ -1,0 +1,6 @@
+---
+# Role-specific services are configured in M4; this role fixes the
+# installation profile and provides explicit operator-visible capabilities.
+- name: Confirm satellite profile
+  ansible.builtin.debug:
+    msg: "OCPP Reports satellite: local reports, email, forwarder"

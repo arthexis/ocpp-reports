@@ -40,6 +40,32 @@ def sync_page(database: Path, page: dict[str, Any]) -> int:
             payload TEXT NOT NULL,
             PRIMARY KEY(source_id, charger_id, connector_id)
         )""")
+        db.executescript("""
+        CREATE TRIGGER IF NOT EXISTS replicate_connector_insert
+        AFTER INSERT ON connector_state BEGIN
+            INSERT INTO replication_changes(source_id,kind,record_key,payload)
+            VALUES (NEW.source_id,'connector',
+                    NEW.charger_id || ':' || NEW.connector_id,
+                    json_object('charger_id',NEW.charger_id,'connector_id',NEW.connector_id,
+                        'status',NEW.status,'connected',NEW.connected,
+                        'transaction_id',NEW.transaction_id,'power_w',NEW.power_w,
+                        'energy_wh',NEW.energy_wh,'observed_at',NEW.observed_at));
+        END;
+        CREATE TRIGGER IF NOT EXISTS replicate_connector_update
+        AFTER UPDATE ON connector_state
+        WHEN OLD.observed_at != NEW.observed_at OR OLD.status IS NOT NEW.status
+             OR OLD.connected IS NOT NEW.connected OR OLD.power_w IS NOT NEW.power_w
+             OR OLD.energy_wh IS NOT NEW.energy_wh
+             OR OLD.transaction_id IS NOT NEW.transaction_id BEGIN
+            INSERT INTO replication_changes(source_id,kind,record_key,payload)
+            VALUES (NEW.source_id,'connector',
+                    NEW.charger_id || ':' || NEW.connector_id,
+                    json_object('charger_id',NEW.charger_id,'connector_id',NEW.connector_id,
+                        'status',NEW.status,'connected',NEW.connected,
+                        'transaction_id',NEW.transaction_id,'power_w',NEW.power_w,
+                        'energy_wh',NEW.energy_wh,'observed_at',NEW.observed_at));
+        END;
+        """)
         # The producer status is a read snapshot, not a stream of immutable events.
         # Preserve the most recent energy sample already seen when a page is empty.
         samples = {}

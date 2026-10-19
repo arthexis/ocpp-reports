@@ -50,6 +50,35 @@ def _schema(db: sqlite3.Connection) -> None:
         PRIMARY KEY(source_id, charger_id, transaction_id, page_after, page_next, fingerprint)
     );
     """)
+    db.executescript("""
+    CREATE TABLE IF NOT EXISTS replication_changes (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        record_key TEXT NOT NULL,
+        payload TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_replication_source_sequence
+        ON replication_changes(source_id, sequence);
+    CREATE TRIGGER IF NOT EXISTS replicate_event_insert
+    AFTER INSERT ON events BEGIN
+        INSERT INTO replication_changes(source_id,kind,record_key,payload)
+        VALUES (NEW.source_id,'event',CAST(NEW.event_id AS TEXT),NEW.payload);
+    END;
+    CREATE TRIGGER IF NOT EXISTS replicate_transaction_insert
+    AFTER INSERT ON current_transactions BEGIN
+        INSERT INTO replication_changes(source_id,kind,record_key,payload)
+        VALUES (NEW.source_id,'transaction',
+                NEW.charger_id || ':' || NEW.transaction_id,NEW.payload);
+    END;
+    CREATE TRIGGER IF NOT EXISTS replicate_transaction_update
+    AFTER UPDATE OF payload ON current_transactions
+    WHEN OLD.payload != NEW.payload BEGIN
+        INSERT INTO replication_changes(source_id,kind,record_key,payload)
+        VALUES (NEW.source_id,'transaction',
+                NEW.charger_id || ':' || NEW.transaction_id,NEW.payload);
+    END;
+    """)
     # Backfill projections from existing observation history when upgrading
     # a Reports warehouse. Never discard its original evidence.
     db.execute("""
