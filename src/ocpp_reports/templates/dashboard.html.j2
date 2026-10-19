@@ -38,7 +38,7 @@ table{border-collapse:collapse;width:100%;font-size:.87rem}th,td{text-align:left
 </tbody></table></div></section>
 <section><h2>Conectores</h2><div class="scroll"><table><thead><tr><th>Origen</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Observado</th></tr></thead><tbody>
 {% for c in data.connectors %}<tr><td>{{ c.source_id }}</td><td>{{ c.charger_id }}</td><td>{{ c.connector_id }}</td>
-<td>{% set state = (c.status or "")|lower %}<span class="status {% if state == 'charging' %}status--active{% elif state in ['available', 'finishing'] %}status--ok{% elif state in ['preparing', 'suspendedev', 'suspendedevse'] %}status--warn{% elif state in ['faulted', 'unavailable'] %}status--off{% endif %}">{{ c.status or "Desconocido" }}</span>{% if c.stale %} <span class="status status--warn">Dato antiguo</span>{% endif %}</td>
+<td>{% set state = (c.status or "")|lower %}<span class="status {% if state == 'charging' %}status--active{% elif state in ['available', 'finishing'] %}status--ok{% elif state in ['preparing', 'suspendedev', 'suspendedevse'] %}status--warn{% elif state in ['faulted', 'unavailable'] %}status--off{% endif %}">{{ c.status or "Desconocido" }}</span>{% if c.stale %} <span class="status status--warn">Antiguo</span>{% endif %}</td>
 <td><span class="status {{ 'status--ok' if c.connected else 'status--off' }}">{{ "Sí" if c.connected else "No" }} (observado)</span></td>
 <td class="numeric">{{ "%.2f"|format(c.power_w / 1000) ~ " kW" if c.power_w is not none else "—" }}</td>
 <td class="numeric">{{ "%.2f"|format(c.energy_wh / 1000) ~ " kWh" if c.energy_wh is not none else "—" }}</td><td>{{ c.observed_at }}</td></tr>
