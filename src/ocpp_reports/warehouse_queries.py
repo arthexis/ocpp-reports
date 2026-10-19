@@ -19,7 +19,8 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
         db.execute("BEGIN")
         tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         sources = [dict(r) for r in db.execute(
-            "SELECT source_id,cursor,last_ingested_at FROM sources" + (" WHERE source_id=?" if source_id else "") + " ORDER BY source_id",\n            (source_id,) if source_id else ()
+            "SELECT source_id,cursor,last_ingested_at FROM sources" + (" WHERE source_id=?" if source_id else "") + " ORDER BY source_id",
+            (source_id,) if source_id else ()
         )] if "sources" in tables else []
         connectors = []
         if "connector_state" in tables:
