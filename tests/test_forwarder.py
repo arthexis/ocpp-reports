@@ -2,7 +2,6 @@
 import httpx
 import pytest
 
-from ocpp_reports.collector import create_collector
 from ocpp_reports.follow import sync_page
 from ocpp_reports.forwarder import confirmed_cursor, forward_once
 
@@ -15,16 +14,6 @@ def page():
         "status": {"chargers": [{"id": "cp-1", "connected": True,
             "connectors": [{"id": 1, "status": "Available", "transaction": None}]}]}
     }}
-
-
-def test_forwarder_acknowledges_and_resumes(tmp_path):
-    warehouse = tmp_path / "warehouse.sqlite"
-    collector = tmp_path / "collector.sqlite"
-    state = tmp_path / "cursor.sqlite"
-    sync_page(warehouse, page())
-    app = create_collector(collector, {"sat-a": "secret"})
-    with httpx.Client(transport=httpx.ASGITransport(app=app)) as client:
-        pass
 
 
 def test_forwarder_retries_without_advancing_cursor(tmp_path):
