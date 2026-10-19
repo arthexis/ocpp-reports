@@ -43,7 +43,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                 where.append("source_id=?")
                 args.append(source_id)
             if charger_id:
-                where.append("charger_id=?")
+                where.append("charger_id=?" if table == "current_transactions" else "json_extract(payload, '$.charger_id')=?")
                 args.append(charger_id)
             clause = " WHERE " + " AND ".join(where) if where else ""
             rows = db.execute(f"SELECT source_id,{column},payload FROM {table}" +
