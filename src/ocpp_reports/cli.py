@@ -303,5 +303,28 @@ def serve(
     from .web import create_app
     uvicorn.run(create_app(database), host=host, port=port)
 
+
+@app.command("forward")
+def forward_command(
+    database: Path = typer.Option(..., "--database", help="Local Reports warehouse"),
+    state: Path = typer.Option(..., "--state", help="Forwarder cursor SQLite file"),
+    source_id: str = typer.Option(..., "--source-id", help="Authorized satellite source"),
+    endpoint: str = typer.Option(..., "--endpoint", help="Collector HTTPS replication endpoint"),
+    token_file: Path = typer.Option(..., "--token-file", help="File containing the source bearer token"),
+    interval: float = typer.Option(2.0, "--interval", help="Seconds between idle polls"),
+    limit: int = typer.Option(500, "--limit", min=1, max=500),
+    once: bool = typer.Option(False, "--once", help="Drain available changes and exit"),
+) -> None:
+    """Forward local changefeed with durable acknowledgements; no silent retries."""
+    from .forwarder import forward
+    try:
+        token = token_file.read_text(encoding="utf-8").strip()
+        forward(database, state, source_id, endpoint, token,
+                interval=interval, limit=limit, once=once)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Forward refused: {exc}", err=True)
+        raise typer.Exit(2)
+
+
 if __name__ == "__main__":
     app()
