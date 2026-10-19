@@ -1,0 +1,27 @@
+---
+- name: Install selected Reports service unit
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates/ocpp-reports-{{ reports_service }}.service.j2"
+    dest: "/etc/systemd/system/ocpp-reports-{{ reports_service }}.service"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  register: reports_unit
+- name: Inspect service configuration
+  ansible.builtin.stat:
+    path: "{{ reports_service_config }}"
+  register: reports_config_state
+  when: reports_service_config | length > 0
+- name: Enable service only when configuration is present
+  ansible.builtin.systemd_service:
+    name: "ocpp-reports-{{ reports_service }}.service"
+    daemon_reload: true
+    enabled: true
+    state: "{{ 'restarted' if reports_unit.changed else 'started' }}"
+  become: true
+  when: reports_service_config | length == 0 or reports_config_state.stat.exists
+- name: Report service waiting for configuration
+  ansible.builtin.debug:
+    msg: "ocpp-reports-{{ reports_service }} installed but not enabled: create {{ reports_service_config }} and redeploy."
+  when: reports_service_config | length > 0 and not reports_config_state.stat.exists
