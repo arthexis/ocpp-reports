@@ -69,14 +69,25 @@ def status(json_output: bool = typer.Option(False, "-j", "--json", help="Machine
 
 @app.command()
 def ingest(
-    source: Path = typer.Option(..., exists=True, dir_okay=False, readable=True,
+    source: Path | None = typer.Option(None, exists=True, dir_okay=False, readable=True,
                                 help="One local CSMS export/v1 JSON page"),
     database: Path = typer.Option(..., "--database", help="Reports-owned SQLite destination"),
     json_output: bool = typer.Option(False, "-j", "--json"),
+    follow: bool = typer.Option(False, "--follow", help="Continuously sync local CSMS"),
+    data_dir: Path | None = typer.Option(None, "--data-dir", help="Local CSMS evidence directory"),
+    interval: float = typer.Option(5.0, "--interval", help="Follow polling interval in seconds"),
 ) -> None:
-    """Import one export page atomically; never modify CSMS evidence."""
+    """Import one export page or continuously follow local CSMS evidence."""
     from .ingest import ingest_page, load_page
     try:
+        if follow:
+            if source is not None or data_dir is None:
+                raise ValueError("--follow requires --data-dir and does not accept --source")
+            from .follow import follow as run_follow
+            run_follow(database, data_dir, interval=interval)
+            return
+        if data_dir is not None or source is None:
+            raise ValueError("One-shot ingest requires --source; --data-dir requires --follow")
         if source.resolve() == database.resolve():
             raise ValueError("Source and destination must differ")
         if database.exists() and database.is_dir():
