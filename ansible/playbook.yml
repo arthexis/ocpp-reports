@@ -6,8 +6,38 @@
   vars:
     reports_commit: "{{ lookup('pipe', 'git -C ' ~ playbook_dir ~ '/.. rev-parse HEAD') | trim }}"
     reports_root: "{{ lookup('env', 'OCPP_REPORTS_INSTALL_ROOT') | default('/opt/ocpp-reports', true) }}"
+    reports_install_extra: "{{ '[forwarder]' if reports_role == 'satellite' else ('[web,forwarder]' if reports_role == 'control' else ('[web]' if reports_role == 'watchtower' else '')) }}"
     reports_release: "{{ reports_root }}/releases/{{ reports_commit }}"
     reports_cli_link: "{{ lookup('env', 'OCPP_REPORTS_CLI_LINK') | default('/usr/local/bin/ocpp-reports', true) }}"
+  pre_tasks:
+    - name: Validate selected installation role
+      ansible.builtin.assert:
+        that:
+          - reports_role is defined
+          - reports_role in ['terminal', 'satellite', 'watchtower', 'control']
+    - name: Check persisted installation role
+      ansible.builtin.stat:
+        path: "{{ reports_root }}/role"
+      register: reports_role_file
+    - name: Read persisted role
+      ansible.builtin.slurp:
+        src: "{{ reports_root }}/role"
+      register: reports_role_saved
+      when: reports_role_file.stat.exists and reports_role_file.stat.isreg
+    - name: Refuse changed or invalid role
+      ansible.builtin.assert:
+        that:
+          - not reports_role_file.stat.exists or reports_role_file.stat.isreg
+          - not reports_role_file.stat.exists or (reports_role_saved.content | b64decode | trim) == reports_role
+    - name: Inspect previous installation without role marker
+      ansible.builtin.stat:
+        path: "{{ reports_root }}/releases"
+      register: reports_previous_releases
+    - name: Refuse adoption of an unmarked existing installation
+      ansible.builtin.assert:
+        that:
+          - reports_role_file.stat.exists or not reports_previous_releases.stat.exists
+        fail_msg: "Existing Reports installation has no role marker; uninstall before deploying."
   tasks:
     - name: Ensure shared OCPP operator group exists
       ansible.builtin.group:
@@ -99,13 +129,25 @@
 
     - name: Install Reports from owned release staging
       ansible.builtin.command:
-        cmd: "{{ reports_release }}/venv/bin/pip install {{ reports_release }}/source"
+        cmd: "{{ reports_release }}/venv/bin/pip install {{ reports_release }}/source{{ reports_install_extra }}"
       become: true
       changed_when: true
     - name: Check installed CLI
       ansible.builtin.command:
         cmd: "{{ reports_release }}/venv/bin/ocpp-reports status --json"
       changed_when: false
+    - name: Apply selected Reports role
+      ansible.builtin.include_role:
+        name: "{{ reports_role }}"
+    - name: Persist immutable Reports role after successful installation
+      ansible.builtin.copy:
+        dest: "{{ reports_root }}/role"
+        content: "{{ reports_role }}\\n"
+        owner: root
+        group: root
+        mode: '0644'
+        force: false
+      become: true
     - name: Link active Reports CLI
       ansible.builtin.file:
         src: "{{ reports_release }}/venv/bin/ocpp-reports"
