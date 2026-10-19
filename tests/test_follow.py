@@ -24,7 +24,9 @@ def test_follow_catches_up_and_restarts_without_duplicates(tmp_path):
     def producer(_directory, *, after, limit):
         calls.append(after)
         if after == 0:
-            return copy.deepcopy(active)
+            result = copy.deepcopy(active)
+            result["data"]["cursor"]["more"] = True
+            return result
         if after == active["data"]["cursor"]["next"]:
             return copy.deepcopy(late)
         empty = copy.deepcopy(late)
