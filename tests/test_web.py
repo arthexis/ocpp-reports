@@ -76,3 +76,18 @@ def test_d3_filters_sources_and_orders_by_activity(tmp_path):
     assert 'value="cp-1"' in page.text
     assert "Limpiar filtros" in page.text
     assert "cp-2" not in page.text
+
+def test_d4_accessibility_and_empty_state(tmp_path):
+    database = tmp_path / "reports.sqlite"
+    sync_page(database, empty_page())
+    client = TestClient(create_app(database))
+    page = client.get("/?charger_id=unknown")
+    assert page.status_code == 200
+    assert 'href="#content"' in page.text
+    assert 'id="content"' in page.text
+    assert 'role="search"' in page.text
+    assert 'tabindex="0"' in page.text
+    assert "Sin conectores registrados" in page.text
+    assert "Sin transacciones" in page.text
+    assert "Sin eventos" in page.text
+    assert client.get("/api/snapshot?charger_id=unknown").json()["connectors"] == []
