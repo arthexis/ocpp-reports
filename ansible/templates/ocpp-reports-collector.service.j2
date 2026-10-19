@@ -1,0 +1,15 @@
+[Unit]
+Description=OCPP Reports Collector
+After=network.target
+
+[Service]
+Type=simple
+User=ocpp-reports
+Group=ocpp
+ExecStart=/usr/local/bin/ocpp-reports collect --database /var/lib/ocpp-reports/warehouse.sqlite --credentials-file /etc/ocpp-reports/collector-credentials.json --host 127.0.0.1 --port 8081
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
