@@ -24,7 +24,7 @@ table{border-collapse:collapse;width:100%;font-size:.87rem}th,td{text-align:left
 @media(max-width:900px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-grid{grid-template-columns:1fr}header{padding:1.1rem 1.25rem}}
 @media(max-width:520px){.cards{gap:.6rem}.cards article{padding:.8rem}.cards strong{font-size:1.65rem}main{padding:1rem .75rem}section{padding:1rem}header{padding:1rem}.filters{width:100%}.filters label{flex:1;min-width:120px}.filters input{width:100%;min-width:0}}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}input{background:#243345;color:var(--ink)}button{color:#0b1b2c}th{background:#263647;color:#d7e5f5}.cards article,.cards article:nth-child(n){background:#223245}}
-</style></head><body>
+.status{display:inline-flex;align-items:center;gap:.4rem;border-radius:999px;padding:.2rem .5rem;font-size:.78rem;font-weight:650;background:#edf1f5}.status::before{content:"";width:.5rem;height:.5rem;border-radius:50%;background:#8795a7}.status--ok{background:#e3f6ed;color:#087342}.status--ok::before{background:#0b9960}.status--active{background:#e4f0ff;color:#155bad}.status--active::before{background:#1976e9}.status--warn{background:#fff3d9;color:#906000}.status--warn::before{background:#dfa000}.status--off{background:#f7e8e8;color:#984545}.status--off::before{background:#c55b5b}.numeric{text-align:right;font-variant-numeric:tabular-nums}.empty{text-align:center;color:var(--muted);padding:1.5rem}.note{font-size:.8rem}@media(prefers-color-scheme:dark){.status{background:#354657;color:#e1e9f3}.status--ok{background:#164333;color:#9ce7c1}.status--active{background:#193c62;color:#a9d4ff}.status--warn{background:#493c20;color:#ffe1a3}.status--off{background:#493039;color:#ffc0c7}}</style></head><body>
 <header><div><h1>OCPP Reports</h1><p class="muted">Warehouse local · Solo lectura · Actualización cada 15 s</p></div>
 </header><main><section class="filter-panel"><form class="filters" method="get"><label>Origen <input name="source_id" value="{{ source_id }}" placeholder="Todos"></label>
 <label>Cargador <input name="charger_id" value="{{ charger_id }}" placeholder="Todos"></label><button>Filtrar</button></form></section>
@@ -34,21 +34,21 @@ table{border-collapse:collapse;width:100%;font-size:.87rem}th,td{text-align:left
 <article><strong>{{ data.transactions|length }}</strong><div>Transacciones recientes</div></article>
 <article><strong>{{ data.events|length }}</strong><div>Eventos recientes</div></article></div></section>
 <div class="dashboard-grid"><section><h2>Sincronización</h2><div class="scroll"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Última ingestión</th></tr></thead><tbody>
-{% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at or "Sin datos" }}</td></tr>{% else %}<tr><td colspan="3">Sin orígenes</td></tr>{% endfor %}
+{% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at or "Sin datos" }}</td></tr>{% else %}<tr><td class="empty" colspan="3">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
 <section><h2>Conectores</h2><div class="scroll"><table><thead><tr><th>Origen</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Observado</th></tr></thead><tbody>
 {% for c in data.connectors %}<tr><td>{{ c.source_id }}</td><td>{{ c.charger_id }}</td><td>{{ c.connector_id }}</td>
-<td>{{ c.status or "Desconocido" }} {% if c.stale %}<span class="stale">· Antiguo</span>{% endif %}</td>
-<td>{{ "Sí" if c.connected else "No" }}</td>
-<td>{{ "%.2f"|format(c.power_w / 1000) ~ " kW" if c.power_w is not none else "—" }}</td>
-<td>{{ "%.2f"|format(c.energy_wh / 1000) ~ " kWh" if c.energy_wh is not none else "—" }}</td><td>{{ c.observed_at }}</td></tr>
-{% else %}<tr><td colspan="8">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
-<p class="muted">* Última observación del productor, no una conexión en tiempo real. Energía registrada: lectura de medidor, no consumo de la sesión.</p></section>
+<td>{% set state = (c.status or "")|lower %}<span class="status {% if state == 'charging' %}status--active{% elif state in ['available', 'finishing'] %}status--ok{% elif state in ['preparing', 'suspendedev', 'suspendedevse'] %}status--warn{% elif state in ['faulted', 'unavailable'] %}status--off{% endif %}">{{ c.status or "Desconocido" }}</span>{% if c.stale %} <span class="status status--warn">Dato antiguo</span>{% endif %}</td>
+<td><span class="status {{ 'status--ok' if c.connected else 'status--off' }}">{{ "Sí" if c.connected else "No" }} (observado)</span></td>
+<td class="numeric">{{ "%.2f"|format(c.power_w / 1000) ~ " kW" if c.power_w is not none else "—" }}</td>
+<td class="numeric">{{ "%.2f"|format(c.energy_wh / 1000) ~ " kWh" if c.energy_wh is not none else "—" }}</td><td>{{ c.observed_at }}</td></tr>
+{% else %}<tr><td class="empty" colspan="8">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted note">* Última observación del productor, no una conexión en tiempo real. Energía registrada: lectura de medidor, no consumo de la sesión.</p></section>
 <section><h2>Transacciones recientes</h2><div class="scroll"><table><thead><tr><th>Cargador</th><th>ID</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Energía de sesión</th></tr></thead><tbody>
-{% for t in data.transactions %}<tr><td>{{ t.charger_id }}</td><td>{{ t.id }}</td><td>{{ t.state or "—" }}</td><td>{{ t.started_at or "—" }}</td><td>{{ t.stopped_at or "Activa / sin cierre" }}</td>
-<td>{{ "%.2f"|format(t.energy_wh / 1000) ~ " kWh" if t.energy_wh is defined and t.energy_wh is not none else "—" }}</td></tr>
-{% else %}<tr><td colspan="6">Sin transacciones</td></tr>{% endfor %}</tbody></table></div></section>
+{% for t in data.transactions %}<tr><td>{{ t.charger_id }}</td><td>{{ t.id }}</td><td><span class="status {{ 'status--active' if (t.state or '')|lower in ['open', 'active', 'charging'] else 'status--ok' if (t.state or '')|lower in ['closed', 'stopped', 'completed'] else '' }}">{{ t.state or "Desconocido" }}</span></td><td>{{ t.started_at or "—" }}</td><td>{{ t.stopped_at or "Activa / sin cierre" }}</td>
+<td class="numeric">{{ "%.2f"|format(t.energy_wh / 1000) ~ " kWh" if t.energy_wh is defined and t.energy_wh is not none else "—" }}</td></tr>
+{% else %}<tr><td class="empty" colspan="6">Sin transacciones</td></tr>{% endfor %}</tbody></table></div></section>
 <section><h2>Eventos recientes</h2><div class="scroll"><table><thead><tr><th>ID</th><th>Cargador</th><th>Acción</th><th>Fecha</th></tr></thead><tbody>
 {% for e in data.events %}<tr><td>{{ e.id }}</td><td>{{ e.charger_id }}</td><td>{{ e.action }}</td><td>{{ e.at }}</td></tr>
-{% else %}<tr><td colspan="4">Sin eventos</td></tr>{% endfor %}</tbody></table></div></section></div></main>
+{% else %}<tr><td class="empty" colspan="4">Sin eventos</td></tr>{% endfor %}</tbody></table></div></section></div></main>
 </body></html>
