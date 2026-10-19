@@ -141,6 +141,13 @@
       ansible.builtin.command:
         cmd: "{{ reports_release }}/venv/bin/ocpp-reports status --json"
       changed_when: false
+    - name: Link active Reports CLI
+      ansible.builtin.file:
+        src: "{{ reports_release }}/venv/bin/ocpp-reports"
+        dest: "{{ reports_cli_link }}"
+        state: link
+        force: true
+      become: true
     - name: Apply selected Reports role
       ansible.builtin.include_role:
         name: "{{ reports_role }}"
@@ -152,11 +159,4 @@
         group: root
         mode: '0644'
         force: false
-      become: true
-    - name: Link active Reports CLI
-      ansible.builtin.file:
-        src: "{{ reports_release }}/venv/bin/ocpp-reports"
-        dest: "{{ reports_cli_link }}"
-        state: link
-        force: true
       become: true
