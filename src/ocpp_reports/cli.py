@@ -326,5 +326,21 @@ def forward_command(
         raise typer.Exit(2)
 
 
+@app.command("collect")
+def collect_command(
+    database: Path = typer.Option(..., "--database"),
+    credentials_file: Path = typer.Option(..., "--credentials-file"),
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8081, "--port", min=1, max=65535),
+) -> None:
+    """Run the authenticated collector on loopback behind HTTPS reverse proxy."""
+    from .collector_server import serve_collector
+    try:
+        serve_collector(database, credentials_file, host, port)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        typer.echo(f"Collector refused: {exc}", err=True)
+        raise typer.Exit(2)
+
+
 if __name__ == "__main__":
     app()
