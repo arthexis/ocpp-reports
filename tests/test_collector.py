@@ -45,5 +45,4 @@ def test_collector_rejects_invalid_order_without_partial_commit(tmp_path):
                             "record_key": "1", "payload": {"id": 1}})
     assert client.post("/api/replication", json=data,
                        headers={"Authorization": "Bearer token-a"}).status_code == 409
-    with sqlite3.connect(db) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM collector_changes").fetchone()[0] == 0
+    assert not db.exists()  # Rejected during validation before creating storage
