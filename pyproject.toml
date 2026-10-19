@@ -14,7 +14,7 @@ dependencies = ["pydantic>=2,<3", "typer>=0.26,<1"]
 [project.optional-dependencies]
 forwarder = ["httpx>=0.27,<1"]
 web = ["Jinja2>=3.1,<4", "fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
-test = ["pytest>=8,<10", "pytest-cov>=6,<8", "httpx>=0.27,<1"]
+test = ["pytest>=8,<10", "pytest-cov>=6,<8", "httpx>=0.27,<1", "Jinja2>=3.1,<4", "fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
 build = ["build>=1,<2"]
 
 [project.scripts]
