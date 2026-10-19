@@ -41,12 +41,13 @@ def test_follow_catches_up_and_restarts_without_duplicates(tmp_path):
     assert cursor == late["data"]["cursor"]["next"]
     follow(database, tmp_path, once=True, producer=producer)
     assert source_cursor(database, source) == cursor
-    assert calls.count(0) == 2  # source identity probe
+    assert calls.count(0) == 3  # first probe, first import, restart probe
 
 
 def test_state_updates_even_without_cursor_progress(tmp_path):
     database = tmp_path / "warehouse.sqlite"
     first = page("empty.json")
+    first["data"]["cursor"] = {"after": 0, "next": 0, "more": False}
     first["data"]["status"] = {"chargers": [{
         "id": "cp", "connected": True,
         "connectors": [{"id": 1, "status": "Available", "transaction": None}]
