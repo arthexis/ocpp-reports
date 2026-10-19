@@ -1,0 +1,15 @@
+[Unit]
+Description=OCPP Reports Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=ocpp-reports
+Group=ocpp
+ExecStart=/usr/local/bin/ocpp-reports serve --database /var/lib/ocpp-reports/warehouse.sqlite --host 127.0.0.1 --port 8080
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
