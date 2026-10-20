@@ -60,8 +60,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export OCPP_REPORTS_INSTALL_ROOT="${RUNNER_TEMP}/ocpp-reports"
-          export OCPP_REPORTS_CLI_LINK="${RUNNER_TEMP}/ocpp-reports-cli"
+          export OCPP_REPORTS_INSTALL_ROOT="/opt/ocpp-reports-ci"
+          export OCPP_REPORTS_CLI_LINK="/usr/local/bin/ocpp-reports-ci"
           ./deploy.sh --${{ matrix.role }}
           test -f "$OCPP_REPORTS_INSTALL_ROOT/role"
           test "$(cat "$OCPP_REPORTS_INSTALL_ROOT/role")" = "${{ matrix.role }}"
