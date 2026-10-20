@@ -104,16 +104,13 @@ service, independently of the collector and dashboard. It is **opt-in**:
 a remote-only collector should not require access to a local CSMS.
 
 Before enabling, identify the actual CSMS schema-8 evidence directory
-and the Python package directory containing
-`ocpp_csms/export_contract.py`. The Reports service user must be able
+; the producer is resolved from the running `ocpp-csms.service` console script. The Reports service user must be able
 to read the CSMS SQLite files and traverse their parent directories.
-The Reports virtual environment must have the CSMS producer's Python
-dependencies available. The installer does not modify CSMS or its DB.
+The producer runs under CSMS's own installed Python interpreter. The installer does not modify CSMS or its DB.
 
 ```sh
 export OCPP_REPORTS_LOCAL_INGEST_ENABLED=true
 export OCPP_REPORTS_CSMS_DATA_DIR=/actual/path/to/csms/schemas/8
-export OCPP_REPORTS_CSMS_PYTHONPATH=/actual/path/to/ocpp-csms/src
 export OCPP_REPORTS_LOCAL_INGEST_INTERVAL=30
 ./deploy.sh --watchtower
 sudo systemctl status ocpp-reports-ingest.service
@@ -121,6 +118,6 @@ sudo journalctl -u ocpp-reports-ingest.service -n 80 --no-pager
 ```
 
 Keep these environment settings in the operator's deployment configuration
-for subsequent redeploys. Do not enable the service until the CSMS producer
-can import in the Reports venv; if it cannot, the journal will show an import
-error and the service will restart visibly. The service never writes to CSMS.
+for subsequent redeploys. The Reports service user must be able to inspect the
+active CSMS process and read the evidence directory; import failures are
+reported in the journal and cause visible service restarts. The service never writes to CSMS.
