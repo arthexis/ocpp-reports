@@ -7,6 +7,7 @@
       - reports_dashboard_hostname != reports_collector_hostname
       - reports_dashboard_hostname != 'porsche-abb.gelectriic.com'
       - reports_collector_hostname != 'porsche-abb.gelectriic.com'
+      - reports_role in ['watchtower', 'control']
     fail_msg: "Dashboard and Collector need distinct hostnames; do not reuse the CSMS hostname."
   when: reports_nginx_enabled | bool
 
@@ -29,6 +30,18 @@
       - reports_nginx_prerequisites.results | map(attribute='stat.exists') | min
       - reports_nginx_prerequisites.results | map(attribute='stat.isreg') | min
     fail_msg: "Provide both TLS certificate/key pairs, dashboard htpasswd, and Collector credentials before enabling HTTPS."
+  when: reports_nginx_enabled | bool
+
+- name: Verify Collector service is running before public exposure
+  ansible.builtin.command: systemctl is-active ocpp-reports-collector.service
+  changed_when: false
+  become: true
+  when: reports_nginx_enabled | bool
+
+- name: Verify Dashboard service is running before public exposure
+  ansible.builtin.command: systemctl is-active ocpp-reports-dashboard.service
+  changed_when: false
+  become: true
   when: reports_nginx_enabled | bool
 
 - name: Install shared Nginx package without changing CSMS site
