@@ -12,18 +12,21 @@
 - name: Check Forwarder environment
   ansible.builtin.stat:
     path: /etc/ocpp-reports/forwarder.env
+  become: true
   register: reports_forwarder_env
   when: reports_service == 'forwarder'
 
 - name: Check Forwarder token
   ansible.builtin.stat:
     path: /etc/ocpp-reports/forwarder-token
+  become: true
   register: reports_forwarder_token
   when: reports_service == 'forwarder'
 
 - name: Check Collector credentials
   ansible.builtin.stat:
     path: /etc/ocpp-reports/collector-credentials.json
+  become: true
   register: reports_collector_credentials
   when: reports_service == 'collector'
 
