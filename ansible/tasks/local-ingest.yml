@@ -9,6 +9,7 @@
 - name: Inspect local CSMS evidence directory
   ansible.builtin.stat:
     path: "{{ reports_local_csms_data_dir }}"
+  become: true
   register: reports_local_csms_evidence
 
 - name: Refuse missing local CSMS evidence
