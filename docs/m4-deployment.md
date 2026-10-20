@@ -47,36 +47,44 @@ with a local CSMS still needs local ingestion configured; selecting the role
 alone does not enable ingestion. Do not merge until those items and
 end-to-end deployment validation are complete.
 
-## Optional Nginx HTTPS exposure (watchtower / control only)
+## Separate HTTPS hosts (watchtower/control)
 
-Provision a valid certificate and matching private key, and create a Basic Auth
-password file using `htpasswd` (package `apache2-utils`):
+The existing CSMS virtual host `porsche-abb.gelectriic.com` is untouched.
+Reports manages two different Nginx sites, using independent certificates:
+
+- `porsche.gelectriic.com`: Basic Auth dashboard, loopback port 8080.
+- `collector.gelectriic.com`: only `POST /api/replication`, source bearer authentication, loopback port 8081.
+
+Provision both certificates (for example using Certbot on the server) before
+enabling HTTPS. Certificate issuance and renewal remain operator-managed.
+Both DNS names must resolve to this server. Configure the Collector credentials
+and dashboard htpasswd before deploying. For example:
 
 ```sh
+sudo apt-get install certbot apache2-utils
+sudo certbot certonly --webroot -w /var/www/html -d collector.gelectriic.com
+sudo certbot certonly --webroot -w /var/www/html -d porsche.gelectriic.com
 sudo htpasswd -c /etc/ocpp-reports/dashboard.htpasswd operator
 sudo chown root:www-data /etc/ocpp-reports/dashboard.htpasswd
 sudo chmod 0640 /etc/ocpp-reports/dashboard.htpasswd
+OCPP_REPORTS_NGINX_ENABLED=true ./deploy.sh --watchtower
 ```
 
-Create the Collector bearer-token JSON file as described above **before**
-enabling public exposure. Set these environment variables when running deploy:
+The Certbot `--webroot` commands require an existing Nginx HTTP
+challenge location serving `/var/www/html/.well-known/acme-challenge/`.
+If that is not already configured, use a compatible DNS challenge or
+another supported certificate issuance method instead. Do not assume the
+commands above will work on an unconfigured host.
 
-```sh
-OCPP_REPORTS_NGINX_ENABLED=true \
-OCPP_REPORTS_NGINX_SERVER_NAME=reports.example.org \
-OCPP_REPORTS_TLS_CERT=/etc/letsencrypt/live/reports.example.org/fullchain.pem \
-OCPP_REPORTS_TLS_KEY=/etc/letsencrypt/live/reports.example.org/privkey.pem \
-./deploy.sh --watchtower
-```
+The certificate paths default to
+`/etc/letsencrypt/live/{hostname}/fullchain.pem` and `privkey.pem`.
+Override with `OCPP_REPORTS_DASHBOARD_TLS_CERT`,
+`OCPP_REPORTS_DASHBOARD_TLS_KEY`, `OCPP_REPORTS_COLLECTOR_TLS_CERT`,
+`OCPP_REPORTS_COLLECTOR_TLS_KEY` as needed. Hostnames can be overridden
+using `OCPP_REPORTS_DASHBOARD_HOSTNAME` and
+`OCPP_REPORTS_COLLECTOR_HOSTNAME`. The two hostnames must be different.
 
-Nginx serves the dashboard over HTTPS with Basic Auth on all routes except
-`POST /api/replication`, which passes the satellite bearer token to the
-Collector. This distinction is intentional: satellites do not receive the
-dashboard operator password. Both Python servers remain on loopback. HTTP
-port 80 redirects to HTTPS.
-
-The installer refuses to configure public exposure if certificate, key,
-htpasswd, or Collector credentials are missing. It runs `nginx -t` before
-reloading. Certificate issuance and renewal, DNS, and firewall policy are
-operator-managed. If an existing Nginx virtual host uses the same name or
-ports, reconcile it before enabling this site.
+Nginx must be reloaded after Certbot renews certificates. Validate the
+complete configuration with `sudo nginx -t`. The installer does not
+modify the CSMS site or global Nginx configuration. Do not merge until
+coexistence and deployment tests have passed.
