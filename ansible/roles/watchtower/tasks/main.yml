@@ -12,3 +12,7 @@
 
 - name: Configure optional HTTPS reverse proxy
   ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nginx.yml"
+
+- name: Configure optional local CSMS ingestion
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/local-ingest.yml"
+  when: reports_local_ingest_enabled | bool
