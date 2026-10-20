@@ -2,7 +2,7 @@
 - name: Validate local CSMS ingestion settings
   ansible.builtin.assert:
     that:
-      - reports_local_csms_data_dir is match('^/[^[:space:]]+$')
+      - reports_local_csms_data_dir.startswith('/')
       - (reports_local_ingest_interval | float) > 0
     fail_msg: "Set an absolute OCPP_REPORTS_CSMS_DATA_DIR and positive OCPP_REPORTS_LOCAL_INGEST_INTERVAL."
 
@@ -42,16 +42,6 @@
     mode: '0644'
   become: true
   register: reports_local_ingest_unit
-
-- name: Inspect current local ingestion service state
-  ansible.builtin.command:
-    argv:
-      - systemctl
-      - is-active
-      - ocpp-reports-ingest.service
-  register: reports_local_ingest_active
-  changed_when: false
-  failed_when: false
 
 - name: Enable and reconcile local ingestion service
   ansible.builtin.systemd_service:
