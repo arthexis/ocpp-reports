@@ -7,6 +7,7 @@ ConditionPathIsDirectory={{ reports_local_csms_data_dir }}
 Type=simple
 User=ocpp-reports
 Group=ocpp
+Environment="PYTHONPATH={{ reports_local_csms_pythonpath }}"
 ExecStart={{ reports_cli_link }} ingest --follow --database /var/lib/ocpp-reports/warehouse.sqlite --data-dir {{ reports_local_csms_data_dir }} --interval {{ reports_local_ingest_interval }}
 Restart=on-failure
 RestartSec=10
