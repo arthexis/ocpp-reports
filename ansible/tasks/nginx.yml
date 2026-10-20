@@ -1,58 +1,83 @@
 ---
-- name: Inspect Nginx prerequisites
+- name: Validate independent HTTPS hostnames
+  ansible.builtin.assert:
+    that:
+      - reports_dashboard_hostname is match('^[A-Za-z0-9.-]+$')
+      - reports_collector_hostname is match('^[A-Za-z0-9.-]+$')
+      - reports_dashboard_hostname != reports_collector_hostname
+      - reports_dashboard_hostname != 'porsche-abb.gelectriic.com'
+      - reports_collector_hostname != 'porsche-abb.gelectriic.com'
+    fail_msg: "Dashboard and Collector need distinct hostnames; do not reuse the CSMS hostname."
+  when: reports_nginx_enabled | bool
+
+- name: Inspect independent TLS and authentication prerequisites
   ansible.builtin.stat:
     path: "{{ item }}"
   loop:
-    - "{{ reports_nginx_certificate }}"
-    - "{{ reports_nginx_private_key }}"
+    - "{{ reports_dashboard_certificate }}"
+    - "{{ reports_dashboard_private_key }}"
+    - "{{ reports_collector_certificate }}"
+    - "{{ reports_collector_private_key }}"
     - "{{ reports_nginx_htpasswd }}"
     - /etc/ocpp-reports/collector-credentials.json
   register: reports_nginx_prerequisites
-
-- name: Require explicit TLS, Basic Auth and Collector credentials
-  ansible.builtin.assert:
-    that:
-      - reports_nginx_server_name | length > 0
-      - reports_nginx_server_name is match('^[A-Za-z0-9.-]+$')
-      - reports_nginx_prerequisites.results | map(attribute='stat.exists') | min
-      - reports_nginx_prerequisites.results | map(attribute='stat.isreg') | min
-    fail_msg: "Nginx exposure refused: provide domain, certificate, private key, htpasswd and Collector credentials."
   when: reports_nginx_enabled | bool
 
-- name: Install Nginx only for configured public exposure
+- name: Refuse incomplete HTTPS configuration
+  ansible.builtin.assert:
+    that:
+      - reports_nginx_prerequisites.results | map(attribute='stat.exists') | min
+      - reports_nginx_prerequisites.results | map(attribute='stat.isreg') | min
+    fail_msg: "Provide both TLS certificate/key pairs, dashboard htpasswd, and Collector credentials before enabling HTTPS."
+  when: reports_nginx_enabled | bool
+
+- name: Install shared Nginx package without changing CSMS site
   ansible.builtin.apt:
     name: nginx
     state: present
-    update_cache: false
   become: true
   when: reports_nginx_enabled | bool
 
-- name: Install Reports HTTPS reverse proxy
+- name: Inspect existing Reports site names
+  ansible.builtin.stat:
+    path: "/etc/nginx/sites-available/{{ item }}"
+  loop:
+    - ocpp-reports-dashboard
+    - ocpp-reports-collector
+  register: reports_nginx_existing
+  when: reports_nginx_enabled | bool
+
+- name: Render independent Reports virtual hosts
   ansible.builtin.template:
-    src: "{{ playbook_dir }}/templates/ocpp-reports-nginx.conf.j2"
-    dest: /etc/nginx/sites-available/ocpp-reports
+    src: "{{ playbook_dir }}/templates/ocpp-reports-{{ item }}.nginx.j2"
+    dest: "/etc/nginx/sites-available/ocpp-reports-{{ item }}"
     owner: root
     group: root
     mode: '0644'
+  loop:
+    - dashboard
+    - collector
   become: true
   when: reports_nginx_enabled | bool
-  register: reports_nginx_site
 
-- name: Enable Reports HTTPS reverse proxy
+- name: Enable independent Reports virtual hosts
   ansible.builtin.file:
-    src: /etc/nginx/sites-available/ocpp-reports
-    dest: /etc/nginx/sites-enabled/ocpp-reports
+    src: "/etc/nginx/sites-available/ocpp-reports-{{ item }}"
+    dest: "/etc/nginx/sites-enabled/ocpp-reports-{{ item }}"
     state: link
+  loop:
+    - dashboard
+    - collector
   become: true
   when: reports_nginx_enabled | bool
 
-- name: Validate Nginx configuration before reloading
+- name: Validate complete Nginx configuration
   ansible.builtin.command: nginx -t
   become: true
   changed_when: false
   when: reports_nginx_enabled | bool
 
-- name: Enable and reload Nginx
+- name: Reload shared Nginx only after successful validation
   ansible.builtin.systemd_service:
     name: nginx
     enabled: true
