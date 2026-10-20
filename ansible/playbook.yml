@@ -4,6 +4,10 @@
   connection: local
   become: false
   vars:
+    reports_local_ingest_enabled: "{{ lookup('env', 'OCPP_REPORTS_LOCAL_INGEST_ENABLED') | default('false', true) | bool }}"
+    reports_local_csms_data_dir: "{{ lookup('env', 'OCPP_REPORTS_CSMS_DATA_DIR') | default('/var/lib/ocpp-csms/schemas/8', true) }}"
+    reports_local_csms_pythonpath: "{{ lookup('env', 'OCPP_REPORTS_CSMS_PYTHONPATH') | default('', true) }}"
+    reports_local_ingest_interval: "{{ lookup('env', 'OCPP_REPORTS_LOCAL_INGEST_INTERVAL') | default('30', true) }}"
     reports_nginx_enabled: "{{ lookup('env', 'OCPP_REPORTS_NGINX_ENABLED') | default('false', true) | bool }}"
     reports_dashboard_hostname: "{{ lookup('env', 'OCPP_REPORTS_DASHBOARD_HOSTNAME') | default('porsche.gelectriic.com', true) }}"
     reports_collector_hostname: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_HOSTNAME') | default('collector.gelectriic.com', true) }}"
