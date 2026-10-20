@@ -1,35 +1,62 @@
 ---
-- name: Require explicit CSMS producer path and interval
+- name: Validate local CSMS ingestion settings
   ansible.builtin.assert:
     that:
-      - reports_local_csms_data_dir.startswith('/')
+      - reports_local_csms_data_dir is match('^/[^[:space:]]+$')
       - (reports_local_ingest_interval | float) > 0
-    fail_msg: "Set absolute OCPP_REPORTS_CSMS_DATA_DIR and OCPP_REPORTS_CSMS_PYTHONPATH before enabling local ingestion."
+    fail_msg: "Set an absolute OCPP_REPORTS_CSMS_DATA_DIR and positive OCPP_REPORTS_LOCAL_INGEST_INTERVAL."
 
-- name: Check local CSMS paths
+- name: Inspect local CSMS evidence directory
   ansible.builtin.stat:
-    path: "{{ item }}"
-  loop:
-    - "{{ reports_local_csms_data_dir }}"
-    - "{{ reports_local_csms_pythonpath }}/ocpp_csms/export_contract.py"
-  register: reports_local_csms_paths
+    path: "{{ reports_local_csms_data_dir }}"
+  register: reports_local_csms_evidence
 
-- name: Require readable local CSMS evidence and producer
+- name: Refuse missing local CSMS evidence
   ansible.builtin.assert:
     that:
-      - reports_local_csms_paths.results[0].stat.isdir | default(false)
+      - reports_local_csms_evidence.stat.isdir | default(false)
+    fail_msg: "Local CSMS evidence directory is missing; do not start ingestion."
 
-- name: Install optional local ingestion unit
+- name: Inspect active CSMS systemd service
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - ocpp-csms.service
+  register: reports_local_csms_active
+  changed_when: false
+  failed_when: false
+
+- name: Refuse ingestion without active CSMS
+  ansible.builtin.assert:
+    that:
+      - reports_local_csms_active.rc == 0
+    fail_msg: "ocpp-csms.service must be active before local ingestion is enabled."
+
+- name: Install local ingestion systemd unit
   ansible.builtin.template:
     src: "{{ playbook_dir }}/templates/ocpp-reports-ingest.service.j2"
     dest: /etc/systemd/system/ocpp-reports-ingest.service
+    owner: root
+    group: root
     mode: '0644'
   become: true
+  register: reports_local_ingest_unit
 
-- name: Enable local ingestion
+- name: Inspect current local ingestion service state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - ocpp-reports-ingest.service
+  register: reports_local_ingest_active
+  changed_when: false
+  failed_when: false
+
+- name: Enable and reconcile local ingestion service
   ansible.builtin.systemd_service:
     name: ocpp-reports-ingest.service
-    daemon_reload: true
+    daemon_reload: "{{ reports_local_ingest_unit.changed }}"
     enabled: true
-    state: started
+    state: "{{ 'restarted' if reports_local_ingest_unit.changed else 'started' }}"
   become: true
