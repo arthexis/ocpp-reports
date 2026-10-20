@@ -76,6 +76,7 @@ def ingest(
     follow: bool = typer.Option(False, "--follow", help="Continuously sync local CSMS"),
     data_dir: Path | None = typer.Option(None, "--data-dir", help="Local CSMS evidence directory"),
     interval: float = typer.Option(5.0, "--interval", help="Follow polling interval in seconds"),
+    active_csms: bool = typer.Option(False, "--active-csms", help="Use the active CSMS service Python producer"),
 ) -> None:
     """Import one export page or continuously follow local CSMS evidence."""
     from .ingest import ingest_page, load_page
@@ -84,7 +85,11 @@ def ingest(
             if source is not None or data_dir is None:
                 raise ValueError("--follow requires --data-dir and does not accept --source")
             from .follow import follow as run_follow
-            run_follow(database, data_dir, interval=interval)
+            if active_csms:
+                from .active_csms import active_csms_export
+                run_follow(database, data_dir, interval=interval, producer=active_csms_export)
+            else:
+                run_follow(database, data_dir, interval=interval)
             return
         if data_dir is not None or source is None:
             raise ValueError("One-shot ingest requires --source; --data-dir requires --follow")
