@@ -9,3 +9,6 @@
   vars:
     reports_service: "dashboard"
     reports_service_config: ""
+
+- name: Configure optional HTTPS reverse proxy
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nginx.yml"
