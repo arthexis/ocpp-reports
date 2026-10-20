@@ -4,6 +4,11 @@
   connection: local
   become: false
   vars:
+    reports_nginx_enabled: "{{ lookup('env', 'OCPP_REPORTS_NGINX_ENABLED') | default('false', true) | bool }}"
+    reports_nginx_server_name: "{{ lookup('env', 'OCPP_REPORTS_NGINX_SERVER_NAME') | default('', true) }}"
+    reports_nginx_certificate: "{{ lookup('env', 'OCPP_REPORTS_TLS_CERT') | default('/etc/ssl/certs/ocpp-reports.pem', true) }}"
+    reports_nginx_private_key: "{{ lookup('env', 'OCPP_REPORTS_TLS_KEY') | default('/etc/ssl/private/ocpp-reports.key', true) }}"
+    reports_nginx_htpasswd: "{{ lookup('env', 'OCPP_REPORTS_HTPASSWD') | default('/etc/ocpp-reports/dashboard.htpasswd', true) }}"
     reports_commit: "{{ lookup('pipe', 'git -C ' ~ playbook_dir ~ '/.. rev-parse HEAD') | trim }}"
     reports_root: "{{ lookup('env', 'OCPP_REPORTS_INSTALL_ROOT') | default('/opt/ocpp-reports', true) }}"
     reports_install_extra: "{{ '[forwarder]' if reports_role == 'satellite' else ('[web,forwarder]' if reports_role == 'control' else ('[web]' if reports_role == 'watchtower' else '')) }}"
