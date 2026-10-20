@@ -1,0 +1,15 @@
+---
+- name: Install optional local ingestion unit
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates/ocpp-reports-ingest.service.j2"
+    dest: /etc/systemd/system/ocpp-reports-ingest.service
+    mode: '0644'
+  become: true
+
+- name: Enable local ingestion
+  ansible.builtin.systemd_service:
+    name: ocpp-reports-ingest.service
+    daemon_reload: true
+    enabled: true
+    state: started
+  become: true
