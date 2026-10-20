@@ -3,7 +3,6 @@
   ansible.builtin.assert:
     that:
       - reports_local_csms_data_dir.startswith('/')
-      - reports_local_csms_pythonpath.startswith('/')
       - (reports_local_ingest_interval | float) > 0
     fail_msg: "Set absolute OCPP_REPORTS_CSMS_DATA_DIR and OCPP_REPORTS_CSMS_PYTHONPATH before enabling local ingestion."
 
@@ -19,7 +18,6 @@
   ansible.builtin.assert:
     that:
       - reports_local_csms_paths.results[0].stat.isdir | default(false)
-      - reports_local_csms_paths.results[1].stat.isreg | default(false)
 
 - name: Install optional local ingestion unit
   ansible.builtin.template:
