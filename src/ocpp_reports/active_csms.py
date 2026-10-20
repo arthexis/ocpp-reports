@@ -21,7 +21,7 @@ def active_csms_export(data_dir: Path, *, after: int, limit: int) -> dict:
     argv = [arg.decode() for arg in command if arg]
     # CSMS launches its venv console script. Its shebang identifies the
     # interpreter that owns the matching installed package and dependencies.
-    executable = Path(argv[0])
+    executable = Path(next((arg for arg in argv if arg.endswith("/ocpp-csms")), argv[0]))
     if not executable.is_absolute() or not executable.is_file():
         raise RuntimeError("Cannot resolve active CSMS executable")
     shebang = executable.open("rb").readline().decode().strip()
