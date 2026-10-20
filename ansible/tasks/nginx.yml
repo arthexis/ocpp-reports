@@ -38,13 +38,17 @@
   become: true
   when: reports_nginx_enabled | bool
 
-- name: Inspect existing Reports site names
+- name: Check for legacy combined Reports site
   ansible.builtin.stat:
-    path: "/etc/nginx/sites-available/{{ item }}"
-  loop:
-    - ocpp-reports-dashboard
-    - ocpp-reports-collector
-  register: reports_nginx_existing
+    path: /etc/nginx/sites-enabled/ocpp-reports
+  register: reports_legacy_site
+  when: reports_nginx_enabled | bool
+
+- name: Refuse ambiguous legacy combined Reports exposure
+  ansible.builtin.assert:
+    that:
+      - not reports_legacy_site.stat.exists
+    fail_msg: "Disable the legacy /etc/nginx/sites-enabled/ocpp-reports site manually before enabling split hosts; CSMS is unaffected."
   when: reports_nginx_enabled | bool
 
 - name: Render independent Reports virtual hosts
