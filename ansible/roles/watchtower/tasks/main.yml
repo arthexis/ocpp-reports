@@ -1,6 +1,18 @@
 ---
-# Role-specific services are configured in M4; this role fixes the
-# installation profile and provides explicit operator-visible capabilities.
-- name: Confirm watchtower profile
-  ansible.builtin.debug:
-    msg: "OCPP Reports watchtower: collector, dashboard, optional local CSMS ingest"
+- name: Configure collector service
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/service.yml"
+  vars:
+    reports_service: "collector"
+    reports_service_config: "/etc/ocpp-reports/collector-credentials.json"
+- name: Configure dashboard service
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/service.yml"
+  vars:
+    reports_service: "dashboard"
+    reports_service_config: ""
+
+- name: Configure optional HTTPS reverse proxy
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/nginx.yml"
+
+- name: Configure optional local CSMS ingestion
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/local-ingest.yml"
+  when: reports_local_ingest_enabled | bool

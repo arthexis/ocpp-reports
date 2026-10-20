@@ -4,6 +4,18 @@
   connection: local
   become: false
   vars:
+    reports_local_ingest_enabled: "{{ lookup('env', 'OCPP_REPORTS_LOCAL_INGEST_ENABLED') | default('false', true) | bool }}"
+    reports_local_csms_data_dir: "{{ lookup('env', 'OCPP_REPORTS_CSMS_DATA_DIR') | default('/var/lib/ocpp-csms/schemas/8', true) }}"
+    reports_local_csms_pythonpath: "{{ lookup('env', 'OCPP_REPORTS_CSMS_PYTHONPATH') | default('', true) }}"
+    reports_local_ingest_interval: "{{ lookup('env', 'OCPP_REPORTS_LOCAL_INGEST_INTERVAL') | default('30', true) }}"
+    reports_nginx_enabled: "{{ lookup('env', 'OCPP_REPORTS_NGINX_ENABLED') | default('false', true) | bool }}"
+    reports_dashboard_hostname: "{{ lookup('env', 'OCPP_REPORTS_DASHBOARD_HOSTNAME') | default('porsche.gelectriic.com', true) }}"
+    reports_collector_hostname: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_HOSTNAME') | default('collector.gelectriic.com', true) }}"
+    reports_dashboard_certificate: "{{ lookup('env', 'OCPP_REPORTS_DASHBOARD_TLS_CERT') | default('/etc/letsencrypt/live/porsche.gelectriic.com/fullchain.pem', true) }}"
+    reports_dashboard_private_key: "{{ lookup('env', 'OCPP_REPORTS_DASHBOARD_TLS_KEY') | default('/etc/letsencrypt/live/porsche.gelectriic.com/privkey.pem', true) }}"
+    reports_collector_certificate: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_CERT') | default('/etc/letsencrypt/live/collector.gelectriic.com/fullchain.pem', true) }}"
+    reports_collector_private_key: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_KEY') | default('/etc/letsencrypt/live/collector.gelectriic.com/privkey.pem', true) }}"
+    reports_nginx_htpasswd: "{{ lookup('env', 'OCPP_REPORTS_HTPASSWD') | default('/etc/ocpp-reports/dashboard.htpasswd', true) }}"
     reports_commit: "{{ lookup('pipe', 'git -C ' ~ playbook_dir ~ '/.. rev-parse HEAD') | trim }}"
     reports_root: "{{ lookup('env', 'OCPP_REPORTS_INSTALL_ROOT') | default('/opt/ocpp-reports', true) }}"
     reports_install_extra: "{{ '[forwarder]' if reports_role == 'satellite' else ('[web,forwarder]' if reports_role == 'control' else ('[web]' if reports_role == 'watchtower' else '')) }}"
@@ -141,6 +153,13 @@
       ansible.builtin.command:
         cmd: "{{ reports_release }}/venv/bin/ocpp-reports status --json"
       changed_when: false
+    - name: Link active Reports CLI
+      ansible.builtin.file:
+        src: "{{ reports_release }}/venv/bin/ocpp-reports"
+        dest: "{{ reports_cli_link }}"
+        state: link
+        force: true
+      become: true
     - name: Apply selected Reports role
       ansible.builtin.include_role:
         name: "{{ reports_role }}"
@@ -152,11 +171,4 @@
         group: root
         mode: '0644'
         force: false
-      become: true
-    - name: Link active Reports CLI
-      ansible.builtin.file:
-        src: "{{ reports_release }}/venv/bin/ocpp-reports"
-        dest: "{{ reports_cli_link }}"
-        state: link
-        force: true
       become: true

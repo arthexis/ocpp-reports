@@ -1,0 +1,103 @@
+---
+- name: Validate independent HTTPS hostnames
+  ansible.builtin.assert:
+    that:
+      - reports_dashboard_hostname is match('^[A-Za-z0-9.-]+$')
+      - reports_collector_hostname is match('^[A-Za-z0-9.-]+$')
+      - reports_dashboard_hostname != reports_collector_hostname
+      - reports_dashboard_hostname != 'porsche-abb.gelectriic.com'
+      - reports_collector_hostname != 'porsche-abb.gelectriic.com'
+      - reports_role in ['watchtower', 'control']
+    fail_msg: "Dashboard and Collector need distinct hostnames; do not reuse the CSMS hostname."
+  when: reports_nginx_enabled | bool
+
+- name: Inspect independent TLS and authentication prerequisites
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ reports_dashboard_certificate }}"
+    - "{{ reports_dashboard_private_key }}"
+    - "{{ reports_collector_certificate }}"
+    - "{{ reports_collector_private_key }}"
+    - "{{ reports_nginx_htpasswd }}"
+    - /etc/ocpp-reports/collector-credentials.json
+  register: reports_nginx_prerequisites
+  when: reports_nginx_enabled | bool
+
+- name: Refuse incomplete HTTPS configuration
+  ansible.builtin.assert:
+    that:
+      - reports_nginx_prerequisites.results | map(attribute='stat.exists') | min
+      - reports_nginx_prerequisites.results | map(attribute='stat.isreg') | min
+    fail_msg: "Provide both TLS certificate/key pairs, dashboard htpasswd, and Collector credentials before enabling HTTPS."
+  when: reports_nginx_enabled | bool
+
+- name: Verify Collector service is running before public exposure
+  ansible.builtin.command: systemctl is-active ocpp-reports-collector.service
+  changed_when: false
+  become: true
+  when: reports_nginx_enabled | bool
+
+- name: Verify Dashboard service is running before public exposure
+  ansible.builtin.command: systemctl is-active ocpp-reports-dashboard.service
+  changed_when: false
+  become: true
+  when: reports_nginx_enabled | bool
+
+- name: Install shared Nginx package without changing CSMS site
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+  become: true
+  when: reports_nginx_enabled | bool
+
+- name: Check for legacy combined Reports site
+  ansible.builtin.stat:
+    path: /etc/nginx/sites-enabled/ocpp-reports
+  register: reports_legacy_site
+  when: reports_nginx_enabled | bool
+
+- name: Refuse ambiguous legacy combined Reports exposure
+  ansible.builtin.assert:
+    that:
+      - not reports_legacy_site.stat.exists
+    fail_msg: "Disable the legacy /etc/nginx/sites-enabled/ocpp-reports site manually before enabling split hosts; CSMS is unaffected."
+  when: reports_nginx_enabled | bool
+
+- name: Render independent Reports virtual hosts
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates/ocpp-reports-{{ item }}.nginx.j2"
+    dest: "/etc/nginx/sites-available/ocpp-reports-{{ item }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - dashboard
+    - collector
+  become: true
+  when: reports_nginx_enabled | bool
+
+- name: Enable independent Reports virtual hosts
+  ansible.builtin.file:
+    src: "/etc/nginx/sites-available/ocpp-reports-{{ item }}"
+    dest: "/etc/nginx/sites-enabled/ocpp-reports-{{ item }}"
+    state: link
+  loop:
+    - dashboard
+    - collector
+  become: true
+  when: reports_nginx_enabled | bool
+
+- name: Validate complete Nginx configuration
+  ansible.builtin.command: nginx -t
+  become: true
+  changed_when: false
+  when: reports_nginx_enabled | bool
+
+- name: Reload shared Nginx only after successful validation
+  ansible.builtin.systemd_service:
+    name: nginx
+    enabled: true
+    state: reloaded
+  become: true
+  when: reports_nginx_enabled | bool

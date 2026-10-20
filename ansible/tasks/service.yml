@@ -1,0 +1,76 @@
+---
+- name: Install selected Reports service unit
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates/ocpp-reports-{{ reports_service }}.service.j2"
+    dest: "/etc/systemd/system/ocpp-reports-{{ reports_service }}.service"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  register: reports_unit
+
+- name: Check Forwarder environment
+  ansible.builtin.stat:
+    path: /etc/ocpp-reports/forwarder.env
+  become: true
+  register: reports_forwarder_env
+  when: reports_service == 'forwarder'
+
+- name: Check Forwarder token
+  ansible.builtin.stat:
+    path: /etc/ocpp-reports/forwarder-token
+  become: true
+  register: reports_forwarder_token
+  when: reports_service == 'forwarder'
+
+- name: Check Collector credentials
+  ansible.builtin.stat:
+    path: /etc/ocpp-reports/collector-credentials.json
+  become: true
+  register: reports_collector_credentials
+  when: reports_service == 'collector'
+
+- name: Validate configured Forwarder credentials
+  ansible.builtin.assert:
+    that:
+      - reports_forwarder_env.stat.isreg | default(false)
+      - reports_forwarder_token.stat.isreg | default(false)
+      - reports_forwarder_env.stat.mode | default('') in ['0640', '0600']
+      - reports_forwarder_token.stat.mode | default('') in ['0640', '0600']
+    fail_msg: "Forwarder requires readable, protected forwarder.env and forwarder-token."
+  when: reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false)) and (reports_forwarder_token.stat.exists | default(false))
+
+- name: Validate configured Collector credentials
+  ansible.builtin.assert:
+    that:
+      - reports_collector_credentials.stat.isreg | default(false)
+      - reports_collector_credentials.stat.mode | default('') in ['0640', '0600']
+    fail_msg: "Collector credentials must be a protected regular file."
+  when: reports_service == 'collector' and (reports_collector_credentials.stat.exists | default(false))
+
+- name: Determine whether service is configured
+  ansible.builtin.set_fact:
+    reports_service_ready: "{{ (reports_service == 'dashboard') or (reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false)) and (reports_forwarder_token.stat.exists | default(false))) or (reports_service == 'collector' and (reports_collector_credentials.stat.exists | default(false))) }}"
+
+- name: Enable and start configured service
+  ansible.builtin.systemd_service:
+    name: "ocpp-reports-{{ reports_service }}.service"
+    daemon_reload: true
+    enabled: true
+    state: "{{ 'restarted' if reports_unit.changed else 'started' }}"
+  become: true
+  when: reports_service_ready
+
+- name: Disable unconfigured service to prevent crash loops
+  ansible.builtin.systemd_service:
+    name: "ocpp-reports-{{ reports_service }}.service"
+    daemon_reload: true
+    enabled: false
+    state: stopped
+  become: true
+  when: not reports_service_ready
+
+- name: Report missing service configuration
+  ansible.builtin.debug:
+    msg: "ocpp-reports-{{ reports_service }} installed but inactive; configure credentials and redeploy."
+  when: not reports_service_ready

@@ -76,6 +76,7 @@ def ingest(
     follow: bool = typer.Option(False, "--follow", help="Continuously sync local CSMS"),
     data_dir: Path | None = typer.Option(None, "--data-dir", help="Local CSMS evidence directory"),
     interval: float = typer.Option(5.0, "--interval", help="Follow polling interval in seconds"),
+    active_csms: bool = typer.Option(False, "--active-csms", help="Use the active CSMS service Python producer"),
 ) -> None:
     """Import one export page or continuously follow local CSMS evidence."""
     from .ingest import ingest_page, load_page
@@ -84,7 +85,11 @@ def ingest(
             if source is not None or data_dir is None:
                 raise ValueError("--follow requires --data-dir and does not accept --source")
             from .follow import follow as run_follow
-            run_follow(database, data_dir, interval=interval)
+            if active_csms:
+                from .active_csms import active_csms_export
+                run_follow(database, data_dir, interval=interval, producer=active_csms_export)
+            else:
+                run_follow(database, data_dir, interval=interval)
             return
         if data_dir is not None or source is None:
             raise ValueError("One-shot ingest requires --source; --data-dir requires --follow")
@@ -323,6 +328,22 @@ def forward_command(
                 interval=interval, limit=limit, once=once)
     except (OSError, ValueError) as exc:
         typer.echo(f"Forward refused: {exc}", err=True)
+        raise typer.Exit(2)
+
+
+@app.command("collect")
+def collect_command(
+    database: Path = typer.Option(..., "--database"),
+    credentials_file: Path = typer.Option(..., "--credentials-file"),
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8081, "--port", min=1, max=65535),
+) -> None:
+    """Run the authenticated collector on loopback behind HTTPS reverse proxy."""
+    from .collector_server import serve_collector
+    try:
+        serve_collector(database, credentials_file, host, port)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        typer.echo(f"Collector refused: {exc}", err=True)
         raise typer.Exit(2)
 
 

@@ -1,0 +1,19 @@
+[Unit]
+Description=OCPP Reports Local CSMS Ingestion
+After=network.target
+ConditionPathIsDirectory={{ reports_local_csms_data_dir }}
+
+[Service]
+Type=simple
+User=ocpp-reports
+Group=ocpp
+ExecStart={{ reports_cli_link }} ingest --follow --database /var/lib/ocpp-reports/warehouse.sqlite --data-dir {{ reports_local_csms_data_dir }} --interval {{ reports_local_ingest_interval }} --active-csms
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ocpp-reports
+ReadOnlyPaths={{ reports_local_csms_data_dir }}
+
+[Install]
+WantedBy=multi-user.target
