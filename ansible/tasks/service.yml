@@ -32,22 +32,22 @@
     that:
       - reports_forwarder_env.stat.isreg | default(false)
       - reports_forwarder_token.stat.isreg | default(false)
-      - reports_forwarder_env.stat.mode in ['0640', '0600']
-      - reports_forwarder_token.stat.mode in ['0640', '0600']
+      - reports_forwarder_env.stat.mode | default('') in ['0640', '0600']
+      - reports_forwarder_token.stat.mode | default('') in ['0640', '0600']
     fail_msg: "Forwarder requires readable, protected forwarder.env and forwarder-token."
-  when: reports_service == 'forwarder' and reports_forwarder_env.stat.exists and reports_forwarder_token.stat.exists
+  when: reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false)) and (reports_forwarder_token.stat.exists | default(false))
 
 - name: Validate configured Collector credentials
   ansible.builtin.assert:
     that:
       - reports_collector_credentials.stat.isreg | default(false)
-      - reports_collector_credentials.stat.mode in ['0640', '0600']
+      - reports_collector_credentials.stat.mode | default('') in ['0640', '0600']
     fail_msg: "Collector credentials must be a protected regular file."
-  when: reports_service == 'collector' and reports_collector_credentials.stat.exists
+  when: reports_service == 'collector' and (reports_collector_credentials.stat.exists | default(false))
 
 - name: Determine whether service is configured
   ansible.builtin.set_fact:
-    reports_service_ready: "{{ (reports_service == 'dashboard') or (reports_service == 'forwarder' and reports_forwarder_env.stat.exists and reports_forwarder_token.stat.exists) or (reports_service == 'collector' and reports_collector_credentials.stat.exists) }}"
+    reports_service_ready: "{{ (reports_service == 'dashboard') or (reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false)) and (reports_forwarder_token.stat.exists | default(false))) or (reports_service == 'collector' and (reports_collector_credentials.stat.exists | default(false))) }}"
 
 - name: Enable and start configured service
   ansible.builtin.systemd_service:
