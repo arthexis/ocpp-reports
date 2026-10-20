@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -42,7 +40,11 @@ jobs:
   ansible_integration:
     name: Ansible deployment integration
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [terminal, satellite, watchtower, control]
     steps:
       - uses: actions/checkout@v5
       - name: Verify deploy.sh executable Git mode
@@ -60,12 +62,36 @@ jobs:
           set -euo pipefail
           export OCPP_REPORTS_INSTALL_ROOT="${RUNNER_TEMP}/ocpp-reports"
           export OCPP_REPORTS_CLI_LINK="${RUNNER_TEMP}/ocpp-reports-cli"
-          ./deploy.sh
+          ./deploy.sh --${{ matrix.role }}
+          test -f "$OCPP_REPORTS_INSTALL_ROOT/role"
+          test "$(cat "$OCPP_REPORTS_INSTALL_ROOT/role")" = "${{ matrix.role }}"
           test -x "$OCPP_REPORTS_CLI_LINK"
           "$OCPP_REPORTS_CLI_LINK" status --json
           test -x "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)/venv/bin/ocpp-reports"
           bash deploy.sh
           "$OCPP_REPORTS_CLI_LINK" status --json
+          test "$(cat "$OCPP_REPORTS_INSTALL_ROOT/role")" = "${{ matrix.role }}"
+          case "${{ matrix.role }}" in
+            terminal) ;;
+            satellite)
+              test -f /etc/systemd/system/ocpp-reports-forwarder.service
+              ! systemctl is-active --quiet ocpp-reports-forwarder.service
+              ;;
+            watchtower)
+              test -f /etc/systemd/system/ocpp-reports-collector.service
+              test -f /etc/systemd/system/ocpp-reports-dashboard.service
+              ! systemctl is-active --quiet ocpp-reports-collector.service
+              systemctl is-active --quiet ocpp-reports-dashboard.service
+              ;;
+            control)
+              test -f /etc/systemd/system/ocpp-reports-forwarder.service
+              test -f /etc/systemd/system/ocpp-reports-collector.service
+              test -f /etc/systemd/system/ocpp-reports-dashboard.service
+              ! systemctl is-active --quiet ocpp-reports-forwarder.service
+              ! systemctl is-active --quiet ocpp-reports-collector.service
+              systemctl is-active --quiet ocpp-reports-dashboard.service
+              ;;
+          esac
 
   general:
     name: CI
