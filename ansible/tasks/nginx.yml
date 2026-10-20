@@ -1,0 +1,61 @@
+---
+- name: Inspect Nginx prerequisites
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ reports_nginx_certificate }}"
+    - "{{ reports_nginx_private_key }}"
+    - "{{ reports_nginx_htpasswd }}"
+    - /etc/ocpp-reports/collector-credentials.json
+  register: reports_nginx_prerequisites
+
+- name: Require explicit TLS, Basic Auth and Collector credentials
+  ansible.builtin.assert:
+    that:
+      - reports_nginx_server_name | length > 0
+      - reports_nginx_server_name is match('^[A-Za-z0-9.-]+$')
+      - reports_nginx_prerequisites.results | map(attribute='stat.exists') | min
+      - reports_nginx_prerequisites.results | map(attribute='stat.isreg') | min
+    fail_msg: "Nginx exposure refused: provide domain, certificate, private key, htpasswd and Collector credentials."
+  when: reports_nginx_enabled | bool
+
+- name: Install Nginx only for configured public exposure
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: false
+  become: true
+  when: reports_nginx_enabled | bool
+
+- name: Install Reports HTTPS reverse proxy
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates/ocpp-reports-nginx.conf.j2"
+    dest: /etc/nginx/sites-available/ocpp-reports
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  when: reports_nginx_enabled | bool
+  register: reports_nginx_site
+
+- name: Enable Reports HTTPS reverse proxy
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/ocpp-reports
+    dest: /etc/nginx/sites-enabled/ocpp-reports
+    state: link
+  become: true
+  when: reports_nginx_enabled | bool
+
+- name: Validate Nginx configuration before reloading
+  ansible.builtin.command: nginx -t
+  become: true
+  changed_when: false
+  when: reports_nginx_enabled | bool
+
+- name: Enable and reload Nginx
+  ansible.builtin.systemd_service:
+    name: nginx
+    enabled: true
+    state: reloaded
+  become: true
+  when: reports_nginx_enabled | bool
