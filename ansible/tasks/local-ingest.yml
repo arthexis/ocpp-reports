@@ -1,4 +1,26 @@
 ---
+- name: Require explicit CSMS producer path and interval
+  ansible.builtin.assert:
+    that:
+      - reports_local_csms_data_dir.startswith('/')
+      - reports_local_csms_pythonpath.startswith('/')
+      - (reports_local_ingest_interval | float) > 0
+    fail_msg: "Set absolute OCPP_REPORTS_CSMS_DATA_DIR and OCPP_REPORTS_CSMS_PYTHONPATH before enabling local ingestion."
+
+- name: Check local CSMS paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ reports_local_csms_data_dir }}"
+    - "{{ reports_local_csms_pythonpath }}/ocpp_csms/export_contract.py"
+  register: reports_local_csms_paths
+
+- name: Require readable local CSMS evidence and producer
+  ansible.builtin.assert:
+    that:
+      - reports_local_csms_paths.results[0].stat.isdir | default(false)
+      - reports_local_csms_paths.results[1].stat.isreg | default(false)
+
 - name: Install optional local ingestion unit
   ansible.builtin.template:
     src: "{{ playbook_dir }}/templates/ocpp-reports-ingest.service.j2"
