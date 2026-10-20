@@ -21,7 +21,7 @@ Create `/etc/ocpp-reports/forwarder.env` with the following fields:
 
 ```ini
 REPORTS_SOURCE_ID=site-001
-REPORTS_COLLECTOR_URL=https://reports.example.org/api/replication
+REPORTS_COLLECTOR_URL=https://collector.gelectriic.com/api/replication
 ```
 
 Create `/etc/ocpp-reports/forwarder-token` containing the source-specific
@@ -42,10 +42,7 @@ Use root ownership, group `ocpp`, and mode `0640`. Redeploy to enable the
 collector. The dashboard does not require replication credentials and starts
 on loopback for watchtower/control roles.
 
-**Current limitations:** TLS proxy configuration is opt-in and requires operator-provided certificates and credentials. The deployment does not issue or renew certificates automatically. A watchtower
-with a local CSMS still needs local ingestion configured; selecting the role
-alone does not enable ingestion. Do not merge until those items and
-end-to-end deployment validation are complete.
+**Current limitations:** TLS proxy configuration is opt-in and requires operator-provided certificates and credentials. The deployment does not issue or renew certificates automatically. A watchtower with a local CSMS still needs local ingestion configured; selecting the role alone does not enable ingestion.
 
 ## Separate HTTPS hosts (watchtower/control)
 
@@ -60,21 +57,32 @@ enabling HTTPS. Certificate issuance and renewal remain operator-managed.
 Both DNS names must resolve to this server. Configure the Collector credentials
 and dashboard htpasswd before deploying. For example:
 
+Install Nginx, Certbot and `apache2-utils` using the distribution packages.
+Issue certificates for both hostnames using a compatible Certbot challenge
+method (for example `certbot certonly --nginx -d HOSTNAME` if an existing
+working Nginx configuration supports HTTP-01). Do not stop or replace the
+existing CSMS Nginx service to obtain certificates.
+
+Create the configuration directory after an initial Reports deployment
+(which provisions the `ocpp` group), then create the dashboard password
+and collector credentials:
+
 ```sh
-sudo apt-get install certbot apache2-utils
-sudo certbot certonly --webroot -w /var/www/html -d collector.gelectriic.com
-sudo certbot certonly --webroot -w /var/www/html -d porsche.gelectriic.com
 sudo htpasswd -c /etc/ocpp-reports/dashboard.htpasswd operator
 sudo chown root:www-data /etc/ocpp-reports/dashboard.htpasswd
 sudo chmod 0640 /etc/ocpp-reports/dashboard.htpasswd
+# Create /etc/ocpp-reports/collector-credentials.json:
+# {"site-001":"<long unique random bearer token>"}
+sudo chown root:ocpp /etc/ocpp-reports/collector-credentials.json
+sudo chmod 0640 /etc/ocpp-reports/collector-credentials.json
 OCPP_REPORTS_NGINX_ENABLED=true ./deploy.sh --watchtower
 ```
 
-The Certbot `--webroot` commands require an existing Nginx HTTP
-challenge location serving `/var/www/html/.well-known/acme-challenge/`.
-If that is not already configured, use a compatible DNS challenge or
-another supported certificate issuance method instead. Do not assume the
-commands above will work on an unconfigured host.
+The HTTPS deployment refuses missing credentials, absent certificates,
+inactive Collector/Dashboard services, and an enabled legacy combined
+`/etc/nginx/sites-enabled/ocpp-reports` site. It does not disable or
+rewrite that legacy site automatically. Resolve it manually before enabling
+the new split hosts. Do not alter the CSMS site.
 
 The certificate paths default to
 `/etc/letsencrypt/live/{hostname}/fullchain.pem` and `privkey.pem`.
@@ -86,5 +94,4 @@ using `OCPP_REPORTS_DASHBOARD_HOSTNAME` and
 
 Nginx must be reloaded after Certbot renews certificates. Validate the
 complete configuration with `sudo nginx -t`. The installer does not
-modify the CSMS site or global Nginx configuration. Do not merge until
-coexistence and deployment tests have passed.
+modify the CSMS site or global Nginx configuration. Confirm coexistence with CSMS and perform live endpoint validation before production exposure.
