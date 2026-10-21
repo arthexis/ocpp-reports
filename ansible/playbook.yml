@@ -16,6 +16,7 @@
     reports_collector_certificate: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_CERT') | default('/etc/letsencrypt/live/collector.gelectriic.com/fullchain.pem', true) }}"
     reports_collector_private_key: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_KEY') | default('/etc/letsencrypt/live/collector.gelectriic.com/privkey.pem', true) }}"
     reports_nginx_htpasswd: "{{ lookup('env', 'OCPP_REPORTS_HTPASSWD') | default('/etc/ocpp-reports/dashboard.htpasswd', true) }}"
+    reports_python: "{{ lookup('env', 'OCPP_REPORTS_PYTHON') | default('python3', true) }}"
     reports_commit: "{{ lookup('pipe', 'git -C ' ~ playbook_dir ~ '/.. rev-parse HEAD') | trim }}"
     reports_root: "{{ lookup('env', 'OCPP_REPORTS_INSTALL_ROOT') | default('/opt/ocpp-reports', true) }}"
     reports_install_extra: "{{ '[forwarder]' if reports_role == 'satellite' else ('[web,forwarder]' if reports_role == 'control' else ('[web]' if reports_role == 'watchtower' else '')) }}"
@@ -115,6 +116,13 @@
         that:
           - ansible_facts['system'] == 'Linux'
           - ansible_facts['architecture'] in ['aarch64', 'x86_64']
+    - name: Check Reports Python version
+      ansible.builtin.command:
+        argv:
+          - "{{ reports_python }}"
+          - "-c"
+          - "import sys; assert sys.version_info >= (3, 11), 'Reports requires Python >= 3.11'"
+      changed_when: false
     - name: Create Reports release directory
       ansible.builtin.file:
         path: "{{ reports_release }}"
@@ -123,7 +131,7 @@
       become: true
     - name: Create isolated virtual environment
       ansible.builtin.command:
-        cmd: "python3 -m venv {{ reports_release }}/venv"
+        cmd: "{{ reports_python }} -m venv {{ reports_release }}/venv"
         creates: "{{ reports_release }}/venv/bin/python"
       become: true
     - name: Create release-local package staging directory
@@ -147,7 +155,7 @@
     - name: Install Reports dependencies without source builds (once per release)
       ansible.builtin.command:
         argv:
-          - python3
+          - "{{ reports_release }}/venv/bin/python"
           - "{{ playbook_dir }}/install_release.py"
           - "{{ reports_release }}"
           - "{{ reports_install_extra }}"
