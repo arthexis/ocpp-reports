@@ -34,10 +34,21 @@ elif [ -e "$marker" ]; then
   echo "Invalid Reports role marker; refusing deployment" >&2
   exit 2
 else
-  # An existing installation without a role marker cannot be adopted.
-  if [ -e "$root/current" ] || [ -d "$root/releases" ] || [ -L "${OCPP_REPORTS_CLI_LINK:-/usr/local/bin/ocpp-reports}" ]; then
-    echo "Existing Reports installation lacks a role marker; refusing deployment" >&2
-    exit 2
+  # Explicit role permits resuming a partial release owned by this installer.
+  # Never adopt a legacy current pointer or an unrecognized CLI link.
+  cli="${OCPP_REPORTS_CLI_LINK:-/usr/local/bin/ocpp-reports}"
+  if [ -e "$root/current" ] || [ -L "$root/current" ]; then
+    echo "Legacy Reports installation without role marker; refusing deployment" >&2; exit 2
+  fi
+  if [ -e "$root/releases" ] || [ -L "$root/releases" ] || [ -L "$cli" ] || [ -e "$cli" ]; then
+    if [ -z "$role" ] || [ ! -d "$root/releases" ] || [ -L "$root/releases" ]; then
+      echo "Partial Reports installation requires an explicit role and owned releases directory" >&2; exit 2
+    fi
+    if [ -e "$cli" ] || [ -L "$cli" ]; then
+      target=$(readlink "$cli" 2>/dev/null || true)
+      case "$target" in "$root"/releases/*/venv/bin/ocpp-reports) ;; *)
+        echo "Unrecognized Reports CLI link; refusing deployment" >&2; exit 2;; esac
+    fi
   fi
   role="${role:-terminal}"
 fi
