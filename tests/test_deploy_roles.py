@@ -59,10 +59,16 @@ def test_role_change_rejected(tmp_path):
     assert "uninstall" in result.stderr
 
 
-def test_existing_install_without_role_cannot_be_adopted(tmp_path):
-    result = deploy(tmp_path, "--satellite", installed=True)
+def test_partial_install_requires_explicit_role(tmp_path):
+    result = deploy(tmp_path, installed=True)
     assert result.returncode != 0
-    assert "lacks a role marker" in result.stderr
+    assert "requires an explicit role" in result.stderr
+
+
+def test_partial_install_resumes_with_explicit_role(tmp_path):
+    result = deploy(tmp_path, "--satellite", installed=True)
+    assert result.returncode == 0
+    assert "reports_role=satellite" in result.stdout
 
 
 def test_invalid_marker_rejected(tmp_path):
