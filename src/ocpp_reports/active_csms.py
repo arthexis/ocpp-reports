@@ -9,25 +9,41 @@ import subprocess
 from pathlib import Path
 
 
-def active_csms_export(data_dir: Path, *, after: int, limit: int) -> dict:
+def discover_active_csms() -> tuple[Path, str]:
+    """Discover the running CSMS interpreter and its actual evidence directory."""
     unit = subprocess.run(
         ["systemctl", "show", "ocpp-csms.service", "--property=MainPID", "--value"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, check=True, timeout=10,
     )
     pid = int(unit.stdout.strip())
     if pid <= 0:
-        raise RuntimeError("CSMS service is not running")
-    command = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
-    argv = [arg.decode() for arg in command if arg]
-    # CSMS launches its venv console script. Its shebang identifies the
-    # interpreter that owns the matching installed package and dependencies.
+        raise RuntimeError("Local ocpp-csms.service is not running; provide --source")
+    argv = [part.decode() for part in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\\0") if part]
+    if "--data-dir" in argv:
+        index = argv.index("--data-dir")
+        if index + 1 >= len(argv):
+            raise RuntimeError("CSMS --data-dir has no value")
+        data_dir = Path(argv[index + 1])
+    else:
+        values = [arg.partition("=")[2] for arg in argv if arg.startswith("--data-dir=")]
+        if not values:
+            raise RuntimeError("Active CSMS has no explicit --data-dir; cannot safely discover source")
+        data_dir = Path(values[0])
+    if not data_dir.is_absolute() or not data_dir.is_dir() or data_dir.name != "8":
+        raise RuntimeError(f"Unsupported or inaccessible CSMS schema-8 data directory: {data_dir}")
     executable = Path(next((arg for arg in argv if arg.endswith("/ocpp-csms")), argv[0]))
     if not executable.is_absolute() or not executable.is_file():
         raise RuntimeError("Cannot resolve active CSMS executable")
     shebang = executable.open("rb").readline().decode().strip()
     if not shebang.startswith("#!/") or "python" not in shebang:
         raise RuntimeError("Active CSMS launcher does not identify a Python interpreter")
-    interpreter = shebang[2:].split()[0]
+    return data_dir, shebang[2:].split()[0]
+
+
+def active_csms_export(data_dir: Path, *, after: int, limit: int) -> dict:
+    discovered_dir, interpreter = discover_active_csms()
+    if data_dir.resolve() != discovered_dir.resolve():
+        raise RuntimeError("Active CSMS data directory changed during synchronization")
     code = (
         "import json,sys;"
         "from pathlib import Path;"
