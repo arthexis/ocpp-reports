@@ -134,6 +134,13 @@
         cmd: "{{ reports_python }} -m venv {{ reports_release }}/venv"
         creates: "{{ reports_release }}/venv/bin/python"
       become: true
+    - name: Verify release virtual environment uses supported Python
+      ansible.builtin.command:
+        argv:
+          - "{{ reports_release }}/venv/bin/python"
+          - "-c"
+          - "import sys; assert sys.version_info >= (3, 11), 'Existing release venv uses Python < 3.11; remove only this incomplete release directory and retry'"
+      changed_when: false
     - name: Create release-local package staging directory
       ansible.builtin.file:
         path: "{{ reports_release }}/source"
