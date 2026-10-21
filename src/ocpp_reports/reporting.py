@@ -88,7 +88,7 @@ def build_report_from_database(database: Path, since: datetime, until: datetime,
             "transactions": len(selected),
             "known_energy_wh": sum(row["energy_wh"] for row in selected if row["energy_wh"] is not None),
             "missing_energy_transactions": missing,
-            "completeness": "partial" if missing or any(row["active"] or row["state"] != "completed" for row in selected) else "complete",
+            "completeness": "partial" if missing or any(row["active"] or row["state"] not in {"completed", "stopped"} for row in selected) else "complete",
         },
         "transactions": selected, "evidence": evidence,
     }
