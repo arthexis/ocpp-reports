@@ -41,7 +41,7 @@ def build_report(source: Path, since: datetime, until: datetime, tz: str) -> dic
             selected.append({"id": txid, "charger_id": tx.charger_id, "connector_id": tx.connector_id, "rfid": tx.rfid, "state": tx.state, "active": tx.active, "started_at": tx.started_at, "stopped_at": tx.stopped_at, "energy_wh": tx.energy_wh, "meter_start_wh": getattr(tx, "meter_start_wh", None), "meter_stop_wh": getattr(tx, "meter_stop_wh", None), "stop_reason": getattr(tx, "stop_reason", None)})
     total_wh = sum(row["energy_wh"] for row in selected if row["energy_wh"] is not None)
     missing = sum(row["energy_wh"] is None for row in selected)
-    report = {"schema": "ocpp-reports/summary/v1", "source_id": next(iter(sources)), "period": {"since": since.isoformat(), "until": until.isoformat(), "timezone": tz, "semantics": "[since,until)"}, "summary": {"transactions": len(selected), "known_energy_wh": total_wh, "missing_energy_transactions": missing, "completeness": "partial" if missing else "complete"}, "transactions": selected, "evidence": evidence}
+    report = {"schema": "ocpp-reports/summary/v1", "source_id": next(iter(sources)), "period": {"since": since.isoformat(), "until": until.isoformat(), "timezone": tz, "semantics": "[since,until)"}, "summary": {"transactions": len(selected), "known_energy_wh": total_wh, "missing_energy_transactions": missing, "completeness": "partial" if missing or any(row["active"] or row["state"] not in {"completed", "stopped"} for row in selected) else "complete"}, "transactions": selected, "evidence": evidence}
     report["revision"] = sha256(json.dumps(report, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return report
 
@@ -88,7 +88,7 @@ def build_report_from_database(database: Path, since: datetime, until: datetime,
             "transactions": len(selected),
             "known_energy_wh": sum(row["energy_wh"] for row in selected if row["energy_wh"] is not None),
             "missing_energy_transactions": missing,
-            "completeness": "partial" if missing or any(row["active"] or row["state"] != "completed" for row in selected) else "complete",
+            "completeness": "partial" if missing or any(row["active"] or row["state"] not in {"completed", "stopped"} for row in selected) else "complete",
         },
         "transactions": selected, "evidence": evidence,
     }
