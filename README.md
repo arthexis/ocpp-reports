@@ -42,7 +42,7 @@ ocpp-reports run --source reports.sqlite3 --source-id SOURCE --since 2026-01-01T
 ocpp-reports run --source verified-summary.json --period previous-day --send
 ```
 
-`--since` and `--until` are a half-open, offset-aware interval and must be supplied together. `--period` supports `previous-day`, `previous-week`, and `previous-month` when explicit bounds are omitted. Output files are create-only; the source is never overwritten. `--send` requires text output, a complete report, and configured mail delivery. CSV/JSON output never sends email. `check` remains available.
+`--since` and `--until` are a half-open, offset-aware interval and must be supplied together. `--period` supports `previous-day`, `previous-week`, `previous-month`, and `current-month` (month-to-date, ending at execution time) when explicit bounds are omitted. Output files are create-only; the source is never overwritten. `--send` requires text output, a complete report, and configured mail delivery. CSV/JSON output never sends email. `check` remains available.
 
 ### Reporting timezone
 
