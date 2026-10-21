@@ -53,8 +53,8 @@
     - name: Refuse adoption of an unmarked existing installation
       ansible.builtin.assert:
         that:
-          - reports_role_file.stat.exists or (not reports_previous_releases.stat.exists and not reports_previous_cli.stat.exists)
-        fail_msg: "Existing Reports installation has no role marker; uninstall before deploying."
+          - reports_role_file.stat.exists or (not reports_previous_releases.stat.exists and not reports_previous_cli.stat.exists) or (reports_previous_releases.stat.isdir | default(false) and not (reports_previous_releases.stat.islnk | default(false)) and (reports_previous_cli.stat.islnk | default(false) or not reports_previous_cli.stat.exists))
+        fail_msg: "Unrecognized Reports installation without a role marker; refusing deployment."
   tasks:
     - name: Ensure shared OCPP operator group exists
       ansible.builtin.group:
