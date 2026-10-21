@@ -21,6 +21,14 @@ These are one-shot operations. A direct export snapshot is not a live CSMS statu
 
 The optional `locations.json` is a JSON object mapping charge-point IDs to agency names, for example `{"CP-001":"Calzada","CP-002":"Vasconcelos"}`. The profile reproduces the ten historical columns `LOCACION,CONECTOR,FECHA INICIO,FECHA FINAL,WH INICIO,WH FINAL,WH USADOS,% INICIAL,% FINAL,RAZON FINAL`. The legacy `ARCHIVO FUENTE` column is deliberately omitted. Unavailable values are blank, including missing location, SoC and stop reason; zero energy is preserved as zero. Dates are formatted in the requested report timezone. The existing standard CSV remains unchanged. The CSMS export currently supplies start/stop meter readings but does not export stop reason or SoC in its transaction snapshots; see `arthexis/ocpp-csms#270`.
 
+### Automatic local reporting
+
+When `--source` is omitted, `run` discovers the running local `ocpp-csms.service`, synchronizes its schema-8 evidence into the Reports-owned warehouse (default `/var/lib/ocpp-reports/reports.sqlite3`, override with `OCPP_REPORTS_DATABASE`), and then renders the requested period. The service must expose an explicit `--data-dir` argument and the operator needs read access to the CSMS evidence and write access to the warehouse. Failed synchronization refuses the report; explicit `--source` remains fully offline. For example:
+
+```sh
+ocpp-reports run --period previous-month --timezone America/Monterrey --format csv --output report.csv
+```
+
 ### Run examples
 
 ```sh
