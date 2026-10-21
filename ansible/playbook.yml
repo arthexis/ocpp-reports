@@ -16,6 +16,7 @@
     reports_collector_certificate: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_CERT') | default('/etc/letsencrypt/live/collector.gelectriic.com/fullchain.pem', true) }}"
     reports_collector_private_key: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_KEY') | default('/etc/letsencrypt/live/collector.gelectriic.com/privkey.pem', true) }}"
     reports_nginx_htpasswd: "{{ lookup('env', 'OCPP_REPORTS_HTPASSWD') | default('/etc/ocpp-reports/dashboard.htpasswd', true) }}"
+    reports_operator: "{{ lookup('env', 'OCPP_REPORTS_OPERATOR') | default(lookup('pipe', 'stat -c %U ' ~ playbook_dir ~ '/..'), true) }}"
     reports_commit: "{{ lookup('pipe', 'git -C ' ~ playbook_dir ~ '/.. rev-parse HEAD') | trim }}"
     reports_root: "{{ lookup('env', 'OCPP_REPORTS_INSTALL_ROOT') | default('/opt/ocpp-reports', true) }}"
     reports_install_extra: "{{ '[forwarder]' if reports_role == 'satellite' else ('[web,forwarder]' if reports_role == 'control' else ('[web]' if reports_role == 'watchtower' else '')) }}"
@@ -69,12 +70,16 @@
         create_home: false
         shell: /usr/sbin/nologin
       become: true
-    - name: Add invoking operator to OCPP group
+    - name: Validate intended interactive Reports operator
+      ansible.builtin.assert:
+        that:
+          - reports_operator not in ['root', '', 'UNKNOWN']
+        fail_msg: "Set OCPP_REPORTS_OPERATOR to the intended CLI account."
+    - name: Add intended operator to OCPP group
       ansible.builtin.user:
-        name: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+        name: "{{ reports_operator }}"
         groups: ocpp
         append: true
-      when: (lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true)) not in ['root', '']
       become: true
     - name: Create shared OCPP configuration directory
       ansible.builtin.file:
