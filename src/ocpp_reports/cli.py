@@ -177,7 +177,7 @@ def generate(
 @app.command("run")
 def run(
     source: Path | None = typer.Option(None, exists=True, file_okay=True, dir_okay=True, readable=True, help="Explicit offline source; omit to synchronize local CSMS"),
-    period: str = typer.Option("previous-day", help="previous-day, previous-week, previous-month"),
+    period: str = typer.Option("previous-day", help="previous-day, previous-week, previous-month, current-month"),
     since: str | None = typer.Option(None, help="Explicit inclusive ISO timestamp with offset"),
     until: str | None = typer.Option(None, help="Explicit exclusive ISO timestamp with offset"),
     timezone: str | None = typer.Option(None, help="IANA reporting timezone; defaults by profile"),
@@ -191,7 +191,7 @@ def run(
 ) -> None:
     """Run one configured reporting period; optionally save or deliver the result."""
     from .reporting import build_report, build_report_from_database, render
-    from .schedule import previous_period
+    from .schedule import previous_period, current_month
     from datetime import timezone as utc_timezone
     from .scheduled_run import prepare_scheduled_report
     from .mail_cli import db_path, operator_address, send as send_mail
@@ -209,7 +209,7 @@ def run(
         if since is not None and period != "previous-day":
             raise ValueError("Do not combine explicit bounds with --period")
         cadence = {"previous-day": "daily", "previous-week": "weekly", "previous-month": "monthly"}.get(period)
-        if cadence is None:
+        if cadence is None and period != "current-month":
             raise ValueError("Invalid --period")
         timezone = timezone or ("America/Monterrey" if profile == "audi" else "UTC")
         ZoneInfo(timezone)
@@ -217,7 +217,9 @@ def run(
         start = parse(since) if since is not None else None
         end = parse(until) if until is not None else None
         if start is None:
-            start, end = previous_period(datetime.now(utc_timezone.utc), cadence=cadence, zone=timezone)
+            now = datetime.now(utc_timezone.utc)
+            start, end = (current_month(now, zone=timezone) if period == "current-month"
+                          else previous_period(now, cadence=cadence, zone=timezone))
         if start.tzinfo is None or end.tzinfo is None or start >= end:
             raise ValueError("Expected ordered timezone-aware reporting bounds")
         if profile is not None and (profile != "audi" or format != "csv"):
