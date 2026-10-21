@@ -9,7 +9,7 @@ description = "Offline-first read-only reporting for OCPP CSMS"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-dependencies = ["pydantic>=2,<3", "typer>=0.26,<1"]
+dependencies = ["pydantic>=2,<3", "typer>=0.26,<1", "Jinja2>=3.1,<4"]
 
 [project.optional-dependencies]
 forwarder = ["httpx>=0.27,<1"]
