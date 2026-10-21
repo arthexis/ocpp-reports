@@ -18,7 +18,14 @@ def discover_active_csms() -> tuple[Path, str]:
     pid = int(unit.stdout.strip())
     if pid <= 0:
         raise RuntimeError("Local ocpp-csms.service is not running; provide --source")
-    argv = [part.decode() for part in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\\0") if part]
+    argv = [part.decode() for part in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0") if part]
+    executable = Path(next((arg for arg in argv if arg.endswith("/ocpp-csms")), argv[0]))
+    if not executable.is_absolute() or not executable.is_file():
+        raise RuntimeError("Cannot resolve active CSMS executable")
+    shebang = executable.open("rb").readline().decode().strip()
+    if not shebang.startswith("#!/") or "python" not in shebang:
+        raise RuntimeError("Active CSMS launcher does not identify a Python interpreter")
+    interpreter = shebang[2:].split()[0]
     if "--data-dir" in argv:
         index = argv.index("--data-dir")
         if index + 1 >= len(argv):
@@ -26,18 +33,19 @@ def discover_active_csms() -> tuple[Path, str]:
         data_dir = Path(argv[index + 1])
     else:
         values = [arg.partition("=")[2] for arg in argv if arg.startswith("--data-dir=")]
-        if not values:
-            raise RuntimeError("Active CSMS has no explicit --data-dir; cannot safely discover source")
-        data_dir = Path(values[0])
+        if values:
+            data_dir = Path(values[0])
+        else:
+            # Ask the active CSMS installation for its own configured default.
+            # This respects the service unit and avoids hardcoding a CSMS path.
+            result = subprocess.run(
+                [interpreter, "-c", "from ocpp_csms.cli import cli_data_dir; print(cli_data_dir())"],
+                capture_output=True, text=True, check=True, timeout=10,
+            )
+            data_dir = Path(result.stdout.strip())
     if not data_dir.is_absolute() or not data_dir.is_dir() or data_dir.name != "8":
         raise RuntimeError(f"Unsupported or inaccessible CSMS schema-8 data directory: {data_dir}")
-    executable = Path(next((arg for arg in argv if arg.endswith("/ocpp-csms")), argv[0]))
-    if not executable.is_absolute() or not executable.is_file():
-        raise RuntimeError("Cannot resolve active CSMS executable")
-    shebang = executable.open("rb").readline().decode().strip()
-    if not shebang.startswith("#!/") or "python" not in shebang:
-        raise RuntimeError("Active CSMS launcher does not identify a Python interpreter")
-    return data_dir, shebang[2:].split()[0]
+    return data_dir, interpreter
 
 
 def active_csms_export(data_dir: Path, *, after: int, limit: int) -> dict:
