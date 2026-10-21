@@ -34,7 +34,7 @@ def test_targeted_failed_delivery_stays_failed(tmp_path):
 
 def test_systemd_service_uses_unified_run_and_writable_state():
     root = Path(__file__).resolve().parents[1]
-    service = (root / "deploy/systemd/ocpp-reports.service").read_text()
+    service = (root / "ansible/templates/ocpp-reports.service").read_text()
     assert "ocpp-reports run " in service
     assert "scheduled-run" not in service
     assert "OCPP_REPORTS_OUTBOX=/var/lib/ocpp-reports/outbox.sqlite3" in service
