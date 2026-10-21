@@ -176,7 +176,7 @@ def generate(
 
 @app.command("run")
 def run(
-    source: Path = typer.Option(..., exists=True, file_okay=True, dir_okay=True, readable=True, help="CSMS export, Reports SQLite or summary JSON"),
+    source: Path | None = typer.Option(None, exists=True, file_okay=True, dir_okay=True, readable=True, help="Explicit offline source; omit to synchronize local CSMS"),
     period: str = typer.Option("previous-day", help="previous-day, previous-week, previous-month"),
     since: str | None = typer.Option(None, help="Explicit inclusive ISO timestamp with offset"),
     until: str | None = typer.Option(None, help="Explicit exclusive ISO timestamp with offset"),
@@ -224,6 +224,13 @@ def run(
             raise ValueError("--profile audi requires --format csv")
         if locations is not None and profile != "audi":
             raise ValueError("--locations requires --profile audi")
+        if source is None:
+            from .active_csms import discover_active_csms, active_csms_export
+            from .follow import follow
+            import os
+            data_dir, _ = discover_active_csms()
+            source = Path(os.environ.get("OCPP_REPORTS_DATABASE", "/var/lib/ocpp-reports/reports.sqlite3"))
+            follow(source, data_dir, once=True, producer=active_csms_export)
         if output is not None and (output.resolve() == source.resolve() or
                 (source.is_dir() and source.resolve() in output.resolve().parents)):
             raise ValueError("Output must not overwrite or reside inside the source")
