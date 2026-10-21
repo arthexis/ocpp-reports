@@ -23,3 +23,12 @@ def previous_period(now: datetime, *, cadence: str, zone: str) -> tuple[datetime
     start = datetime(start_date.year, start_date.month, start_date.day, tzinfo=ZoneInfo(zone))
     end = datetime(end_date.year, end_date.month, end_date.day, tzinfo=ZoneInfo(zone))
     return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+
+
+def current_month(now: datetime, *, zone: str) -> tuple[datetime, datetime]:
+    """Month-to-date interval, ending at the current instant (exclusive)."""
+    if now.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    local = now.astimezone(ZoneInfo(zone))
+    start = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return start.astimezone(timezone.utc), now.astimezone(timezone.utc)
