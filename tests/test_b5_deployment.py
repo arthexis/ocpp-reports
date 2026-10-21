@@ -48,5 +48,10 @@ def test_ansible_installs_from_privileged_release_staging_not_runner_checkout():
     assert "- pyproject.toml" in playbook
     assert "- README.md" in playbook
     assert "- src/" in playbook
-    assert "pip install {{ reports_release }}/source" in playbook
+    assert "ansible/install_release.py" not in playbook  # installer is referenced relative to playbook_dir
+    assert "{{ playbook_dir }}/install_release.py" in playbook
+    assert "creates: \"{{ reports_release }}/.installed\"" in playbook
+    installer = (Path(__file__).resolve().parents[1] / "ansible/install_release.py").read_text()
+    assert "\"--only-binary=:all:\"" in installer
+    assert "source / \"pyproject.toml\"" in installer
     assert "pip install {{ playbook_dir }}/.." not in playbook
