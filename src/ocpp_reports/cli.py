@@ -176,7 +176,7 @@ def generate(
 
 @app.command("run")
 def run(
-    source: Path = typer.Option(..., exists=True, file_okay=True, dir_okay=True, readable=True, help="CSMS export, Reports SQLite or summary JSON"),
+    source: Path | None = typer.Option(None, exists=True, file_okay=True, dir_okay=True, readable=True, help="Explicit offline source; omit to synchronize local CSMS"),
     period: str = typer.Option("previous-day", help="previous-day, previous-week, previous-month"),
     since: str | None = typer.Option(None, help="Explicit inclusive ISO timestamp with offset"),
     until: str | None = typer.Option(None, help="Explicit exclusive ISO timestamp with offset"),
@@ -224,6 +224,21 @@ def run(
             raise ValueError("--profile audi requires --format csv")
         if locations is not None and profile != "audi":
             raise ValueError("--locations requires --profile audi")
+        if source is None:
+            from .active_csms import discover_active_csms, active_csms_export
+            from .follow import follow
+            import os
+            data_dir, _ = discover_active_csms()
+            source = Path(os.environ.get("OCPP_REPORTS_DATABASE", "/var/lib/ocpp-reports/reports.sqlite3"))
+            follow(source, data_dir, once=True, producer=active_csms_export)
+            import sqlite3
+            with sqlite3.connect(f"file:{source.resolve()}?mode=ro", uri=True) as connection:
+                identities = [row[0] for row in connection.execute("SELECT source_id FROM sources")]
+            if len(identities) != 1:
+                raise ValueError("Automatic reporting requires exactly one local CSMS source")
+            if source_id is not None and source_id != identities[0]:
+                raise ValueError("Requested source does not match local CSMS")
+            source_id = identities[0]
         if output is not None and (output.resolve() == source.resolve() or
                 (source.is_dir() and source.resolve() in output.resolve().parents)):
             raise ValueError("Output must not overwrite or reside inside the source")
@@ -281,7 +296,7 @@ def run(
             operator=operator_address() if send else "operator@localhost",
             cadence=cadence, zone=timezone, since=start, until=end,
             output=output, queue=send, format=format)
-    except (ValueError, KeyError, TypeError, OSError, json.JSONDecodeError) as exc:
+    except (ValueError, KeyError, TypeError, OSError, RuntimeError, json.JSONDecodeError) as exc:
         typer.echo(f"Report run refused: {exc}", err=True)
         raise typer.Exit(2)
     if send:
