@@ -32,7 +32,7 @@ def render_csv(report: dict[str, Any]) -> str:
     writer = csv.writer(output, lineterminator="\n")
     writer.writerow(COLUMNS)
     for row in normalized:
-        complete = row.get("energy_wh") is not None and row.get("state") in {"completed", "stopped"} and row.get("active") is False
+        complete = row.get("energy_wh") is not None and row.get("state") in {"completed", "stopped"} and row.get("active") is not True
         cells = [row.get(column) if column != "completeness" else ("complete" if complete else "provisional") for column in COLUMNS]
         writer.writerow([_safe(cell) for cell in cells])
     return output.getvalue()
