@@ -18,11 +18,15 @@ def test_run_auto_sync_and_reuse(tmp_path, monkeypatch):
     db = tmp_path / "warehouse.sqlite3"
     monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(db))
     monkeypatch.setattr(active, "discover_active_csms", lambda: (tmp_path, "python"))
-    page = json.loads(FIXTURE.read_text())
+    active_page = json.loads((FIXTURE.parent / "active.json").read_text())
+    active_page["data"]["cursor"]["more"] = True
+    late_page = json.loads(FIXTURE.read_text())
+    late_page["data"]["cursor"]["more"] = True
+    empty_page = json.loads((FIXTURE.parent / "empty.json").read_text())
     calls = []
     def producer(data_dir, *, after, limit):
         calls.append(after)
-        return page
+        return active_page if after == 0 else late_page if after == 1 else empty_page
     monkeypatch.setattr(active, "active_csms_export", producer)
     for i in range(2):
         output = tmp_path / f"report-{i}.csv"
