@@ -36,14 +36,14 @@ class ExportData(BaseModel):
 
 class ExportPage(BaseModel):
     model_config = ConfigDict(extra="allow")
-    schema: str
+    schema_id: str = Field(alias="schema")
     data: ExportData
 
 def read_page(path: Path) -> ExportPage:
     raw = json.loads(path.read_text(encoding="utf-8"))
     page = ExportPage.model_validate(raw)
-    if page.schema != "ocpp-csms/export/v1":
-        raise ValueError(f"Unsupported CSMS export schema: {page.schema}")
+    if page.schema_id != "ocpp-csms/export/v1":
+        raise ValueError(f"Unsupported CSMS export schema: {page.schema_id}")
     if page.data.cursor.next < page.data.cursor.after:
         raise ValueError("Export cursor regressed")
     return page
