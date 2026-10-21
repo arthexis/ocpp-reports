@@ -18,7 +18,7 @@ def discover_active_csms() -> tuple[Path, str]:
     pid = int(unit.stdout.strip())
     if pid <= 0:
         raise RuntimeError("Local ocpp-csms.service is not running; provide --source")
-    argv = [part.decode() for part in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\\0") if part]
+    argv = [part.decode() for part in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0") if part]
     if "--data-dir" in argv:
         index = argv.index("--data-dir")
         if index + 1 >= len(argv):
