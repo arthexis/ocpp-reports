@@ -1,0 +1,8 @@
+[Unit]
+Description=Refresh locally received diagnostic archives
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+Persistent=true
+[Install]
+WantedBy=timers.target
