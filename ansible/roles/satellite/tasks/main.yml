@@ -1,12 +1,4 @@
 ---
-- name: Detect running local CSMS for Reports ingestion
-  ansible.builtin.command:
-    argv:
-      - "{{ reports_cli_link }}"
-      - run
-      - --help
-  changed_when: false
-
 - name: Inspect active CSMS service
   ansible.builtin.command: systemctl is-active ocpp-csms.service
   register: satellite_csms_active
