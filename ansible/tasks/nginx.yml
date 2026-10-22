@@ -5,6 +5,7 @@
       - reports_dashboard_hostname is match('^[A-Za-z0-9.-]+$')
       - reports_collector_hostname is match('^[A-Za-z0-9.-]+$')
       - reports_dashboard_hostname != reports_collector_hostname
+      - reports_diagnostics_hostname not in [reports_dashboard_hostname, reports_collector_hostname]
       - reports_dashboard_hostname != 'porsche-abb.gelectriic.com'
       - reports_collector_hostname != 'porsche-abb.gelectriic.com'
       - reports_role in ['watchtower', 'control']
@@ -20,6 +21,8 @@
     - "{{ reports_collector_certificate }}"
     - "{{ reports_collector_private_key }}"
     - "{{ reports_nginx_htpasswd }}"
+    - "{{ reports_diagnostics_certificate }}"
+    - "{{ reports_diagnostics_private_key }}"
     - /etc/ocpp-reports/collector-credentials.json
   register: reports_nginx_prerequisites
   when: reports_nginx_enabled | bool
@@ -64,6 +67,64 @@
     fail_msg: "Disable the legacy /etc/nginx/sites-enabled/ocpp-reports site manually before enabling split hosts; CSMS is unaffected."
   when: reports_nginx_enabled | bool
 
+- name: Create Reports diagnostic archive and publication directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /var/lib/ocpp-reports/diagnostics, owner: ocpp-reports, group: ocpp, mode: '2770'}
+    - {path: /var/lib/ocpp-reports/diagnostics-public, owner: root, group: www-data, mode: '0750'}
+    - {path: /etc/nginx/ocpp-reports-diagnostics, owner: root, group: root, mode: '0755'}
+    - {path: /etc/ocpp-reports/diagnostics-auth, owner: root, group: www-data, mode: '0750'}
+  become: true
+  when: reports_nginx_enabled | bool
+
+- name: Inspect CSMS-owned legacy diagnostics virtual host
+  ansible.builtin.stat:
+    path: "/etc/nginx/sites-available/{{ reports_diagnostics_hostname }}"
+  register: reports_old_diagnostics_host
+  become: true
+  when: reports_nginx_enabled | bool
+
+- name: Read legacy diagnostics virtual host before ownership transfer
+  ansible.builtin.slurp:
+    src: "/etc/nginx/sites-available/{{ reports_diagnostics_hostname }}"
+  register: reports_old_diagnostics_contents
+  become: true
+  when:
+    - reports_nginx_enabled | bool
+    - reports_old_diagnostics_host.stat.isreg | default(false)
+
+- name: Refuse replacing an unrelated diagnostics hostname configuration
+  ansible.builtin.assert:
+    that:
+      - "(reports_old_diagnostics_contents.content | b64decode).startswith('# Dedicated authenticated download host.')"
+    fail_msg: "Existing diagnostics nginx host is not the known CSMS site; resolve ownership manually."
+  when:
+    - reports_nginx_enabled | bool
+    - reports_old_diagnostics_host.stat.exists | default(false)
+
+- name: Disable known CSMS-owned diagnostics site during Reports takeover
+  ansible.builtin.file:
+    path: "/etc/nginx/sites-enabled/{{ reports_diagnostics_hostname }}"
+    state: absent
+  become: true
+  when:
+    - reports_nginx_enabled | bool
+    - reports_old_diagnostics_host.stat.exists | default(false)
+
+- name: Remove known CSMS-owned diagnostics site after disabling it
+  ansible.builtin.file:
+    path: "/etc/nginx/sites-available/{{ reports_diagnostics_hostname }}"
+    state: absent
+  become: true
+  when:
+    - reports_nginx_enabled | bool
+    - reports_old_diagnostics_host.stat.exists | default(false)
+
 - name: Render independent Reports virtual hosts
   ansible.builtin.template:
     src: "{{ playbook_dir }}/templates/ocpp-reports-{{ item }}.nginx.j2"
@@ -74,6 +135,7 @@
   loop:
     - dashboard
     - collector
+    - diagnostics
   become: true
   when: reports_nginx_enabled | bool
 
@@ -85,6 +147,7 @@
   loop:
     - dashboard
     - collector
+    - diagnostics
   become: true
   when: reports_nginx_enabled | bool
 

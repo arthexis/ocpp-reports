@@ -1,0 +1,18 @@
+# Reports-owned authenticated diagnostic downloads.
+server {
+    listen 80;
+    server_name {{ reports_diagnostics_hostname }};
+    location ^~ /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 404; }
+}
+server {
+    listen 443 ssl;
+    server_name {{ reports_diagnostics_hostname }};
+    server_tokens off;
+    ssl_certificate {{ reports_diagnostics_certificate }};
+    ssl_certificate_key {{ reports_diagnostics_private_key }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header X-Content-Type-Options "nosniff" always;
+    include /etc/nginx/ocpp-reports-diagnostics/*.conf;
+    location / { return 404; }
+}

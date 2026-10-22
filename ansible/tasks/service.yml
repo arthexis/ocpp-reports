@@ -18,7 +18,7 @@
 
 - name: Check Collector credentials
   ansible.builtin.stat:
-    path: /etc/ocpp-reports/collector-credentials.json
+    path: /etc/ocpp-reports/collector.toml
   become: true
   register: reports_collector_credentials
   when: reports_service == 'collector'

@@ -1,0 +1,27 @@
+---
+- name: Create Reports central diagnostics archive
+  ansible.builtin.file:
+    path: /var/lib/ocpp-reports/diagnostics
+    state: directory
+    owner: ocpp-reports
+    group: ocpp
+    mode: '2770'
+  become: true
+
+- name: Install local diagnostics import service and timer
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates/ocpp-reports-diagnostics-import.{{ item }}.j2"
+    dest: "/etc/systemd/system/ocpp-reports-diagnostics-import.{{ item }}"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  loop: [service, timer]
+
+- name: Enable local diagnostic archive import timer
+  ansible.builtin.systemd_service:
+    name: ocpp-reports-diagnostics-import.timer
+    daemon_reload: true
+    enabled: true
+    state: started
+  become: true
