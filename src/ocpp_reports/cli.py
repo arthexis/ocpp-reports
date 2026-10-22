@@ -10,6 +10,8 @@ from .config import DEFAULT_CONFIG, load_config
 
 app = typer.Typer(help="OCPP Reports operator CLI: inspect, ingest, run and deliver reports.", no_args_is_help=True)
 app.add_typer(mail_app, name="mail")
+from .forwarder_config import app as forwarder_app
+app.add_typer(forwarder_app, name="forwarder")
 
 # Commands are explicit one-shot operations; invoking the root never ingests or sends.
 
@@ -330,9 +332,10 @@ def serve(
 def forward_command(
     database: Path = typer.Option(..., "--database", help="Local Reports warehouse"),
     state: Path = typer.Option(..., "--state", help="Forwarder cursor SQLite file"),
-    source_id: str = typer.Option(..., "--source-id", help="Authorized satellite source"),
-    endpoint: str = typer.Option(..., "--endpoint", help="Collector HTTPS replication endpoint"),
-    token_file: Path = typer.Option(..., "--token-file", help="File containing the source bearer token"),
+    source_id: str | None = typer.Option(None, "--source-id", help="Authorized satellite source"),
+    endpoint: str | None = typer.Option(None, "--endpoint", help="Collector HTTPS replication endpoint"),
+    token_file: Path | None = typer.Option(None, "--token-file", help="Legacy token file"),
+    config: Path | None = typer.Option(None, "--config", help="Forwarder TOML"),
     interval: float = typer.Option(2.0, "--interval", help="Seconds between idle polls"),
     limit: int = typer.Option(500, "--limit", min=1, max=500),
     once: bool = typer.Option(False, "--once", help="Drain available changes and exit"),
@@ -340,7 +343,16 @@ def forward_command(
     """Forward local changefeed with durable acknowledgements; no silent retries."""
     from .forwarder import forward
     try:
-        token = token_file.read_text(encoding="utf-8").strip()
+        if config is not None:
+            if token_file is not None or source_id is not None or endpoint is not None:
+                raise ValueError("Do not mix --config with legacy forwarder flags")
+            from .forwarder_config import load_forwarder_config
+            settings = load_forwarder_config(config)
+            source_id, endpoint, token = settings["source_id"], settings["endpoint"], settings["token"]
+        elif token_file is not None and source_id is not None and endpoint is not None:
+            token = token_file.read_text(encoding="utf-8").strip()
+        else:
+            raise ValueError("Provide --config or all legacy forwarder flags")
         forward(database, state, source_id, endpoint, token,
                 interval=interval, limit=limit, once=once)
     except (OSError, ValueError) as exc:
