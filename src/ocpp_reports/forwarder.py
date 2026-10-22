@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import sqlite3
 import time
 from pathlib import Path
@@ -70,21 +69,9 @@ def forward(database: Path, state: Path, source_id: str, endpoint: str, token: s
     """Drain pending batches, then poll. Raise failures for systemd restart."""
     if interval <= 0 or not 1 <= limit <= 500:
         raise ValueError("Invalid forwarding interval or batch limit")
-    last_diagnostics = 0.0
     while True:
         previous = confirmed_cursor(state, source_id)
         current = forward_once(database, state, source_id, endpoint, token, limit=limit)
-        if time.monotonic() - last_diagnostics >= 60 or once:
-            last_diagnostics = time.monotonic()
-            try:
-                from .active_csms import discover_active_csms
-                from .diagnostic_archive import forward_archives
-                data_dir, _ = discover_active_csms()
-                diagnostic_url = endpoint.removesuffix("/api/replication") + "/api/diagnostics"
-                forward_archives(Path(data_dir), Path("/var/lib/ocpp-csms/diagnostics"),
-                                 state.parent / "diagnostic-forwarding", diagnostic_url, source_id, token)
-            except (ValueError, OSError, ImportError, RuntimeError, httpx.HTTPError) as exc:
-                logging.getLogger(__name__).warning("Diagnostic forwarding deferred: %s", type(exc).__name__)
         if current > previous:
             continue
         if once:
