@@ -97,6 +97,8 @@ def local_uploads(data_dir: Path, uploads_root: Path):
         if not isinstance(cp, str) or not CP.fullmatch(cp):
             continue
         folder = uploads_root / record.stem
+        if not folder.is_dir():
+            folder = uploads_root / "retained" / record.stem
         if not folder.is_dir() or folder.is_symlink():
             continue
         for item in folder.iterdir():
