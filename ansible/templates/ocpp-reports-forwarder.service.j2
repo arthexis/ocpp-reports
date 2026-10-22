@@ -7,10 +7,9 @@ Wants=network-online.target
 Type=simple
 User=ocpp-reports
 Group=ocpp
-EnvironmentFile=/etc/ocpp-reports/forwarder.env
-ExecStart={{ reports_cli_link }} forward --database /var/lib/ocpp-reports/warehouse.sqlite --state /var/lib/ocpp-reports/forwarder.sqlite --source-id ${REPORTS_SOURCE_ID} --endpoint ${REPORTS_COLLECTOR_URL} --token-file /etc/ocpp-reports/forwarder-token
+ExecStart={{ reports_cli_link }} forward --database /var/lib/ocpp-reports/warehouse.sqlite --state /var/lib/ocpp-reports/forwarder.sqlite --config /etc/ocpp-reports/forwarder.toml
 Restart=on-failure
-RestartSec=10
+RestartSec=60
 NoNewPrivileges=true
 
 [Install]
