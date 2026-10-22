@@ -102,7 +102,7 @@ def local_uploads(data_dir: Path, uploads_root: Path):
         if not folder.is_dir() or folder.is_symlink():
             continue
         for item in folder.iterdir():
-            if item.is_file() and not item.is_symlink():
+            if item.name == "upload.bin" and item.is_file() and not item.is_symlink():
                 yield cp, item
 
 
