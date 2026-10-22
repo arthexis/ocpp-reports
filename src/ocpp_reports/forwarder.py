@@ -74,8 +74,6 @@ def forward(database: Path, state: Path, source_id: str, endpoint: str, token: s
     while True:
         previous = confirmed_cursor(state, source_id)
         current = forward_once(database, state, source_id, endpoint, token, limit=limit)
-        if current > previous:
-            continue
         if time.monotonic() - last_diagnostics >= 60 or once:
             last_diagnostics = time.monotonic()
             try:
@@ -87,6 +85,8 @@ def forward(database: Path, state: Path, source_id: str, endpoint: str, token: s
                                  state.parent / "diagnostic-forwarding", diagnostic_url, source_id, token)
             except (ValueError, OSError, ImportError, RuntimeError, httpx.HTTPError) as exc:
                 logging.getLogger(__name__).warning("Diagnostic forwarding deferred: %s", type(exc).__name__)
+        if current > previous:
+            continue
         if once:
             return
         sleep(interval)
