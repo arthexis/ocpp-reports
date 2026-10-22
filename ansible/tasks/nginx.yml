@@ -5,6 +5,7 @@
       - reports_dashboard_hostname is match('^[A-Za-z0-9.-]+$')
       - reports_collector_hostname is match('^[A-Za-z0-9.-]+$')
       - reports_dashboard_hostname != reports_collector_hostname
+      - reports_diagnostics_hostname not in [reports_dashboard_hostname, reports_collector_hostname]
       - reports_dashboard_hostname != 'porsche-abb.gelectriic.com'
       - reports_collector_hostname != 'porsche-abb.gelectriic.com'
       - reports_role in ['watchtower', 'control']
@@ -20,6 +21,8 @@
     - "{{ reports_collector_certificate }}"
     - "{{ reports_collector_private_key }}"
     - "{{ reports_nginx_htpasswd }}"
+    - "{{ reports_diagnostics_certificate }}"
+    - "{{ reports_diagnostics_private_key }}"
     - /etc/ocpp-reports/collector-credentials.json
   register: reports_nginx_prerequisites
   when: reports_nginx_enabled | bool
@@ -74,6 +77,7 @@
   loop:
     - dashboard
     - collector
+    - diagnostics
   become: true
   when: reports_nginx_enabled | bool
 
@@ -85,6 +89,7 @@
   loop:
     - dashboard
     - collector
+    - diagnostics
   become: true
   when: reports_nginx_enabled | bool
 
