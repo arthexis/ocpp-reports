@@ -67,6 +67,21 @@
     fail_msg: "Disable the legacy /etc/nginx/sites-enabled/ocpp-reports site manually before enabling split hosts; CSMS is unaffected."
   when: reports_nginx_enabled | bool
 
+- name: Create Reports diagnostic archive and publication directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /var/lib/ocpp-reports/diagnostics, owner: ocpp-reports, group: ocpp, mode: '2770'}
+    - {path: /var/lib/ocpp-reports/diagnostics-public, owner: root, group: www-data, mode: '0750'}
+    - {path: /etc/nginx/ocpp-reports-diagnostics, owner: root, group: root, mode: '0755'}
+    - {path: /etc/ocpp-reports/diagnostics-auth, owner: root, group: www-data, mode: '0750'}
+  become: true
+  when: reports_nginx_enabled | bool
+
 - name: Render independent Reports virtual hosts
   ansible.builtin.template:
     src: "{{ playbook_dir }}/templates/ocpp-reports-{{ item }}.nginx.j2"
