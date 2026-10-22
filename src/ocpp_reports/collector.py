@@ -112,4 +112,24 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
             raise HTTPException(409, str(exc)) from exc
         return {"source_id": batch.source_id, "ack": cursor}
 
+    @app.post("/api/diagnostics")
+    async def receive_diagnostic(request: Request, source_id: str, cp: str, filename: str,
+                                 authorization: str | None = Header(default=None)):
+        expected = credentials.get(source_id)
+        if not expected or not authorization or not hmac.compare_digest(authorization, "Bearer " + expected):
+            raise HTTPException(401, "Invalid source credentials")
+        from .diagnostic_archive import DEFAULT_ARCHIVE, store, validate
+        from io import BytesIO
+        try:
+            validate(source_id, cp)
+            limit = 100 * 1024 * 1024
+            payload = bytearray()
+            async for chunk in request.stream():
+                payload.extend(chunk)
+                if len(payload) > limit:
+                    raise HTTPException(413, "Diagnostic archive too large")
+            return store(DEFAULT_ARCHIVE, source_id, cp, filename, BytesIO(payload), maximum=limit)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
     return app
