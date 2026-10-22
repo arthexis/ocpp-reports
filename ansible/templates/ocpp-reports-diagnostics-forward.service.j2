@@ -1,0 +1,16 @@
+[Unit]
+Description=OCPP Reports diagnostic archive synchronization
+After=network-online.target ocpp-reports-forwarder.service
+Wants=network-online.target
+[Service]
+Type=oneshot
+User={{ reports_operator }}
+Group=ocpp
+EnvironmentFile=/etc/ocpp-reports/forwarder.env
+ExecStart={{ reports_cli_link }} diagnose forward --source ${REPORTS_SOURCE_ID} --endpoint ${REPORTS_COLLECTOR_URL} --token-file /etc/ocpp-reports/forwarder-token
+TimeoutStartSec=240
+NoNewPrivileges=true
+MemoryMax=256M
+CPUQuota=25%
+Nice=10
+IOSchedulingClass=idle

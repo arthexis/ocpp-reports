@@ -4,3 +4,6 @@
   vars:
     reports_service: "forwarder"
     reports_service_config: "/etc/ocpp-reports/forwarder.env"
+
+- name: Configure diagnostic archive forwarding
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/diagnostic-forwarding.yml"
