@@ -4,6 +4,10 @@
   vars:
     reports_service: "forwarder"
     reports_service_config: "/etc/ocpp-reports/forwarder.env"
+- name: Configure local satellite diagnostic forwarding
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/diagnostic-forwarding.yml"
+  when: reports_local_ingest_enabled | bool
+
 - name: Configure collector service
   ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/service.yml"
   vars:
