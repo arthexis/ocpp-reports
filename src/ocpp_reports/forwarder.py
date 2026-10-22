@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+import logging
 from pathlib import Path
 from typing import Callable
 
@@ -34,11 +35,17 @@ def save_cursor(state: Path, source_id: str, cursor: int) -> None:
             WHERE excluded.sequence >= forward_cursors.sequence""", (source_id, cursor))
 
 
+def validate_endpoint(endpoint: str) -> None:
+    if not (endpoint.startswith('https://') or endpoint.startswith('http://127.0.0.1:')):
+        raise ValueError('Forwarder endpoint must use HTTPS (or loopback HTTP)')
+
+
 def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
                  token: str, *, limit: int = 500,
                  client: httpx.Client | None = None) -> int:
     """Return acknowledged sequence. Never advance after an unsuccessful response."""
-    if not source_id or not token or not endpoint.startswith("https://") and not endpoint.startswith("http://127.0.0.1:"):
+    validate_endpoint(endpoint)
+    if not source_id or not token:
         raise ValueError("Forwarding requires source identity, token and HTTPS endpoint (or loopback HTTP)")
     if database.resolve() == state.resolve():
         raise ValueError("Forwarder state must be separate from the warehouse")
@@ -69,9 +76,22 @@ def forward(database: Path, state: Path, source_id: str, endpoint: str, token: s
     """Drain pending batches, then poll. Raise failures for systemd restart."""
     if interval <= 0 or not 1 <= limit <= 500:
         raise ValueError("Invalid forwarding interval or batch limit")
+    failures = 0
     while True:
-        previous = confirmed_cursor(state, source_id)
-        current = forward_once(database, state, source_id, endpoint, token, limit=limit)
+        try:
+            previous = confirmed_cursor(state, source_id)
+            current = forward_once(database, state, source_id, endpoint, token, limit=limit)
+        except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+            transient = isinstance(exc, httpx.TransportError) or (
+                isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in {408, 429, 500, 502, 503, 504})
+            if once or not transient:
+                raise
+            failures += 1
+            delay = min(300.0, max(interval, 5.0) * (2 ** min(failures - 1, 10)))
+            logging.getLogger(__name__).warning("Collector unavailable (%s); retry in %.0fs", type(exc).__name__, delay)
+            sleep(delay)
+            continue
+        failures = 0
         if current > previous:
             continue
         if once:
