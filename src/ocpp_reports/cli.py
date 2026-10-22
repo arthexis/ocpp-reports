@@ -391,11 +391,24 @@ def diagnose_serve(cp: str = typer.Option(..., "--cp"),
 
 
 @diagnose_app.command("forward")
-def diagnose_forward(data_dir: Path = typer.Option(..., "--data-dir"),
-                     uploads_root: Path = typer.Option(Path("/var/lib/ocpp-csms/diagnostics"), "--uploads-root"),
-                     state: Path = typer.Option(Path("/var/lib/ocpp-reports/forwarder-state"), "--state"),
-                     source: str = typer.Option(..., "--source"),
-                     endpoint: str = typer.Option(..., "--endpoint"),
-                     token: str = typer.Option(..., "--token", hide_input=True)) -> None:
+def diagnose_forward(
+    source: str = typer.Option(..., "--source"),
+    endpoint: str = typer.Option(..., "--endpoint"),
+    token_file: Path = typer.Option(..., "--token-file"),
+    data_dir: Path | None = typer.Option(None, "--data-dir"),
+    uploads_root: Path = typer.Option(Path("/var/lib/ocpp-csms/diagnostics"), "--uploads-root"),
+    state: Path = typer.Option(Path("/var/lib/ocpp-reports/diagnostic-forwarding"), "--state"),
+) -> None:
+    """Synchronize attributed local archives in a bounded, retryable one-shot run."""
     from .diagnostic_archive import forward_archives
-    typer.echo(f"Forwarded {forward_archives(data_dir, uploads_root, state, endpoint, source, token)} diagnostic archives")
+    from .active_csms import discover_active_csms
+    try:
+        if data_dir is None:
+            data_dir, _ = discover_active_csms()
+        token = token_file.read_text(encoding="utf-8").strip()
+        destination = endpoint.removesuffix("/api/replication") + "/api/diagnostics"
+        count = forward_archives(Path(data_dir), uploads_root, state, destination, source, token)
+        typer.echo(f"Forwarded {count} diagnostic archives")
+    except (ValueError, OSError) as exc:
+        typer.echo(f"Diagnostic forwarding unavailable: {type(exc).__name__}", err=True)
+        raise typer.Exit(2)
