@@ -141,8 +141,26 @@ def forward_archives(data_dir: Path, uploads_root: Path, state: Path, endpoint: 
         return sent
 
 
+def _replace_text(path: Path, content: str, *, mode: int, group: int) -> None:
+    """Install nginx data atomically, never expose a partially written credential."""
+    fd, temporary = tempfile.mkstemp(prefix=".new-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as target:
+            target.write(content)
+        os.chmod(temporary, mode)
+        os.chown(temporary, 0, group)
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def _reload_nginx() -> None:
+    subprocess.run(["nginx", "-t"], check=True)
+    subprocess.run(["systemctl", "reload", "nginx"], check=True)
+
+
 def publish(root: Path, cp: str, source: str | None = None) -> dict:
-    """Explicit static snapshot. nginx site and TLS are managed by Reports deployment."""
+    """Rotate one CP's publication, or restore the previous state on failure."""
     if not CP.fullmatch(cp):
         raise ValueError("Invalid charge point ID")
     items = inventory(root, source=source, cp=cp)
@@ -153,30 +171,43 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
         raise ValueError("No collected diagnostics for this charger")
     if os.geteuid() != 0:
         raise PermissionError("Publishing requires root")
+    if not SNIPPETS.is_dir() or not PUBLIC.is_dir() or not CREDENTIALS.is_dir():
+        raise ValueError("Reports diagnostic nginx host is not deployed")
     import grp
     group = grp.getgrnam("www-data").gr_gid
-    PUBLIC.mkdir(parents=True, exist_ok=True)
-    SNIPPETS.mkdir(parents=True, exist_ok=True)
-    CREDENTIALS.mkdir(parents=True, exist_ok=True)
     password = secrets.token_urlsafe(24)
-    hashed = subprocess.run(["openssl", "passwd", "-6", "-stdin"], input=password + "\n",
-                            text=True, capture_output=True, check=True).stdout.strip()
+    hashed = subprocess.run(
+        ["openssl", "passwd", "-6", "-stdin"], input=password + "\n",
+        text=True, capture_output=True, check=True,
+    ).stdout.strip()
     staged = Path(tempfile.mkdtemp(prefix=".staged-", dir=PUBLIC))
+    destination = PUBLIC / cp
+    backup = PUBLIC / ("." + cp + ".previous")
+    auth = CREDENTIALS / (cp + ".htpasswd")
+    snippet = SNIPPETS / (cp + ".conf")
+    if backup.exists():
+        shutil.rmtree(staged)
+        raise ValueError("Unrecovered prior publication snapshot; inspect before retry")
+    previous_auth = auth.read_text(encoding="utf-8") if auth.is_file() else None
+    previous_snippet = snippet.read_text(encoding="utf-8") if snippet.is_file() else None
+    swapped = False
     try:
         os.chmod(staged, 0o750)
         os.chown(staged, 0, group)
-        for n, item in enumerate(items, 1):
+        for index, item in enumerate(items, 1):
             candidate = root / item["source_id"] / cp / (item["sha256"] + ".bin")
-            dest = staged / f"diagnostic-{n:03d}.bin"
-            shutil.copyfile(candidate, dest)
-            os.chmod(dest, 0o640)
-            os.chown(dest, 0, group)
-        auth = CREDENTIALS / (cp + ".htpasswd")
-        snippet = SNIPPETS / (cp + ".conf")
-        auth.write_text(f"{cp}:{hashed}\n")
-        os.chmod(auth, 0o640)
-        os.chown(auth, 0, group)
-        snippet.write_text(
+            with candidate.open("rb") as stream:
+                extension = ".zip" if stream.read(4) == b"PK\\x03\\x04" else ".bin"
+            target = staged / f"diagnostic-{index:03d}{extension}"
+            shutil.copyfile(candidate, target)
+            os.chmod(target, 0o640)
+            os.chown(target, 0, group)
+        if destination.exists():
+            destination.rename(backup)
+        staged.rename(destination)
+        swapped = True
+        _replace_text(auth, f"{cp}:{hashed}\n", mode=0o640, group=group)
+        _replace_text(snippet, (
             f"location ^~ /{cp}/ {{\n"
             f"    alias {PUBLIC}/{cp}/;\n"
             "    autoindex on;\n"
@@ -184,17 +215,36 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
             f"    auth_basic_user_file {auth};\n"
             "    limit_except GET { deny all; }\n"
             '    add_header Cache-Control "private, no-store" always;\n'
-            "}\n")
-        previous = PUBLIC / cp
-        if previous.exists():
-            shutil.rmtree(previous)
-        staged.rename(previous)
-        subprocess.run(["nginx", "-t"], check=True)
-        subprocess.run(["systemctl", "reload", "nginx"], check=True)
-        return {"cp": cp, "source": next(iter(sources)), "username": cp, "password": password, "files": len(items)}
+            "}\n"
+        ), mode=0o644, group=group)
+        _reload_nginx()
+    except Exception:
+        if previous_auth is None:
+            auth.unlink(missing_ok=True)
+        else:
+            _replace_text(auth, previous_auth, mode=0o640, group=group)
+        if previous_snippet is None:
+            snippet.unlink(missing_ok=True)
+        else:
+            _replace_text(snippet, previous_snippet, mode=0o644, group=group)
+        if swapped and destination.is_dir():
+            shutil.rmtree(destination)
+        if backup.exists():
+            backup.rename(destination)
+        try:
+            _reload_nginx()
+        except Exception:
+            pass
+        raise
     finally:
         if staged.exists():
             shutil.rmtree(staged)
+    if backup.exists():
+        shutil.rmtree(backup)
+    return {
+        "cp": cp, "source": next(iter(sources)), "username": cp,
+        "password": password, "files": len(items),
+    }
 
 
 def revoke(cp: str) -> None:
