@@ -257,3 +257,21 @@ def revoke(cp: str) -> None:
     subprocess.run(["nginx", "-t"], check=True)
     subprocess.run(["systemctl", "reload", "nginx"], check=True)
     shutil.rmtree(PUBLIC / cp, ignore_errors=True)
+
+
+def import_local(root: Path, data_dir: Path, uploads_root: Path, source: str) -> int:
+    """Import historical and new charger uploads without HTTP or CSMS mutations.
+
+    SHA-256 indexed copies are immutable and repeated scans are idempotent.
+    """
+    validate(source, "probe")
+    inserted = 0
+    for cp, path in local_uploads(data_dir, uploads_root):
+        with path.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        if any(item["sha256"] == digest for item in inventory(root, source, cp)):
+            continue
+        with path.open("rb") as stream:
+            store(root, source, cp, path.name, stream)
+        inserted += 1
+    return inserted
