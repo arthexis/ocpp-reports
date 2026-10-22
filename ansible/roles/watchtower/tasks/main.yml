@@ -1,4 +1,16 @@
 ---
+- name: Install initial Collector TOML without replacing operator credentials
+  ansible.builtin.copy:
+    dest: /etc/ocpp-reports/collector.toml
+    content: |
+      # Add one entry per satellite. Example:
+      # [sources]
+      # "source-id" = "unique-secret-token"
+    owner: root
+    group: ocpp
+    mode: '0640'
+    force: false
+  become: true
 - name: Configure collector service
   ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/service.yml"
   vars:
