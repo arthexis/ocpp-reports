@@ -43,3 +43,52 @@ def test_collector_requires_source_token_and_acknowledges_checksum(tmp_path, mon
     assert client.post(url, content=b"abc",
                        headers={"Authorization": "Bearer secret"}).status_code == 200
     assert len(inventory(tmp_path / "archives")) == 1
+
+
+def test_forwarder_discovers_retained_uploads_and_deduplicates(tmp_path, monkeypatch):
+    import json
+    from ocpp_reports import diagnostic_archive as archive
+    data_dir = tmp_path / "csms"
+    records = data_dir / "diagnostics-requests"
+    records.mkdir(parents=True)
+    uploads = tmp_path / "uploads"
+    token = "a" * 40
+    folder = uploads / "retained" / token
+    folder.mkdir(parents=True)
+    (folder / "upload.bin").write_bytes(b"diagnostic evidence")
+    (records / f"{token}.json").write_text(json.dumps({"charger": "CP001"}))
+    seen = []
+
+    class Reply:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"sha256": __import__("hashlib").sha256(b"diagnostic evidence").hexdigest()}
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def post(self, endpoint, *, params, content, headers):
+            assert endpoint == "https://collector.example/api/diagnostics"
+            assert headers["Authorization"] == "Bearer secret"
+            assert params["source_id"] == "sat-001"
+            assert params["cp"] == "CP001"
+            seen.append(content.read())
+            return Reply()
+
+    monkeypatch.setattr(archive.httpx, "Client", Client, raising=False) if hasattr(archive, "httpx") else None
+    import httpx
+    monkeypatch.setattr(httpx, "Client", Client)
+    state = tmp_path / "forwarder"
+    args = (data_dir, uploads, state, "https://collector.example/api/diagnostics", "sat-001", "secret")
+    assert archive.forward_archives(*args) == 1
+    assert archive.forward_archives(*args) == 0
+    assert seen == [b"diagnostic evidence"]
