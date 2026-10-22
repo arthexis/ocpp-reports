@@ -366,3 +366,36 @@ def collect_command(
 
 if __name__ == "__main__":
     app()
+
+# Explicit Reports-owned diagnostic publication. No CSMS download command remains.
+diagnose_app = typer.Typer(help="Manage centralized diagnostic archives.", no_args_is_help=True)
+app.add_typer(diagnose_app, name="diagnose")
+
+@diagnose_app.command("serve")
+def diagnose_serve(cp: str = typer.Option(..., "--cp"),
+                   source: str | None = typer.Option(None, "--source"),
+                   status: bool = typer.Option(False, "--status"),
+                   revoke: bool = typer.Option(False, "--revoke")) -> None:
+    from .diagnostic_archive import DEFAULT_ARCHIVE, inventory, publish, revoke as revoke_access
+    if status and revoke:
+        raise typer.BadParameter("--status and --revoke are mutually exclusive")
+    if status:
+        typer.echo(json.dumps({"cp": cp, "files": len(inventory(DEFAULT_ARCHIVE, source, cp))}))
+        return
+    if revoke:
+        revoke_access(cp)
+        typer.echo("Diagnostic access revoked")
+        return
+    result = publish(DEFAULT_ARCHIVE, cp, source)
+    typer.echo(f"Username: {result['username']}\\nPassword: {result['password']}\\nFiles: {result['files']}")
+
+
+@diagnose_app.command("forward")
+def diagnose_forward(data_dir: Path = typer.Option(..., "--data-dir"),
+                     uploads_root: Path = typer.Option(Path("/var/lib/ocpp-csms/diagnostics"), "--uploads-root"),
+                     state: Path = typer.Option(Path("/var/lib/ocpp-reports/forwarder-state"), "--state"),
+                     source: str = typer.Option(..., "--source"),
+                     endpoint: str = typer.Option(..., "--endpoint"),
+                     token: str = typer.Option(..., "--token", hide_input=True)) -> None:
+    from .diagnostic_archive import forward_archives
+    typer.echo(f"Forwarded {forward_archives(data_dir, uploads_root, state, endpoint, source, token)} diagnostic archives")
