@@ -412,3 +412,22 @@ def diagnose_forward(
     except (ValueError, OSError) as exc:
         typer.echo(f"Diagnostic forwarding unavailable: {type(exc).__name__}", err=True)
         raise typer.Exit(2)
+
+
+@diagnose_app.command("import-local")
+def diagnose_import_local(
+    source: str = typer.Option(..., "--source", help="Stable identity for this Watchtower's local CSMS"),
+    data_dir: Path | None = typer.Option(None, "--data-dir"),
+    uploads_root: Path = typer.Option(Path("/var/lib/ocpp-csms/diagnostics"), "--uploads-root"),
+) -> None:
+    """Copy existing and newly received local charger diagnostics without HTTP."""
+    from .active_csms import discover_active_csms
+    from .diagnostic_archive import DEFAULT_ARCHIVE, import_local
+    try:
+        if data_dir is None:
+            data_dir, _ = discover_active_csms()
+        count = import_local(DEFAULT_ARCHIVE, Path(data_dir), uploads_root, source)
+        typer.echo(f"Imported {count} local diagnostic archives")
+    except (OSError, ValueError, RuntimeError) as exc:
+        typer.echo(f"Local diagnostics import failed: {exc}", err=True)
+        raise typer.Exit(2)
