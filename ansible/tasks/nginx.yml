@@ -24,8 +24,8 @@
     that:
       - reports_nginx_prerequisites.results | map(attribute='stat.exists') | min
       - reports_nginx_prerequisites.results | map(attribute='stat.isreg') | min
-    fail_msg: "Provide both TLS certificate/key pairs, dashboard htpasswd, and Collector credentials before enabling HTTPS."
-  when: reports_nginx_enabled | bool
+    fail_msg: "Provide the TLS certificate/key for each selected HTTPS host and required credentials for full Reports exposure."
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Verify Collector service is running before public exposure
   ansible.builtin.command: systemctl is-active ocpp-reports-collector.service
