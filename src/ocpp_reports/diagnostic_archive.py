@@ -171,8 +171,8 @@ def _archive_preview(path: Path) -> str:
                          and m.filename.lower().endswith((".log", ".txt"))]
                 if not names:
                     return "No small text logs available for preview. Use Download."
-                return "\\n\\n".join(
-                    f"--- {m.filename} ---\\n" +
+                return "\n\n".join(
+                    f"--- {m.filename} ---\n" +
                     archive.read(m).decode("utf-8", errors="replace")
                     for m in names[:8]
                 )[:1024 * 1024]
