@@ -92,3 +92,26 @@ def test_forwarder_discovers_retained_uploads_and_deduplicates(tmp_path, monkeyp
     assert archive.forward_archives(*args) == 1
     assert archive.forward_archives(*args) == 0
     assert seen == [b"diagnostic evidence"]
+
+
+def test_diagnose_cp_defaults_to_single_indexed_charger(tmp_path):
+    from ocpp_reports.cli import _resolve_diagnostic_cp
+    store(tmp_path, "site-a", "CP001", "first.zip", BytesIO(b"one"))
+    assert _resolve_diagnostic_cp(None, tmp_path) == "CP001"
+    assert _resolve_diagnostic_cp("OTHER", tmp_path) == "OTHER"
+    store(tmp_path, "site-a", "CP002", "other.zip", BytesIO(b"two"))
+    import pytest
+    with pytest.raises(ValueError, match="Specify --cp"):
+        _resolve_diagnostic_cp(None, tmp_path)
+
+
+def test_diagnose_cp_defaults_from_local_request_records(tmp_path, monkeypatch):
+    import json
+    from ocpp_reports import active_csms
+    from ocpp_reports.cli import _resolve_diagnostic_cp
+    data = tmp_path / "8"
+    records = data / "diagnostics-requests"
+    records.mkdir(parents=True)
+    (records / ("a" * 40 + ".json")).write_text(json.dumps({"charger": "CP001"}))
+    monkeypatch.setattr(active_csms, "discover_active_csms", lambda: (data, "/usr/bin/python3"))
+    assert _resolve_diagnostic_cp(None, tmp_path / "empty") == "CP001"
