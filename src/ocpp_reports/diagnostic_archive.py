@@ -196,7 +196,7 @@ def _viewer_page(title: str, body: str, download: str) -> str:
             "<pre>" + html.escape(body) + "</pre></html>")
 
 
-def publish(root: Path, cp: str, source: str | None = None) -> dict:
+def publish(root: Path, cp: str, source: str | None = None, *, rotate: bool = True) -> dict:
     """Rotate one CP's publication, or restore the previous state on failure."""
     if not CP.fullmatch(cp):
         raise ValueError("Invalid charge point ID")
@@ -212,16 +212,19 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
         raise ValueError("Reports diagnostic nginx host is not deployed")
     import grp
     group = grp.getgrnam("www-data").gr_gid
-    password = secrets.token_urlsafe(24)
-    hashed = subprocess.run(
+    password = secrets.token_urlsafe(24) if rotate else None
+    hashed = (subprocess.run(
         ["openssl", "passwd", "-6", "-stdin"], input=password + "\n",
         text=True, capture_output=True, check=True,
-    ).stdout.strip()
+    ).stdout.strip() if password else None)
     staged = Path(tempfile.mkdtemp(prefix=".staged-", dir=PUBLIC))
     destination = PUBLIC / cp
     backup = PUBLIC / ("." + cp + ".previous")
     auth = CREDENTIALS / (cp + ".htpasswd")
     snippet = SNIPPETS / (cp + ".conf")
+    if not rotate and (not auth.is_file() or not snippet.is_file() or not destination.is_dir()):
+        shutil.rmtree(staged)
+        raise ValueError("Not an existing published diagnostic page")
     if backup.exists():
         shutil.rmtree(staged)
         raise ValueError("Unrecovered prior publication snapshot; inspect before retry")
@@ -268,8 +271,9 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
             destination.rename(backup)
         staged.rename(destination)
         swapped = True
-        _replace_text(auth, f"{cp}:{hashed}\n", mode=0o640, group=group)
-        _replace_text(snippet, (
+        if rotate:
+            _replace_text(auth, f"{cp}:{hashed}\n", mode=0o640, group=group)
+            _replace_text(snippet, (
             f"location ^~ /{cp}/ {{\n"
             f"    alias {PUBLIC}/{cp}/;\n"
             "    autoindex on;\n"
@@ -279,7 +283,8 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
             '    add_header Cache-Control "private, no-store" always;\n'
             "}\n"
         ), mode=0o644, group=group)
-        _reload_nginx()
+        if rotate:
+            _reload_nginx()
     except Exception:
         if previous_auth is None:
             auth.unlink(missing_ok=True)
@@ -293,10 +298,11 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
             shutil.rmtree(destination)
         if backup.exists():
             backup.rename(destination)
-        try:
-            _reload_nginx()
-        except Exception:
-            pass
+        if rotate:
+            try:
+                _reload_nginx()
+            except Exception:
+                pass
         raise
     finally:
         if staged.exists():
@@ -307,6 +313,37 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
         "cp": cp, "source": next(iter(sources)), "username": cp,
         "password": password, "files": len(items),
     }
+
+
+
+def refresh_published(root: Path) -> int:
+    """Refresh only pages already authorized for publication; retain passwords."""
+    if os.geteuid() != 0:
+        raise PermissionError("Refreshing publications requires root")
+    if not CREDENTIALS.is_dir() or not SNIPPETS.is_dir() or not PUBLIC.is_dir():
+        return 0
+    count = 0
+    for auth in CREDENTIALS.glob("*.htpasswd"):
+        cp = auth.stem
+        if not CP.fullmatch(cp) or not (SNIPPETS / (cp + ".conf")).is_file():
+            continue
+        destination = PUBLIC / cp
+        if not destination.is_dir() or destination.is_symlink():
+            continue
+        items = inventory(root, cp=cp)
+        if not items or len({i["source_id"] for i in items}) != 1:
+            continue
+        signature = json.dumps([(i["sha256"], i["received_at"]) for i in items])
+        manifest = destination / ".archive-manifest"
+        if manifest.is_file() and manifest.read_text(encoding="utf-8") == signature:
+            continue
+        publish(root, cp, rotate=False)
+        manifest = destination / ".archive-manifest"
+        # Private metadata for avoiding needless republishing on the next timer.
+        manifest.write_text(signature, encoding="utf-8")
+        os.chmod(manifest, 0o640)
+        count += 1
+    return count
 
 
 def revoke(cp: str) -> None:
