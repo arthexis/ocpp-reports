@@ -5,7 +5,9 @@
   register: reports_diagnostics_dns
   changed_when: false
   failed_when: false
-  when: reports_role in ['watchtower', 'control']
+  when:
+    - reports_role in ['watchtower', 'control']
+    - not (lookup('env', 'CI') | default('false', true) | bool)
 
 - name: Check for previously issued diagnostic certificate
   ansible.builtin.stat:
