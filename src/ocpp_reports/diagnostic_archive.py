@@ -286,14 +286,15 @@ def publish(root: Path, cp: str, source: str | None = None, *, rotate: bool = Tr
         if rotate:
             _reload_nginx()
     except Exception:
-        if previous_auth is None:
-            auth.unlink(missing_ok=True)
-        else:
-            _replace_text(auth, previous_auth, mode=0o640, group=group)
-        if previous_snippet is None:
-            snippet.unlink(missing_ok=True)
-        else:
-            _replace_text(snippet, previous_snippet, mode=0o644, group=group)
+        if rotate:
+            if previous_auth is None:
+                auth.unlink(missing_ok=True)
+            else:
+                _replace_text(auth, previous_auth, mode=0o640, group=group)
+            if previous_snippet is None:
+                snippet.unlink(missing_ok=True)
+            else:
+                _replace_text(snippet, previous_snippet, mode=0o644, group=group)
         if swapped and destination.is_dir():
             shutil.rmtree(destination)
         if backup.exists():
