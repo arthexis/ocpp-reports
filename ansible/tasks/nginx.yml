@@ -10,30 +10,138 @@
       - reports_collector_hostname != 'porsche-abb.gelectriic.com'
       - reports_role in ['watchtower', 'control']
     fail_msg: "Dashboard and Collector need distinct hostnames; do not reuse the CSMS hostname."
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+
+# Bootstrap the diagnostics certificate using a temporary HTTP-only ACME site.
+# Existing CSMS nginx configuration and certificates remain unchanged.
+- name: Ensure persistent diagnostic HTTP-01 challenge webroot
+  ansible.builtin.file:
+    path: /var/www/ocpp-reports-diagnostics-acme
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+
+- name: Check if the diagnostics certificate already exists
+  ansible.builtin.stat:
+    path: "{{ reports_diagnostics_certificate }}"
+  register: reports_diagnostics_cert_existing
+  become: true
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+
+- name: Provision diagnostic TLS certificate with Certbot webroot
+  when:
+    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - not (reports_diagnostics_cert_existing.stat.exists | default(false))
+  block:
+    - name: Require default Let's Encrypt certificate paths for automatic issuance
+      ansible.builtin.assert:
+        that:
+          - reports_diagnostics_certificate == '/etc/letsencrypt/live/' ~ reports_diagnostics_hostname ~ '/fullchain.pem'
+          - reports_diagnostics_private_key == '/etc/letsencrypt/live/' ~ reports_diagnostics_hostname ~ '/privkey.pem'
+        fail_msg: "Custom diagnostics TLS paths must be provisioned manually."
+
+    - name: Install Certbot for diagnostic TLS
+      ansible.builtin.apt:
+        name: certbot
+        state: present
+      become: true
+
+    - name: Create HTTP-01 challenge webroot
+      ansible.builtin.file:
+        path: /var/www/ocpp-reports-diagnostics-acme
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      become: true
+
+    - name: Install temporary diagnostics HTTP-01 challenge site
+      ansible.builtin.copy:
+        dest: /etc/nginx/sites-available/ocpp-reports-diagnostics-acme
+        mode: '0644'
+        content: |
+          server {
+              listen 80;
+              server_name {{ reports_diagnostics_hostname }};
+              location ^~ /.well-known/acme-challenge/ {
+                  root /var/www/ocpp-reports-diagnostics-acme;
+              }
+              location / { return 404; }
+          }
+      become: true
+
+    - name: Enable diagnostics HTTP-01 challenge site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/ocpp-reports-diagnostics-acme
+        dest: /etc/nginx/sites-enabled/ocpp-reports-diagnostics-acme
+        state: link
+      become: true
+
+    - name: Validate HTTP-01 challenge configuration
+      ansible.builtin.command: nginx -t
+      become: true
+      changed_when: false
+
+    - name: Activate HTTP-01 challenge route
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded
+      become: true
+
+    - name: Issue diagnostic hostname certificate
+      ansible.builtin.command:
+        argv:
+          - certbot
+          - certonly
+          - --webroot
+          - -w
+          - /var/www/ocpp-reports-diagnostics-acme
+          - -d
+          - "{{ reports_diagnostics_hostname }}"
+          - --non-interactive
+          - --agree-tos
+          - --register-unsafely-without-email
+          - --keep-until-expiring
+      become: true
+      no_log: true
+  always:
+    - name: Remove temporary HTTP-01 challenge link
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/ocpp-reports-diagnostics-acme
+        state: absent
+      become: true
+    - name: Remove temporary HTTP-01 site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-available/ocpp-reports-diagnostics-acme
+        state: absent
+      become: true
+    - name: Validate configuration after removing challenge site
+      ansible.builtin.command: nginx -t
+      become: true
+      changed_when: false
+    - name: Reload nginx after removing challenge site
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded
+      become: true
 
 - name: Inspect independent TLS and authentication prerequisites
   ansible.builtin.stat:
     path: "{{ item }}"
-  loop:
-    - "{{ reports_dashboard_certificate }}"
-    - "{{ reports_dashboard_private_key }}"
-    - "{{ reports_collector_certificate }}"
-    - "{{ reports_collector_private_key }}"
-    - "{{ reports_nginx_htpasswd }}"
-    - "{{ reports_diagnostics_certificate }}"
-    - "{{ reports_diagnostics_private_key }}"
-    - /etc/ocpp-reports/collector-credentials.json
+  loop: "{{ ([reports_dashboard_certificate, reports_dashboard_private_key, reports_collector_certificate, reports_collector_private_key, reports_nginx_htpasswd, '/etc/ocpp-reports/collector-credentials.json'] if reports_nginx_enabled | bool else []) + ([reports_diagnostics_certificate, reports_diagnostics_private_key] if (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool) else []) }}"
   register: reports_nginx_prerequisites
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Refuse incomplete HTTPS configuration
   ansible.builtin.assert:
     that:
       - reports_nginx_prerequisites.results | map(attribute='stat.exists') | min
       - reports_nginx_prerequisites.results | map(attribute='stat.isreg') | min
-    fail_msg: "Provide both TLS certificate/key pairs, dashboard htpasswd, and Collector credentials before enabling HTTPS."
-  when: reports_nginx_enabled | bool
+    fail_msg: "Provide the TLS certificate/key for each selected HTTPS host and required credentials for full Reports exposure."
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Verify Collector service is running before public exposure
   ansible.builtin.command: systemctl is-active ocpp-reports-collector.service
@@ -52,20 +160,20 @@
     name: nginx
     state: present
   become: true
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Check for legacy combined Reports site
   ansible.builtin.stat:
     path: /etc/nginx/sites-enabled/ocpp-reports
   register: reports_legacy_site
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Refuse ambiguous legacy combined Reports exposure
   ansible.builtin.assert:
     that:
       - not reports_legacy_site.stat.exists
     fail_msg: "Disable the legacy /etc/nginx/sites-enabled/ocpp-reports site manually before enabling split hosts; CSMS is unaffected."
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Create Reports diagnostic archive and publication directories
   ansible.builtin.file:
@@ -80,14 +188,14 @@
     - {path: /etc/nginx/ocpp-reports-diagnostics, owner: root, group: root, mode: '0755'}
     - {path: /etc/ocpp-reports/diagnostics-auth, owner: root, group: www-data, mode: '0750'}
   become: true
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Inspect CSMS-owned legacy diagnostics virtual host
   ansible.builtin.stat:
     path: "/etc/nginx/sites-available/{{ reports_diagnostics_hostname }}"
   register: reports_old_diagnostics_host
   become: true
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Read legacy diagnostics virtual host before ownership transfer
   ansible.builtin.slurp:
@@ -95,7 +203,7 @@
   register: reports_old_diagnostics_contents
   become: true
   when:
-    - reports_nginx_enabled | bool
+    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
     - reports_old_diagnostics_host.stat.isreg | default(false)
 
 - name: Refuse replacing an unrelated diagnostics hostname configuration
@@ -104,7 +212,7 @@
       - "(reports_old_diagnostics_contents.content | b64decode).startswith('# Dedicated authenticated download host.')"
     fail_msg: "Existing diagnostics nginx host is not the known CSMS site; resolve ownership manually."
   when:
-    - reports_nginx_enabled | bool
+    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
     - reports_old_diagnostics_host.stat.exists | default(false)
 
 - name: Disable known CSMS-owned diagnostics site during Reports takeover
@@ -113,7 +221,7 @@
     state: absent
   become: true
   when:
-    - reports_nginx_enabled | bool
+    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
     - reports_old_diagnostics_host.stat.exists | default(false)
 
 - name: Remove known CSMS-owned diagnostics site after disabling it
@@ -122,7 +230,7 @@
     state: absent
   become: true
   when:
-    - reports_nginx_enabled | bool
+    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
     - reports_old_diagnostics_host.stat.exists | default(false)
 
 - name: Render independent Reports virtual hosts
@@ -132,30 +240,24 @@
     owner: root
     group: root
     mode: '0644'
-  loop:
-    - dashboard
-    - collector
-    - diagnostics
+  loop: "{{ ['dashboard', 'collector', 'diagnostics'] if reports_nginx_enabled | bool else ['diagnostics'] }}"
   become: true
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Enable independent Reports virtual hosts
   ansible.builtin.file:
     src: "/etc/nginx/sites-available/ocpp-reports-{{ item }}"
     dest: "/etc/nginx/sites-enabled/ocpp-reports-{{ item }}"
     state: link
-  loop:
-    - dashboard
-    - collector
-    - diagnostics
+  loop: "{{ ['dashboard', 'collector', 'diagnostics'] if reports_nginx_enabled | bool else ['diagnostics'] }}"
   become: true
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Validate complete Nginx configuration
   ansible.builtin.command: nginx -t
   become: true
   changed_when: false
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Reload shared Nginx only after successful validation
   ansible.builtin.systemd_service:
@@ -163,4 +265,4 @@
     enabled: true
     state: reloaded
   become: true
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
