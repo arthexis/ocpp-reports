@@ -17,6 +17,12 @@
   ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/local-ingest.yml"
   when: reports_local_ingest_enabled | bool
 
+- name: Detect local CSMS diagnostic archives for independent auto-import
+  ansible.builtin.stat:
+    path: /var/lib/ocpp-csms/diagnostics
+  register: reports_local_diagnostics_dir
+  become: true
+
 - name: Import existing and new local CSMS diagnostic uploads
   ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/diagnostic-local-import.yml"
-  when: reports_local_ingest_enabled | bool
+  when: reports_local_diagnostics_dir.stat.isdir | default(false)

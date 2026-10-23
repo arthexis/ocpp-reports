@@ -465,14 +465,18 @@ def diagnose_import_local(
     source: str = typer.Option(..., "--source", help="Stable identity for this Watchtower's local CSMS"),
     data_dir: Path | None = typer.Option(None, "--data-dir"),
     uploads_root: Path = typer.Option(Path("/var/lib/ocpp-csms/diagnostics"), "--uploads-root"),
+    refresh_published_pages: bool = typer.Option(False, "--refresh-published", help="Update active download pages without rotating credentials (requires root)"),
 ) -> None:
     """Copy existing and newly received local charger diagnostics without HTTP."""
     from .active_csms import discover_active_csms
-    from .diagnostic_archive import DEFAULT_ARCHIVE, import_local
+    from .diagnostic_archive import DEFAULT_ARCHIVE, import_local, refresh_published
     try:
         if data_dir is None:
             data_dir, _ = discover_active_csms()
         count = import_local(DEFAULT_ARCHIVE, Path(data_dir), uploads_root, source)
+        if refresh_published_pages:
+            refreshed = refresh_published(DEFAULT_ARCHIVE)
+            typer.echo(f"Refreshed {refreshed} published diagnostic pages")
         typer.echo(f"Imported {count} local diagnostic archives")
     except (OSError, ValueError, RuntimeError) as exc:
         typer.echo(f"Local diagnostics import failed: {exc}", err=True)

@@ -128,3 +128,70 @@ def test_diagnose_serve_credentials_have_real_newlines(monkeypatch):
     assert result.exit_code == 0, result.output
     assert "Username: CP001\nPassword: secret\nFiles: 4" in result.output
     assert r"CP001\nPassword" not in result.output
+
+
+def test_preview_escapes_untrusted_log_html(tmp_path):
+    import zipfile
+    from ocpp_reports.diagnostic_archive import _archive_preview, _viewer_page
+    archive = tmp_path / "diag.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("service.log", "<script>alert(1)</script>")
+    preview = _archive_preview(archive)
+    html = _viewer_page("diagnostic", preview, "download.zip")
+    assert "&lt;script&gt;" in html
+    assert "<script>" not in html
+    assert "download.zip" in html
+
+
+def test_local_import_preserves_and_repairs_original_receipt_time(tmp_path):
+    import json
+    import os
+    from datetime import datetime, timezone
+    from ocpp_reports.diagnostic_archive import import_local
+    data = tmp_path / "csms"
+    records = data / "diagnostics-requests"
+    records.mkdir(parents=True)
+    token = "a" * 40
+    (records / (token + ".json")).write_text(json.dumps({"charger": "CP001"}))
+    upload = tmp_path / "uploads" / token
+    upload.mkdir(parents=True)
+    archive = upload / "upload.bin"
+    archive.write_bytes(b"PK\\x03\\x04content")
+    moment = datetime(2026, 10, 22, 22, 55, tzinfo=timezone.utc).timestamp()
+    os.utime(archive, (moment, moment))
+    destination = tmp_path / "reports"
+    assert import_local(destination, data, tmp_path / "uploads", "host") == 1
+    rows = inventory(destination, "host", "CP001")
+    assert rows[0]["received_at"].startswith("2026-10-22T22:55:")
+    assert import_local(destination, data, tmp_path / "uploads", "host") == 0
+    assert inventory(destination, "host", "CP001")[0]["received_at"] == rows[0]["received_at"]
+
+
+def test_refresh_published_skips_unpublished_and_keeps_password(tmp_path, monkeypatch):
+    from ocpp_reports import diagnostic_archive as archive
+    root = tmp_path / "archive"
+    with archive.connection(root) as db:
+        db.execute("INSERT INTO diagnostics VALUES (?,?,?,?,?,?)",
+                   ("watchtower", "CP001", "a" * 64, 3, "upload.bin", "2026-10-22T22:55:00+00:00"))
+    public = tmp_path / "public"
+    auth = tmp_path / "auth"
+    snippets = tmp_path / "snippets"
+    for p in (public, auth, snippets):
+        p.mkdir()
+    monkeypatch.setattr(archive, "PUBLIC", public)
+    monkeypatch.setattr(archive, "CREDENTIALS", auth)
+    monkeypatch.setattr(archive, "SNIPPETS", snippets)
+    monkeypatch.setattr(archive.os, "geteuid", lambda: 0)
+    assert archive.refresh_published(root) == 0
+    (public / "CP001").mkdir()
+    (auth / "CP001.htpasswd").write_text("CP001:existing-secret-hash")
+    (snippets / "CP001.conf").write_text("existing location")
+    calls = []
+    def fake_publish(root, cp, source=None, *, rotate=True):
+        calls.append((cp, rotate))
+        return {}
+    monkeypatch.setattr(archive, "publish", fake_publish)
+    assert archive.refresh_published(root) == 1
+    assert calls == [("CP001", False)]
+    assert (auth / "CP001.htpasswd").read_text() == "CP001:existing-secret-hash"
+    assert archive.refresh_published(root) == 0

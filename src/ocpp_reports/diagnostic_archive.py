@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import hashlib
+import html
+import zipfile
 import json
 import os
 import re
@@ -37,7 +39,7 @@ def connection(root: Path) -> sqlite3.Connection:
     return db
 
 
-def store(root: Path, source: str, cp: str, name: str, stream, *, maximum: int = 100 * 1024 * 1024) -> dict:
+def store(root: Path, source: str, cp: str, name: str, stream, *, maximum: int = 100 * 1024 * 1024, received_at: str | None = None) -> dict:
     validate(source, cp)
     if not isinstance(name, str) or not name or len(name) > 255:
         raise ValueError("Invalid diagnostic filename")
@@ -62,7 +64,7 @@ def store(root: Path, source: str, cp: str, name: str, stream, *, maximum: int =
         with connection(root) as db:
             db.execute("INSERT OR IGNORE INTO diagnostics VALUES (?,?,?,?,?,?)",
                        (source, cp, digest, size, name,
-                        datetime.now(timezone.utc).isoformat()))
+                        received_at or datetime.now(timezone.utc).isoformat()))
         return {"source_id": source, "cp": cp, "sha256": digest, "bytes": size}
     finally:
         Path(tmp).unlink(missing_ok=True)
@@ -159,7 +161,42 @@ def _reload_nginx() -> None:
     subprocess.run(["systemctl", "reload", "nginx"], check=True)
 
 
-def publish(root: Path, cp: str, source: str | None = None) -> dict:
+def _archive_preview(path: Path) -> str:
+    """Bounded, escaped view of diagnostics; never execute archive content."""
+    try:
+        if zipfile.is_zipfile(path):
+            with zipfile.ZipFile(path) as archive:
+                names = [m for m in archive.infolist()
+                         if not m.is_dir() and m.file_size <= 1024 * 1024
+                         and m.filename.lower().endswith((".log", ".txt"))]
+                if not names:
+                    return "No small text logs available for preview. Use Download."
+                return "\n\n".join(
+                    f"--- {m.filename} ---\n" +
+                    archive.read(m).decode("utf-8", errors="replace")
+                    for m in names[:8]
+                )[:1024 * 1024]
+        if path.stat().st_size <= 1024 * 1024:
+            return path.read_text(encoding="utf-8", errors="replace")
+    except (OSError, ValueError, zipfile.BadZipFile, RuntimeError):
+        pass
+    return "Preview unavailable. Use Download."
+
+
+def _viewer_page(title: str, body: str, download: str) -> str:
+    return ("<!doctype html><html lang='en'><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+            "<meta name='referrer' content='no-referrer'><title>" + html.escape(title) +
+            "</title><style>body{font:16px system-ui;margin:2rem;max-width:100%}"
+            "pre{font:13px monospace;white-space:pre-wrap;overflow-wrap:anywhere;"
+            "background:#111;color:#eee;padding:1rem;border-radius:6px}"
+            "a{margin-right:1rem}</style><h1>" + html.escape(title) +
+            "</h1><p><a href='./'>Back to files</a><a href='" +
+            html.escape(download, quote=True) + "' download>Download original</a></p>"
+            "<pre>" + html.escape(body) + "</pre></html>")
+
+
+def publish(root: Path, cp: str, source: str | None = None, *, rotate: bool = True) -> dict:
     """Rotate one CP's publication, or restore the previous state on failure."""
     if not CP.fullmatch(cp):
         raise ValueError("Invalid charge point ID")
@@ -175,16 +212,19 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
         raise ValueError("Reports diagnostic nginx host is not deployed")
     import grp
     group = grp.getgrnam("www-data").gr_gid
-    password = secrets.token_urlsafe(24)
-    hashed = subprocess.run(
+    password = secrets.token_urlsafe(24) if rotate else None
+    hashed = (subprocess.run(
         ["openssl", "passwd", "-6", "-stdin"], input=password + "\n",
         text=True, capture_output=True, check=True,
-    ).stdout.strip()
+    ).stdout.strip() if password else None)
     staged = Path(tempfile.mkdtemp(prefix=".staged-", dir=PUBLIC))
     destination = PUBLIC / cp
     backup = PUBLIC / ("." + cp + ".previous")
     auth = CREDENTIALS / (cp + ".htpasswd")
     snippet = SNIPPETS / (cp + ".conf")
+    if not rotate and (not auth.is_file() or not snippet.is_file() or not destination.is_dir()):
+        shutil.rmtree(staged)
+        raise ValueError("Not an existing published diagnostic page")
     if backup.exists():
         shutil.rmtree(staged)
         raise ValueError("Unrecovered prior publication snapshot; inspect before retry")
@@ -194,6 +234,7 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
     try:
         os.chmod(staged, 0o750)
         os.chown(staged, 0, group)
+        rows = []
         for index, item in enumerate(items, 1):
             candidate = root / item["source_id"] / cp / (item["sha256"] + ".bin")
             with candidate.open("rb") as stream:
@@ -202,12 +243,37 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
             shutil.copyfile(candidate, target)
             os.chmod(target, 0o640)
             os.chown(target, 0, group)
+            label = f"diagnostic-{index:03d}"
+            viewer = staged / f"{label}.html"
+            viewer.write_text(_viewer_page(label, _archive_preview(candidate), target.name), encoding="utf-8")
+            os.chmod(viewer, 0o640)
+            os.chown(viewer, 0, group)
+            rows.append((viewer.name, target.name, item["received_at"], item["bytes"]))
+        listing = ("<!doctype html><html lang='en'><meta charset='utf-8'>"
+                   "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+                   "<meta name='referrer' content='no-referrer'><title>Diagnostics</title>"
+                   "<style>body{font:16px system-ui;margin:2rem}table{border-collapse:collapse}"
+                   "td,th{padding:.6rem;border-bottom:1px solid #aaa;text-align:left}</style>"
+                   "<h1>Diagnostic archives</h1><table><tr><th>View</th><th>Received (UTC)</th>"
+                   "<th>Bytes</th><th>Download</th></tr>" +
+                   "".join("<tr><td><a href='" + html.escape(view, quote=True) + "'>" +
+                           html.escape(view.removesuffix(".html")) + "</a></td><td>" +
+                           html.escape(when) + "</td><td>" + str(size) +
+                           "</td><td><a href='" + html.escape(download, quote=True) +
+                           "' download>Download</a></td></tr>"
+                           for view, download, when, size in rows) +
+                   "</table></html>")
+        page = staged / "index.html"
+        page.write_text(listing, encoding="utf-8")
+        os.chmod(page, 0o640)
+        os.chown(page, 0, group)
         if destination.exists():
             destination.rename(backup)
         staged.rename(destination)
         swapped = True
-        _replace_text(auth, f"{cp}:{hashed}\n", mode=0o640, group=group)
-        _replace_text(snippet, (
+        if rotate:
+            _replace_text(auth, f"{cp}:{hashed}\n", mode=0o640, group=group)
+            _replace_text(snippet, (
             f"location ^~ /{cp}/ {{\n"
             f"    alias {PUBLIC}/{cp}/;\n"
             "    autoindex on;\n"
@@ -217,24 +283,27 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
             '    add_header Cache-Control "private, no-store" always;\n'
             "}\n"
         ), mode=0o644, group=group)
-        _reload_nginx()
+        if rotate:
+            _reload_nginx()
     except Exception:
-        if previous_auth is None:
-            auth.unlink(missing_ok=True)
-        else:
-            _replace_text(auth, previous_auth, mode=0o640, group=group)
-        if previous_snippet is None:
-            snippet.unlink(missing_ok=True)
-        else:
-            _replace_text(snippet, previous_snippet, mode=0o644, group=group)
+        if rotate:
+            if previous_auth is None:
+                auth.unlink(missing_ok=True)
+            else:
+                _replace_text(auth, previous_auth, mode=0o640, group=group)
+            if previous_snippet is None:
+                snippet.unlink(missing_ok=True)
+            else:
+                _replace_text(snippet, previous_snippet, mode=0o644, group=group)
         if swapped and destination.is_dir():
             shutil.rmtree(destination)
         if backup.exists():
             backup.rename(destination)
-        try:
-            _reload_nginx()
-        except Exception:
-            pass
+        if rotate:
+            try:
+                _reload_nginx()
+            except Exception:
+                pass
         raise
     finally:
         if staged.exists():
@@ -245,6 +314,37 @@ def publish(root: Path, cp: str, source: str | None = None) -> dict:
         "cp": cp, "source": next(iter(sources)), "username": cp,
         "password": password, "files": len(items),
     }
+
+
+
+def refresh_published(root: Path) -> int:
+    """Refresh only pages already authorized for publication; retain passwords."""
+    if os.geteuid() != 0:
+        raise PermissionError("Refreshing publications requires root")
+    if not CREDENTIALS.is_dir() or not SNIPPETS.is_dir() or not PUBLIC.is_dir():
+        return 0
+    count = 0
+    for auth in CREDENTIALS.glob("*.htpasswd"):
+        cp = auth.stem
+        if not CP.fullmatch(cp) or not (SNIPPETS / (cp + ".conf")).is_file():
+            continue
+        destination = PUBLIC / cp
+        if not destination.is_dir() or destination.is_symlink():
+            continue
+        items = inventory(root, cp=cp)
+        if not items or len({i["source_id"] for i in items}) != 1:
+            continue
+        signature = json.dumps([(i["sha256"], i["received_at"]) for i in items])
+        manifest = destination / ".archive-manifest"
+        if manifest.is_file() and manifest.read_text(encoding="utf-8") == signature:
+            continue
+        publish(root, cp, rotate=False)
+        manifest = destination / ".archive-manifest"
+        # Private metadata for avoiding needless republishing on the next timer.
+        manifest.write_text(signature, encoding="utf-8")
+        os.chmod(manifest, 0o640)
+        count += 1
+    return count
 
 
 def revoke(cp: str) -> None:
@@ -269,9 +369,15 @@ def import_local(root: Path, data_dir: Path, uploads_root: Path, source: str) ->
     for cp, path in local_uploads(data_dir, uploads_root):
         with path.open("rb") as stream:
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        # Preserve original CSMS receiver time, not the time of central import.
+        original_time = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat()
         if any(item["sha256"] == digest for item in inventory(root, source, cp)):
+            # Repair historical imports that accidentally stamped import time.
+            with connection(root) as db:
+                db.execute("UPDATE diagnostics SET received_at=? WHERE source=? AND cp=? AND digest=?",
+                           (original_time, source, cp, digest))
             continue
         with path.open("rb") as stream:
-            store(root, source, cp, path.name, stream)
+            store(root, source, cp, path.name, stream, received_at=original_time)
         inserted += 1
     return inserted
