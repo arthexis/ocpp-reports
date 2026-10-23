@@ -115,3 +115,16 @@ def test_diagnose_cp_defaults_from_local_request_records(tmp_path, monkeypatch):
     (records / ("a" * 40 + ".json")).write_text(json.dumps({"charger": "CP001"}))
     monkeypatch.setattr(active_csms, "discover_active_csms", lambda: (data, "/usr/bin/python3"))
     assert _resolve_diagnostic_cp(None, tmp_path / "empty") == "CP001"
+
+
+def test_diagnose_serve_credentials_have_real_newlines(monkeypatch):
+    from typer.testing import CliRunner
+    from ocpp_reports.cli import app
+    from ocpp_reports import diagnostic_archive
+    monkeypatch.setattr(diagnostic_archive, "publish", lambda *args: {
+        "username": "CP001", "password": "secret", "files": 4,
+    })
+    result = CliRunner().invoke(app, ["diagnose", "serve", "--cp", "CP001"])
+    assert result.exit_code == 0, result.output
+    assert "Username: CP001\\nPassword: secret\\nFiles: 4" in result.output
+    assert r"CP001\nPassword" not in result.output
