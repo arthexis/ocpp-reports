@@ -12,6 +12,112 @@
     fail_msg: "Dashboard and Collector need distinct hostnames; do not reuse the CSMS hostname."
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
+# Bootstrap the diagnostics certificate using a temporary HTTP-only ACME site.
+# Existing CSMS nginx configuration and certificates remain unchanged.
+- name: Check if the diagnostics certificate already exists
+  ansible.builtin.stat:
+    path: "{{ reports_diagnostics_certificate }}"
+  register: reports_diagnostics_cert_existing
+  become: true
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+
+- name: Provision diagnostic TLS certificate with Certbot webroot
+  when:
+    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - not (reports_diagnostics_cert_existing.stat.exists | default(false))
+  block:
+    - name: Require default Let's Encrypt certificate paths for automatic issuance
+      ansible.builtin.assert:
+        that:
+          - reports_diagnostics_certificate == '/etc/letsencrypt/live/' ~ reports_diagnostics_hostname ~ '/fullchain.pem'
+          - reports_diagnostics_private_key == '/etc/letsencrypt/live/' ~ reports_diagnostics_hostname ~ '/privkey.pem'
+        fail_msg: "Custom diagnostics TLS paths must be provisioned manually."
+
+    - name: Install Certbot for diagnostic TLS
+      ansible.builtin.apt:
+        name: certbot
+        state: present
+      become: true
+
+    - name: Create HTTP-01 challenge webroot
+      ansible.builtin.file:
+        path: /var/www/ocpp-reports-diagnostics-acme
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      become: true
+
+    - name: Install temporary diagnostics HTTP-01 challenge site
+      ansible.builtin.copy:
+        dest: /etc/nginx/sites-available/ocpp-reports-diagnostics-acme
+        mode: '0644'
+        content: |
+          server {
+              listen 80;
+              server_name {{ reports_diagnostics_hostname }};
+              location ^~ /.well-known/acme-challenge/ {
+                  root /var/www/ocpp-reports-diagnostics-acme;
+              }
+              location / { return 404; }
+          }
+      become: true
+
+    - name: Enable diagnostics HTTP-01 challenge site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/ocpp-reports-diagnostics-acme
+        dest: /etc/nginx/sites-enabled/ocpp-reports-diagnostics-acme
+        state: link
+      become: true
+
+    - name: Validate HTTP-01 challenge configuration
+      ansible.builtin.command: nginx -t
+      become: true
+      changed_when: false
+
+    - name: Activate HTTP-01 challenge route
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded
+      become: true
+
+    - name: Issue diagnostic hostname certificate
+      ansible.builtin.command:
+        argv:
+          - certbot
+          - certonly
+          - --webroot
+          - -w
+          - /var/www/ocpp-reports-diagnostics-acme
+          - -d
+          - "{{ reports_diagnostics_hostname }}"
+          - --non-interactive
+          - --agree-tos
+          - --register-unsafely-without-email
+          - --keep-until-expiring
+      become: true
+      no_log: true
+  always:
+    - name: Remove temporary HTTP-01 challenge link
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/ocpp-reports-diagnostics-acme
+        state: absent
+      become: true
+    - name: Remove temporary HTTP-01 site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-available/ocpp-reports-diagnostics-acme
+        state: absent
+      become: true
+    - name: Validate configuration after removing challenge site
+      ansible.builtin.command: nginx -t
+      become: true
+      changed_when: false
+    - name: Reload nginx after removing challenge site
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded
+      become: true
+
 - name: Inspect independent TLS and authentication prerequisites
   ansible.builtin.stat:
     path: "{{ item }}"
