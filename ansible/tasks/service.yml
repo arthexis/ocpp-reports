@@ -11,16 +11,9 @@
 
 - name: Check Forwarder environment
   ansible.builtin.stat:
-    path: /etc/ocpp-reports/forwarder.env
+    path: /etc/ocpp-reports/forwarder.toml
   become: true
   register: reports_forwarder_env
-  when: reports_service == 'forwarder'
-
-- name: Check Forwarder token
-  ansible.builtin.stat:
-    path: /etc/ocpp-reports/forwarder-token
-  become: true
-  register: reports_forwarder_token
   when: reports_service == 'forwarder'
 
 - name: Check Collector credentials
@@ -34,11 +27,9 @@
   ansible.builtin.assert:
     that:
       - reports_forwarder_env.stat.isreg | default(false)
-      - reports_forwarder_token.stat.isreg | default(false)
       - reports_forwarder_env.stat.mode | default('') in ['0640', '0600']
-      - reports_forwarder_token.stat.mode | default('') in ['0640', '0600']
-    fail_msg: "Forwarder requires readable, protected forwarder.env and forwarder-token."
-  when: reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false)) and (reports_forwarder_token.stat.exists | default(false))
+    fail_msg: "Forwarder requires readable, protected forwarder.toml."
+  when: reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false))
 
 - name: Validate configured Collector credentials
   ansible.builtin.assert:
@@ -50,7 +41,7 @@
 
 - name: Determine whether service is configured
   ansible.builtin.set_fact:
-    reports_service_ready: "{{ (reports_service == 'dashboard') or (reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false)) and (reports_forwarder_token.stat.exists | default(false))) or (reports_service == 'collector' and (reports_collector_credentials.stat.exists | default(false))) }}"
+    reports_service_ready: "{{ (reports_service == 'dashboard') or (reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false))) or (reports_service == 'collector' and (reports_collector_credentials.stat.exists | default(false))) }}"
 
 - name: Enable and start configured service
   ansible.builtin.systemd_service:

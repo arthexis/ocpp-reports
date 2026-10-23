@@ -1,9 +1,18 @@
 ---
+- name: Inspect active CSMS service
+  ansible.builtin.command: systemctl is-active ocpp-csms.service
+  register: satellite_csms_active
+  changed_when: false
+  failed_when: false
+
+- name: Configure read-only local ingestion when CSMS is running
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/local-ingest.yml"
+  vars:
+    reports_local_csms_data_dir: "{{ lookup('env', 'OCPP_REPORTS_CSMS_DATA_DIR') | default('/var/lib/ocpp-csms/schemas/8', true) }}"
+  when: satellite_csms_active.rc == 0
+
 - name: Configure forwarder service
   ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/service.yml"
   vars:
     reports_service: "forwarder"
     reports_service_config: "/etc/ocpp-reports/forwarder.env"
-
-- name: Configure diagnostic archive forwarding
-  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/diagnostic-forwarding.yml"
