@@ -14,5 +14,11 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     add_header X-Content-Type-Options "nosniff" always;
     include /etc/nginx/ocpp-reports-diagnostics/*.conf;
+    # Do not enumerate charger IDs or bypass per-CP Basic Auth at the root.
+    location = / {
+        default_type text/plain;
+        add_header Cache-Control "no-store" always;
+        return 200 "OCPP diagnostic downloads\\nOpen /<charge-point-id>/ and authenticate with the credentials from ocpp-reports diagnose serve.\\n";
+    }
     location / { return 404; }
 }

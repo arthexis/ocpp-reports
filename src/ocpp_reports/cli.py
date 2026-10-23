@@ -428,7 +428,7 @@ def diagnose_serve(cp: str | None = typer.Option(None, "--cp"),
             typer.echo("Diagnostic access revoked")
             return
         result = publish(DEFAULT_ARCHIVE, cp, source)
-        typer.echo(f"Username: {result['username']}\\nPassword: {result['password']}\\nFiles: {result['files']}")
+        typer.echo(f"Username: {result['username']}\nPassword: {result['password']}\nFiles: {result['files']}")
     except (ValueError, OSError, PermissionError) as exc:
         typer.echo(f"Diagnostic publication unavailable: {exc}", err=True)
         if "No collected diagnostics" in str(exc):
