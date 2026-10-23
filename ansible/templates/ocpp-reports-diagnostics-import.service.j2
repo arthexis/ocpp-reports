@@ -3,9 +3,9 @@ Description=Import locally received CSMS diagnostic archives into Reports
 After=ocpp-csms.service
 [Service]
 Type=oneshot
-User={{ reports_operator }}
+User=root
 Group=ocpp
-ExecStart={{ reports_cli_link }} diagnose import-local --source {{ reports_local_diagnostics_source | quote }}
+ExecStart={{ reports_cli_link }} diagnose import-local --source {{ reports_local_diagnostics_source | quote }} --refresh-published
 TimeoutStartSec=240
 NoNewPrivileges=true
 Nice=10
