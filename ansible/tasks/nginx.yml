@@ -214,6 +214,28 @@
   become: true
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
+# /etc/ocpp-reports is root:ocpp 2770. Nginx is not in group ocpp;
+# grant traversal to its worker without revealing Reports config or tokens.
+- name: Install ACL utilities for private nginx credential traversal
+  ansible.builtin.apt:
+    name: acl
+    state: present
+  become: true
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+
+- name: Allow nginx to traverse the private Reports configuration parent
+  ansible.builtin.command:
+    argv: [setfacl, -m, "u:www-data:--x", /etc/ocpp-reports]
+  become: true
+  changed_when: false
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+
+- name: Verify nginx can read the published authentication file path
+  ansible.builtin.command:
+    argv: [namei, -l, /etc/ocpp-reports/diagnostics-auth]
+  changed_when: false
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+
 - name: Inspect CSMS-owned legacy diagnostics virtual host
   ansible.builtin.stat:
     path: "/etc/nginx/sites-available/{{ reports_diagnostics_hostname }}"
