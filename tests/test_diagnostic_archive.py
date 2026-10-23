@@ -126,5 +126,5 @@ def test_diagnose_serve_credentials_have_real_newlines(monkeypatch):
     })
     result = CliRunner().invoke(app, ["diagnose", "serve", "--cp", "CP001"])
     assert result.exit_code == 0, result.output
-    assert "Username: CP001\\nPassword: secret\\nFiles: 4" in result.output
+    assert "Username: CP001\nPassword: secret\nFiles: 4" in result.output
     assert r"CP001\nPassword" not in result.output
