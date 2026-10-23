@@ -385,23 +385,55 @@ if __name__ == "__main__":
 diagnose_app = typer.Typer(help="Manage centralized diagnostic archives.", no_args_is_help=True)
 app.add_typer(diagnose_app, name="diagnose")
 
+def _resolve_diagnostic_cp(cp: str | None, root: Path) -> str:
+    """Infer only an unambiguous charger, from Reports inventory or local CSMS records."""
+    if cp:
+        return cp
+    from .diagnostic_archive import inventory, CP
+    names = {item["cp"] for item in inventory(root)}
+    if not names:
+        try:
+            from .active_csms import discover_active_csms
+            data_dir, _ = discover_active_csms()
+            for record in (data_dir / "diagnostics-requests").glob("*.json"):
+                try:
+                    entry = json.loads(record.read_text(encoding="utf-8"))
+                    name = entry.get("charger")
+                    if isinstance(name, str) and CP.fullmatch(name):
+                        names.add(name)
+                except (OSError, ValueError):
+                    continue
+        except (OSError, RuntimeError, ValueError):
+            pass
+    if len(names) != 1:
+        raise ValueError("Specify --cp unless exactly one charger is identifiable")
+    return next(iter(names))
+
+
 @diagnose_app.command("serve")
-def diagnose_serve(cp: str = typer.Option(..., "--cp"),
+def diagnose_serve(cp: str | None = typer.Option(None, "--cp"),
                    source: str | None = typer.Option(None, "--source"),
                    status: bool = typer.Option(False, "--status"),
                    revoke: bool = typer.Option(False, "--revoke")) -> None:
     from .diagnostic_archive import DEFAULT_ARCHIVE, inventory, publish, revoke as revoke_access
-    if status and revoke:
-        raise typer.BadParameter("--status and --revoke are mutually exclusive")
-    if status:
-        typer.echo(json.dumps({"cp": cp, "files": len(inventory(DEFAULT_ARCHIVE, source, cp))}))
-        return
-    if revoke:
-        revoke_access(cp)
-        typer.echo("Diagnostic access revoked")
-        return
-    result = publish(DEFAULT_ARCHIVE, cp, source)
-    typer.echo(f"Username: {result['username']}\\nPassword: {result['password']}\\nFiles: {result['files']}")
+    try:
+        if status and revoke:
+            raise ValueError("--status and --revoke are mutually exclusive")
+        cp = _resolve_diagnostic_cp(cp, DEFAULT_ARCHIVE)
+        if status:
+            typer.echo(json.dumps({"cp": cp, "files": len(inventory(DEFAULT_ARCHIVE, source, cp))}))
+            return
+        if revoke:
+            revoke_access(cp)
+            typer.echo("Diagnostic access revoked")
+            return
+        result = publish(DEFAULT_ARCHIVE, cp, source)
+        typer.echo(f"Username: {result['username']}\\nPassword: {result['password']}\\nFiles: {result['files']}")
+    except (ValueError, OSError, PermissionError) as exc:
+        typer.echo(f"Diagnostic publication unavailable: {exc}", err=True)
+        if "No collected diagnostics" in str(exc):
+            typer.echo("Import local CSMS archives with: sudo ocpp-reports diagnose import-local --source HOSTNAME; or verify satellite forwarding to the Collector.", err=True)
+        raise typer.Exit(2)
 
 
 @diagnose_app.command("forward")
