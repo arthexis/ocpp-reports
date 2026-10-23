@@ -14,6 +14,16 @@
 
 # Bootstrap the diagnostics certificate using a temporary HTTP-only ACME site.
 # Existing CSMS nginx configuration and certificates remain unchanged.
+- name: Ensure persistent diagnostic HTTP-01 challenge webroot
+  ansible.builtin.file:
+    path: /var/www/ocpp-reports-diagnostics-acme
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+
 - name: Check if the diagnostics certificate already exists
   ansible.builtin.stat:
     path: "{{ reports_diagnostics_certificate }}"
