@@ -2,7 +2,7 @@
 server {
     listen 80;
     server_name {{ reports_diagnostics_hostname }};
-    location ^~ /.well-known/acme-challenge/ { root /var/www/html; }
+    location ^~ /.well-known/acme-challenge/ { root /var/www/ocpp-reports-diagnostics-acme; }
     location / { return 404; }
 }
 server {
