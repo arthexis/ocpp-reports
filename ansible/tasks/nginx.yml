@@ -230,6 +230,13 @@
   changed_when: false
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
+- name: Allow nginx to traverse the private Reports state parent
+  ansible.builtin.command:
+    argv: [setfacl, -m, "u:www-data:--x", /var/lib/ocpp-reports]
+  become: true
+  changed_when: false
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+
 - name: Verify nginx can read the published authentication file path
   ansible.builtin.command:
     argv: [namei, -l, /etc/ocpp-reports/diagnostics-auth]
