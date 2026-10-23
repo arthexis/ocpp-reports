@@ -1,4 +1,26 @@
 ---
+- name: Check whether diagnostic download hostname resolves
+  ansible.builtin.command:
+    argv: [getent, ahostsv4, "{{ reports_diagnostics_hostname }}"]
+  register: reports_diagnostics_dns
+  changed_when: false
+  failed_when: false
+  when:
+    - reports_role in ['watchtower', 'control']
+    - not (lookup('env', 'CI') | default('false', true) | bool)
+
+- name: Check for previously issued diagnostic certificate
+  ansible.builtin.stat:
+    path: "{{ reports_diagnostics_certificate }}"
+  register: reports_diagnostics_auto_cert
+  become: true
+  when: reports_role in ['watchtower', 'control']
+
+- name: Enable diagnostic downloads when hostname is available
+  ansible.builtin.set_fact:
+    reports_diagnostics_nginx_enabled: "{{ (reports_diagnostics_dns.rc | default(1) == 0) or (reports_diagnostics_auto_cert.stat.exists | default(false)) }}"
+  when: reports_role in ['watchtower', 'control']
+
 - name: Validate independent HTTPS hostnames
   ansible.builtin.assert:
     that:
