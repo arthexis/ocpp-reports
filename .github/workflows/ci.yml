@@ -66,13 +66,13 @@ jobs:
           test -f "$OCPP_REPORTS_INSTALL_ROOT/role"
           test "$(cat "$OCPP_REPORTS_INSTALL_ROOT/role")" = "${{ matrix.role }}"
           test -x "$OCPP_REPORTS_CLI_LINK"
-          "$OCPP_REPORTS_CLI_LINK" status --json
-          test -x "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)/venv/bin/ocpp-reports"
+          sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json
+          test -x "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg/venv/bin/ocpp-reports"
           bash deploy.sh
           if [ "${{ matrix.role }}" = watchtower ] || [ "${{ matrix.role }}" = control ]; then
             sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json
           else
-            "$OCPP_REPORTS_CLI_LINK" status --json
+            sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json
           fi
           test "$(cat "$OCPP_REPORTS_INSTALL_ROOT/role")" = "${{ matrix.role }}"
           case "${{ matrix.role }}" in
