@@ -47,4 +47,9 @@ def test_local_and_forwarded_chargers_share_dashboard_without_identity_collision
     assert len([e for e in data["events"] if e["source_id"] == "gway-005"]) == 1
     assert len(web.get("/api/snapshot?source_id=gway-005").json()["connectors"]) == 1
     assert web.get("/api/snapshot?source_id=gway-005&charger_id=abb").json()["connectors"] == []
+    remote_connector = next(c for c in data["connectors"] if c["source_id"] == "gway-005")
+    assert remote_connector["power_w"] is None
+    assert remote_connector["energy_wh"] is None
+    assert remote_connector["synced_at"] is None
     assert "etron" in web.get("/").text
+    assert "—" in web.get("/").text
