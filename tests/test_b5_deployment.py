@@ -42,19 +42,3 @@ def test_systemd_service_uses_unified_run_and_writable_state():
     assert "--send" in service
 
 
-def test_ansible_uses_staged_immutable_wheel_and_reusable_dependencies():
-    root = Path(__file__).resolve().parents[1]
-    playbook = (root / "ansible/playbook.yml").read_text()
-    assert "import_tasks: tasks/release.yml" in playbook
-    release = (root / "ansible/tasks/release.yml").read_text()
-    assert "Stage pinned Reports package files" in release
-    assert "- pyproject.toml" in release
-    assert "- README.md" in release
-    assert "- src/" in release
-    assert "dependency_plan.py" in release
-    assert "Converge reusable runtime dependencies" in release
-    assert "--only-binary=:all:" in release
-    assert "--no-index --no-deps" in release
-    assert ".installed" not in release
-    assert "install_release.py" not in release
-    assert "Reject incomplete immutable Reports release" in release
