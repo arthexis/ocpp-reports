@@ -1,0 +1,184 @@
+    - name: Inspect immutable Reports release
+      ansible.builtin.stat:
+        path: "{{ reports_release }}"
+        follow: false
+      register: reports_existing_release
+    - name: Verify installed Reports distribution and CLI
+      ansible.builtin.command:
+        argv:
+          - "{{ reports_release }}/venv/bin/python"
+          - -c
+          - |
+            from importlib.metadata import distribution
+            from pathlib import Path
+            import ocpp_reports
+            root = Path("{{ reports_release }}/venv").resolve()
+            assert distribution("ocpp-reports").version
+            assert Path(ocpp_reports.__file__).resolve().is_relative_to(root)
+            assert Path("{{ reports_release }}/venv/bin/ocpp-reports").is_file()
+      register: reports_release_probe
+      changed_when: false
+      failed_when: false
+      when: reports_existing_release.stat.exists | default(false)
+    - name: Verify existing Reports CLI
+      ansible.builtin.command:
+        argv:
+          - "{{ reports_release }}/venv/bin/ocpp-reports"
+          - --help
+      register: reports_cli_probe
+      changed_when: false
+      failed_when: false
+      when:
+        - reports_existing_release.stat.exists | default(false)
+        - reports_release_probe.rc | default(1) == 0
+    - name: Reject incomplete immutable Reports release
+      ansible.builtin.assert:
+        that:
+          - reports_existing_release.stat.isdir | default(false)
+          - reports_release_probe.rc | default(1) == 0
+          - reports_cli_probe.rc | default(1) == 0
+        fail_msg: "Existing Reports release is incomplete; refusing to modify it in place."
+      when: reports_existing_release.stat.exists | default(false)
+    - name: Create Reports release directory
+      ansible.builtin.file:
+        path: "{{ reports_release }}"
+        state: directory
+        mode: '0755'
+      become: true
+      when: not reports_existing_release.stat.exists
+    - name: Create isolated release virtual environment
+      ansible.builtin.command:
+        cmd: "python3 -m venv {{ reports_release }}/venv"
+      become: true
+      when: not reports_existing_release.stat.exists
+    - name: Create release-local package staging directory
+      ansible.builtin.file:
+        path: "{{ reports_release }}/source"
+        state: directory
+        mode: '0755'
+      become: true
+      when: not reports_existing_release.stat.exists
+    - name: Stage pinned Reports package files
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../{{ item }}"
+        dest: "{{ reports_release }}/source/{{ item }}"
+        mode: preserve
+      loop:
+        - pyproject.toml
+        - README.md
+        - src/
+      become: true
+      when: not reports_existing_release.stat.exists
+    - name: Resolve effective runtime dependency set
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ playbook_dir }}/dependency_plan.py"
+          - "{{ playbook_dir }}/../pyproject.toml"
+          - "{{ reports_install_extra }}"
+      register: reports_dependency_plan
+      changed_when: false
+      when: not reports_existing_release.stat.exists
+    - name: Capture reusable dependency environment
+      ansible.builtin.set_fact:
+        reports_dependency_venv: "{{ reports_root }}/dependencies/{{ (reports_dependency_plan.stdout | from_json).key }}/venv"
+        reports_dependency_requirements: "{{ (reports_dependency_plan.stdout | from_json).requirements }}"
+      when: not reports_existing_release.stat.exists
+    - name: Create reusable dependency environment
+      ansible.builtin.command:
+        cmd: "python3 -m venv {{ reports_dependency_venv }}"
+        creates: "{{ reports_dependency_venv }}/bin/python"
+      become: true
+      when: not reports_existing_release.stat.exists
+    - name: Converge reusable runtime dependencies
+      ansible.builtin.pip:
+        name: "{{ reports_dependency_requirements }}"
+        virtualenv: "{{ reports_dependency_venv }}"
+        extra_args: "--only-binary=:all:"
+      become: true
+      when: not reports_existing_release.stat.exists
+    - name: Verify reusable dependency distributions
+      ansible.builtin.command:
+        argv:
+          - "{{ reports_dependency_venv }}/bin/python"
+          - "{{ playbook_dir }}/dependency_plan.py"
+          - --verify
+          - "{{ playbook_dir }}/../pyproject.toml"
+          - "{{ reports_install_extra }}"
+      changed_when: false
+      when: not reports_existing_release.stat.exists
+    - name: Resolve reusable dependency site packages
+      ansible.builtin.command:
+        argv:
+          - "{{ reports_dependency_venv }}/bin/python"
+          - -c
+          - "import sysconfig; print(sysconfig.get_paths()['purelib'])"
+      register: reports_dependency_site
+      changed_when: false
+      when: not reports_existing_release.stat.exists
+    - name: Resolve release site packages
+      ansible.builtin.command:
+        argv:
+          - "{{ reports_release }}/venv/bin/python"
+          - -c
+          - "import sysconfig; print(sysconfig.get_paths()['purelib'])"
+      register: reports_release_site
+      changed_when: false
+      when: not reports_existing_release.stat.exists
+    - name: Link reusable dependencies into release
+      ansible.builtin.copy:
+        dest: "{{ reports_release_site.stdout }}/ocpp_reports_dependencies.pth"
+        content: "{{ reports_dependency_site.stdout }}\n"
+        mode: '0644'
+      become: true
+      when: not reports_existing_release.stat.exists
+    - name: Create reusable wheel build environment
+      ansible.builtin.command:
+        cmd: "python3 -m venv {{ reports_root }}/build-venv"
+        creates: "{{ reports_root }}/build-venv/bin/python"
+      become: true
+      when: not reports_existing_release.stat.exists
+    - name: Converge wheel build tools
+      ansible.builtin.pip:
+        name:
+          - "setuptools>=68"
+          - wheel
+        virtualenv: "{{ reports_root }}/build-venv"
+      become: true
+      when: not reports_existing_release.stat.exists
+    - name: Build Reports application wheel
+      ansible.builtin.command:
+        argv:
+          - "{{ reports_root }}/build-venv/bin/python"
+          - -m
+          - pip
+          - wheel
+          - --no-deps
+          - --no-build-isolation
+          - --wheel-dir
+          - "{{ reports_release }}"
+          - "{{ reports_release }}/source"
+      become: true
+      when: not reports_existing_release.stat.exists
+    - name: Find built Reports wheel
+      ansible.builtin.find:
+        paths: "{{ reports_release }}"
+        patterns: "ocpp_reports-*.whl"
+        file_type: file
+      register: reports_wheels
+      when: not reports_existing_release.stat.exists
+    - name: Require exactly one Reports wheel
+      ansible.builtin.assert:
+        that: reports_wheels.matched | int == 1
+      when: not reports_existing_release.stat.exists
+    - name: Install Reports wheel without dependency downloads
+      ansible.builtin.pip:
+        name: "{{ reports_wheels.files[0].path }}"
+        virtualenv: "{{ reports_release }}/venv"
+        extra_args: "--no-index --no-deps"
+      become: true
+      when: not reports_existing_release.stat.exists
+    - name: Check installed CLI
+      ansible.builtin.command:
+        cmd: "{{ reports_release }}/venv/bin/ocpp-reports status --json"
+      changed_when: false
