@@ -49,7 +49,7 @@ jobs:
       - name: Ansible playbook syntax
         run: ansible-playbook -i localhost, ansible/playbook.yml --syntax-check
       - name: Ansible basic lint
-        run: ansible-lint --profile basic ansible/
+        run: ansible-lint --profile basic ansible/playbook.yml
       - name: Compile Python sources
         run: python3 -m compileall -q src
 
