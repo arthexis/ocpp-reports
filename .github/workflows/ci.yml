@@ -45,9 +45,11 @@ jobs:
       - name: Shell syntax
         run: bash -n deploy.sh
       - name: Install Ansible validation tools
-        run: python3 -m pip install ansible-core
+        run: python3 -m pip install ansible-core ansible-lint
       - name: Ansible playbook syntax
         run: ansible-playbook -i localhost, ansible/playbook.yml --syntax-check
+      - name: Ansible basic lint
+        run: ansible-lint --profile basic ansible/
       - name: Compile Python sources
         run: python3 -m compileall -q src
 
