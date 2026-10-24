@@ -1,59 +1,59 @@
-    - name: Inspect current release pointer
-      ansible.builtin.stat:
-        path: "{{ reports_current }}"
-        follow: false
-      register: reports_current_pointer
-    - name: Refuse unmanaged current path
-      ansible.builtin.assert:
-        that:
-          - not reports_current_pointer.stat.exists or reports_current_pointer.stat.islnk
-    - name: Inspect existing CLI link without following it
-      ansible.builtin.stat:
-        path: "{{ reports_cli_link }}"
-        follow: false
-      register: reports_existing_cli_link
-    - name: Require existing CLI to be a symlink
-      ansible.builtin.assert:
-        that:
-          - not reports_existing_cli_link.stat.exists or reports_existing_cli_link.stat.islnk
-    - name: Resolve previously active release
-      ansible.builtin.command:
-        argv: [readlink, -f, "{{ reports_cli_link }}"]
-      register: reports_old_cli_target
-      changed_when: false
-      when: reports_existing_cli_link.stat.exists
-    - name: Validate previous CLI destination
-      ansible.builtin.assert:
-        that:
-          - "reports_old_cli_target.stdout.startswith(reports_root ~ '/releases/')"
-          - "reports_old_cli_target.stdout.endswith('/venv/bin/ocpp-reports')"
-      when: reports_existing_cli_link.stat.exists
-    - name: Capture release transition
-      ansible.builtin.set_fact:
-        reports_release_changed: "{{ not reports_existing_cli_link.stat.exists or reports_old_cli_target.stdout != reports_release ~ '/venv/bin/ocpp-reports' }}"
-        reports_old_release: "{{ (reports_old_cli_target.stdout | default('')) | regex_replace('/venv/bin/ocpp-reports' ~ '$', '') }}"
-    - name: Preserve previous release on upgrade
-      ansible.builtin.file:
-        src: "{{ reports_old_release }}"
-        dest: "{{ reports_previous }}"
-        state: link
-        force: true
-      become: true
-      when:
-        - reports_release_changed | bool
-        - reports_existing_cli_link.stat.exists
-        - reports_old_release != reports_release
-    - name: Promote validated Reports release
-      ansible.builtin.file:
-        src: "{{ reports_release }}"
-        dest: "{{ reports_current }}"
-        state: link
-        force: true
-      become: true
-    - name: Link active Reports CLI
-      ansible.builtin.file:
-        src: "{{ reports_current }}/venv/bin/ocpp-reports"
-        dest: "{{ reports_cli_link }}"
-        state: link
-        force: true
-      become: true
+- name: Inspect current release pointer
+  ansible.builtin.stat:
+    path: "{{ reports_current }}"
+    follow: false
+  register: reports_current_pointer
+- name: Refuse unmanaged current path
+  ansible.builtin.assert:
+    that:
+      - not reports_current_pointer.stat.exists or reports_current_pointer.stat.islnk
+- name: Inspect existing CLI link without following it
+  ansible.builtin.stat:
+    path: "{{ reports_cli_link }}"
+    follow: false
+  register: reports_existing_cli_link
+- name: Require existing CLI to be a symlink
+  ansible.builtin.assert:
+    that:
+      - not reports_existing_cli_link.stat.exists or reports_existing_cli_link.stat.islnk
+- name: Resolve previously active release
+  ansible.builtin.command:
+    argv: [readlink, -f, "{{ reports_cli_link }}"]
+  register: reports_old_cli_target
+  changed_when: false
+  when: reports_existing_cli_link.stat.exists
+- name: Validate previous CLI destination
+  ansible.builtin.assert:
+    that:
+      - "reports_old_cli_target.stdout.startswith(reports_root ~ '/releases/')"
+      - "reports_old_cli_target.stdout.endswith('/venv/bin/ocpp-reports')"
+  when: reports_existing_cli_link.stat.exists
+- name: Capture release transition
+  ansible.builtin.set_fact:
+    reports_release_changed: "{{ not reports_existing_cli_link.stat.exists or reports_old_cli_target.stdout != reports_release ~ '/venv/bin/ocpp-reports' }}"
+    reports_old_release: "{{ (reports_old_cli_target.stdout | default('')) | regex_replace('/venv/bin/ocpp-reports' ~ '$', '') }}"
+- name: Preserve previous release on upgrade
+  ansible.builtin.file:
+    src: "{{ reports_old_release }}"
+    dest: "{{ reports_previous }}"
+    state: link
+    force: true
+  become: true
+  when:
+    - reports_release_changed | bool
+    - reports_existing_cli_link.stat.exists
+    - reports_old_release != reports_release
+- name: Promote validated Reports release
+  ansible.builtin.file:
+    src: "{{ reports_release }}"
+    dest: "{{ reports_current }}"
+    state: link
+    force: true
+  become: true
+- name: Link active Reports CLI
+  ansible.builtin.file:
+    src: "{{ reports_current }}/venv/bin/ocpp-reports"
+    dest: "{{ reports_cli_link }}"
+    state: link
+    force: true
+  become: true
