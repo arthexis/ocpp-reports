@@ -24,7 +24,7 @@
     reports_commit: "{{ lookup('pipe', 'git -C ' ~ playbook_dir ~ '/.. rev-parse HEAD') | trim }}"
     reports_root: "{{ lookup('env', 'OCPP_REPORTS_INSTALL_ROOT') | default('/opt/ocpp-reports', true) }}"
     reports_install_extra: "{{ '[forwarder]' if reports_role == 'satellite' else ('[web,forwarder]' if reports_role == 'control' else ('[web]' if reports_role == 'watchtower' else '')) }}"
-    reports_release: "{{ reports_root }}/releases/{{ reports_commit }}"
+    reports_release: "{{ reports_root }}/releases/{{ reports_commit }}-pkg"
     reports_cli_link: "{{ lookup('env', 'OCPP_REPORTS_CLI_LINK') | default('/usr/local/bin/ocpp-reports', true) }}"
   pre_tasks:
     - name: Validate selected installation role
