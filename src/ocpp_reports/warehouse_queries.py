@@ -61,7 +61,6 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                 + " ORDER BY source_id,kind,record_key",
                 (source_id,) if source_id else (),
             ).fetchall()
-            remote_sources = {r["source_id"] for r in remote}
             if "collector_cursors" in tables:
                 cursor_rows = db.execute(
                     "SELECT source_id,sequence FROM collector_cursors"
@@ -85,7 +84,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                         continue
                     identity = (source, charger, connector)
                     if identity not in existing_connectors:
-                        connectors.append({"source_id": source, **payload})
+                        connectors.append({"source_id": source, **{key: payload.get(key) for key in ("charger_id", "connector_id", "status", "connected", "transaction_id", "power_w", "energy_wh", "observed_at", "synced_at")}})
                         existing_connectors.add(identity)
                 elif item["kind"] == "transaction":
                     charger = payload.get("charger_id")
