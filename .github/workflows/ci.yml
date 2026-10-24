@@ -66,9 +66,14 @@ jobs:
           test -f "$OCPP_REPORTS_INSTALL_ROOT/role"
           test "$(cat "$OCPP_REPORTS_INSTALL_ROOT/role")" = "${{ matrix.role }}"
           test -x "$OCPP_REPORTS_CLI_LINK"
+          test -L "$OCPP_REPORTS_INSTALL_ROOT/current"
+          test "$(readlink "$OCPP_REPORTS_CLI_LINK")" = "$OCPP_REPORTS_INSTALL_ROOT/current/venv/bin/ocpp-reports"
+          test "$(readlink "$OCPP_REPORTS_INSTALL_ROOT/current")" = "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg"
           sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json
           test -x "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg/venv/bin/ocpp-reports"
           bash deploy.sh
+          test -L "$OCPP_REPORTS_INSTALL_ROOT/current"
+          test ! -e "$OCPP_REPORTS_INSTALL_ROOT/previous"
           if [ "${{ matrix.role }}" = watchtower ] || [ "${{ matrix.role }}" = control ]; then
             sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json
           else
