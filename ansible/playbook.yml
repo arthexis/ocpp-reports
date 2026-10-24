@@ -11,19 +11,26 @@
     reports_local_ingest_interval: "{{ lookup('env', 'OCPP_REPORTS_LOCAL_INGEST_INTERVAL') | default('30', true) }}"
     reports_nginx_enabled: "{{ lookup('env', 'OCPP_REPORTS_NGINX_ENABLED') | default('false', true) | bool }}"
     reports_diagnostics_hostname: "{{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_HOSTNAME') | default('diagnose.gelectriic.com', true) }}"
-    reports_diagnostics_certificate: "{{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_TLS_CERT') | default('/etc/letsencrypt/live/diagnose.gelectriic.com/fullchain.pem', true) }}"
-    reports_diagnostics_private_key: "{{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_TLS_KEY') | default('/etc/letsencrypt/live/diagnose.gelectriic.com/privkey.pem', true) }}"
+    reports_diagnostics_certificate: >-
+      {{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_TLS_CERT') | default('/etc/letsencrypt/live/diagnose.gelectriic.com/fullchain.pem', true) }}
+    reports_diagnostics_private_key: >-
+      {{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_TLS_KEY') | default('/etc/letsencrypt/live/diagnose.gelectriic.com/privkey.pem', true) }}
     reports_dashboard_hostname: "{{ lookup('env', 'OCPP_REPORTS_DASHBOARD_HOSTNAME') | default('porsche.gelectriic.com', true) }}"
     reports_collector_hostname: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_HOSTNAME') | default('collector.gelectriic.com', true) }}"
-    reports_dashboard_certificate: "{{ lookup('env', 'OCPP_REPORTS_DASHBOARD_TLS_CERT') | default('/etc/letsencrypt/live/porsche.gelectriic.com/fullchain.pem', true) }}"
-    reports_dashboard_private_key: "{{ lookup('env', 'OCPP_REPORTS_DASHBOARD_TLS_KEY') | default('/etc/letsencrypt/live/porsche.gelectriic.com/privkey.pem', true) }}"
-    reports_collector_certificate: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_CERT') | default('/etc/letsencrypt/live/collector.gelectriic.com/fullchain.pem', true) }}"
-    reports_collector_private_key: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_KEY') | default('/etc/letsencrypt/live/collector.gelectriic.com/privkey.pem', true) }}"
+    reports_dashboard_certificate: >-
+      {{ lookup('env', 'OCPP_REPORTS_DASHBOARD_TLS_CERT') | default('/etc/letsencrypt/live/porsche.gelectriic.com/fullchain.pem', true) }}
+    reports_dashboard_private_key: >-
+      {{ lookup('env', 'OCPP_REPORTS_DASHBOARD_TLS_KEY') | default('/etc/letsencrypt/live/porsche.gelectriic.com/privkey.pem', true) }}
+    reports_collector_certificate: >-
+      {{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_CERT') | default('/etc/letsencrypt/live/collector.gelectriic.com/fullchain.pem', true) }}
+    reports_collector_private_key: >-
+      {{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_KEY') | default('/etc/letsencrypt/live/collector.gelectriic.com/privkey.pem', true) }}
     reports_nginx_htpasswd: "{{ lookup('env', 'OCPP_REPORTS_HTPASSWD') | default('/etc/ocpp-reports/dashboard.htpasswd', true) }}"
     reports_operator: "{{ lookup('env', 'OCPP_REPORTS_OPERATOR') | default(lookup('pipe', 'stat -c %U ' ~ playbook_dir ~ '/..'), true) }}"
     reports_commit: "{{ lookup('pipe', 'git -C ' ~ playbook_dir ~ '/.. rev-parse HEAD') | trim }}"
     reports_root: "{{ lookup('env', 'OCPP_REPORTS_INSTALL_ROOT') | default('/opt/ocpp-reports', true) }}"
-    reports_install_extra: "{{ '[forwarder]' if reports_role == 'satellite' else ('[web,forwarder]' if reports_role == 'control' else ('[web]' if reports_role == 'watchtower' else '')) }}"
+    reports_install_extra: >-
+      {{ '[forwarder]' if reports_role == 'satellite' else ('[web,forwarder]' if reports_role == 'control' else ('[web]' if reports_role == 'watchtower' else '')) }}
     reports_release: "{{ reports_root }}/releases/{{ reports_commit }}-pkg"
     reports_current: "{{ reports_root }}/current"
     reports_previous: "{{ reports_root }}/previous"
@@ -60,7 +67,14 @@
     - name: Refuse adoption of an unmarked existing installation
       ansible.builtin.assert:
         that:
-          - reports_role_file.stat.exists or (not reports_previous_releases.stat.exists and not reports_previous_cli.stat.exists) or (reports_previous_releases.stat.isdir | default(false) and not (reports_previous_releases.stat.islnk | default(false)) and (reports_previous_cli.stat.islnk | default(false) or not reports_previous_cli.stat.exists))
+          - >-
+            reports_role_file.stat.exists or
+            (not reports_previous_releases.stat.exists and not reports_previous_cli.stat.exists) or
+            (
+              (reports_previous_releases.stat.isdir | default(false)) and
+              not (reports_previous_releases.stat.islnk | default(false)) and
+              ((reports_previous_cli.stat.islnk | default(false)) or not reports_previous_cli.stat.exists)
+            )
         fail_msg: "Unrecognized Reports installation without a role marker; refusing deployment."
   tasks:
     - name: Prepare shared Reports installation
