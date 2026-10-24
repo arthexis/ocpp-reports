@@ -91,7 +91,7 @@
         state: directory
         owner: root
         group: ocpp
-        mode: '2770'
+        mode: '2750'
       become: true
     - name: Install initial Reports TOML without overwriting operator edits
       ansible.builtin.copy:

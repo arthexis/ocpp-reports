@@ -154,7 +154,7 @@
   ansible.builtin.stat:
     path: "{{ item }}"
     follow: true
-  loop: "{{ ([reports_dashboard_certificate, reports_dashboard_private_key, reports_collector_certificate, reports_collector_private_key, reports_nginx_htpasswd, '/etc/ocpp-reports/collector-credentials.json'] if reports_nginx_enabled | bool else []) + ([reports_diagnostics_certificate, reports_diagnostics_private_key] if (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool) else []) }}"
+  loop: "{{ ([reports_dashboard_certificate, reports_dashboard_private_key, reports_collector_certificate, reports_collector_private_key, reports_nginx_htpasswd, '/etc/ocpp-reports/collector.toml'] if reports_nginx_enabled | bool else []) + ([reports_diagnostics_certificate, reports_diagnostics_private_key] if (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool) else []) }}"
   become: true
   register: reports_nginx_prerequisites
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
