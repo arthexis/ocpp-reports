@@ -1,58 +1,58 @@
-    - name: Ensure shared OCPP operator group exists
-      ansible.builtin.group:
-        name: ocpp
-        state: present
-      become: true
-    - name: Ensure Reports service identity exists
-      ansible.builtin.user:
-        name: ocpp-reports
-        group: ocpp
-        system: true
-        create_home: false
-        shell: /usr/sbin/nologin
-      become: true
-    - name: Validate intended interactive Reports operator
-      ansible.builtin.assert:
-        that:
-          - reports_operator not in ['root', '', 'UNKNOWN']
-        fail_msg: "Set OCPP_REPORTS_OPERATOR to the intended CLI account."
-    - name: Add intended operator to OCPP group
-      ansible.builtin.user:
-        name: "{{ reports_operator }}"
-        groups: ocpp
-        append: true
-      become: true
-    - name: Create shared OCPP configuration directory
-      ansible.builtin.file:
-        path: /etc/ocpp-reports
-        state: directory
-        owner: root
-        group: ocpp
-        mode: '2750'
-      become: true
-    - name: Install initial Reports TOML without overwriting operator edits
-      ansible.builtin.copy:
-        dest: /etc/ocpp-reports/config.toml
-        content: |
-          [mail]
-          host = ""
-          port = 587
-          tls = "starttls"
-          from = ""
-          to = ""
-        owner: root
-        group: ocpp
-        mode: '0660'
-        force: false
-      become: true
-    - name: Create shared Reports state and attachment directories
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-        owner: ocpp-reports
-        group: ocpp
-        mode: '2770'
-      loop:
-        - /var/lib/ocpp-reports
-        - /var/lib/ocpp-reports/attachments
-      become: true
+- name: Ensure shared OCPP operator group exists
+  ansible.builtin.group:
+    name: ocpp
+    state: present
+  become: true
+- name: Ensure Reports service identity exists
+  ansible.builtin.user:
+    name: ocpp-reports
+    group: ocpp
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+  become: true
+- name: Validate intended interactive Reports operator
+  ansible.builtin.assert:
+    that:
+      - reports_operator not in ['root', '', 'UNKNOWN']
+    fail_msg: "Set OCPP_REPORTS_OPERATOR to the intended CLI account."
+- name: Add intended operator to OCPP group
+  ansible.builtin.user:
+    name: "{{ reports_operator }}"
+    groups: ocpp
+    append: true
+  become: true
+- name: Create shared OCPP configuration directory
+  ansible.builtin.file:
+    path: /etc/ocpp-reports
+    state: directory
+    owner: root
+    group: ocpp
+    mode: '2750'
+  become: true
+- name: Install initial Reports TOML without overwriting operator edits
+  ansible.builtin.copy:
+    dest: /etc/ocpp-reports/config.toml
+    content: |
+      [mail]
+      host = ""
+      port = 587
+      tls = "starttls"
+      from = ""
+      to = ""
+    owner: root
+    group: ocpp
+    mode: '0660'
+    force: false
+  become: true
+- name: Create shared Reports state and attachment directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: ocpp-reports
+    group: ocpp
+    mode: '2770'
+  loop:
+    - /var/lib/ocpp-reports
+    - /var/lib/ocpp-reports/attachments
+  become: true
