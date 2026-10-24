@@ -46,7 +46,7 @@ else
     fi
     if [ -e "$cli" ] || [ -L "$cli" ]; then
       target=$(readlink "$cli" 2>/dev/null || true)
-      case "$target" in "$root"/releases/*/venv/bin/ocpp-reports) ;; *)
+      case "$target" in "$root"/releases/*/venv/bin/ocpp-reports|"$root"/current/venv/bin/ocpp-reports) ;; *)
         echo "Unrecognized Reports CLI link; refusing deployment" >&2; exit 2;; esac
     fi
   fi

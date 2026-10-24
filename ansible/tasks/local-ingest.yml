@@ -49,5 +49,5 @@
     name: ocpp-reports-ingest.service
     daemon_reload: "{{ reports_local_ingest_unit.changed }}"
     enabled: true
-    state: "{{ 'restarted' if reports_local_ingest_unit.changed else 'started' }}"
+    state: "{{ 'restarted' if (reports_local_ingest_unit.changed or reports_release_changed | bool) else 'started' }}"
   become: true

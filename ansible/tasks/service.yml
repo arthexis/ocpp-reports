@@ -48,7 +48,7 @@
     name: "ocpp-reports-{{ reports_service }}.service"
     daemon_reload: true
     enabled: true
-    state: "{{ 'restarted' if reports_unit.changed else 'started' }}"
+    state: "{{ 'restarted' if (reports_unit.changed or reports_release_changed | bool) else 'started' }}"
   become: true
   when: reports_service_ready
 

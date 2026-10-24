@@ -37,6 +37,22 @@ jobs:
           python -c "from importlib.resources import files; assert files('ocpp_reports').joinpath('templates/summary.html.j2').read_text().startswith('<!doctype html>')"
           python -m pip check
 
+  static_validation:
+    name: Deployment static validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Shell syntax
+        run: bash -n deploy.sh
+      - name: Install Ansible validation tools
+        run: python3 -m pip install ansible-core ansible-lint
+      - name: Ansible playbook syntax
+        run: ansible-playbook -i localhost, ansible/playbook.yml --syntax-check
+      - name: Ansible basic lint
+        run: ansible-lint --profile basic ansible/playbook.yml
+      - name: Compile Python sources
+        run: python3 -m compileall -q src
+
   ansible_integration:
     name: Ansible deployment integration
     runs-on: ubuntu-latest
@@ -66,9 +82,14 @@ jobs:
           test -f "$OCPP_REPORTS_INSTALL_ROOT/role"
           test "$(cat "$OCPP_REPORTS_INSTALL_ROOT/role")" = "${{ matrix.role }}"
           test -x "$OCPP_REPORTS_CLI_LINK"
+          test -L "$OCPP_REPORTS_INSTALL_ROOT/current"
+          test "$(readlink "$OCPP_REPORTS_CLI_LINK")" = "$OCPP_REPORTS_INSTALL_ROOT/current/venv/bin/ocpp-reports"
+          test "$(readlink "$OCPP_REPORTS_INSTALL_ROOT/current")" = "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg"
           sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json
           test -x "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg/venv/bin/ocpp-reports"
           bash deploy.sh
+          test -L "$OCPP_REPORTS_INSTALL_ROOT/current"
+          test ! -e "$OCPP_REPORTS_INSTALL_ROOT/previous"
           if [ "${{ matrix.role }}" = watchtower ] || [ "${{ matrix.role }}" = control ]; then
             sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json
           else
@@ -100,13 +121,15 @@ jobs:
   general:
     name: CI
     if: always()
-    needs: [test, ansible_integration]
+    needs: [test, static_validation, ansible_integration]
     runs-on: ubuntu-latest
     steps:
       - name: Require all test matrix jobs
         env:
           RESULT: ${{ needs.test.result }}
+          STATIC_RESULT: ${{ needs.static_validation.result }}
           ANSIBLE_RESULT: ${{ needs.ansible_integration.result }}
         run: |
           test "$RESULT" = success
+          test "$STATIC_RESULT" = success
           test "$ANSIBLE_RESULT" = success
