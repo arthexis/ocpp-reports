@@ -380,7 +380,7 @@
         group: root
         mode: '0644'
         force: false
-      become: true    - name: Apply selected Reports role
+      become: true
       ansible.builtin.include_role:
         name: "{{ reports_role }}"
     - name: Persist immutable Reports role after successful installation
