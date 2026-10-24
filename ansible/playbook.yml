@@ -25,6 +25,8 @@
     reports_root: "{{ lookup('env', 'OCPP_REPORTS_INSTALL_ROOT') | default('/opt/ocpp-reports', true) }}"
     reports_install_extra: "{{ '[forwarder]' if reports_role == 'satellite' else ('[web,forwarder]' if reports_role == 'control' else ('[web]' if reports_role == 'watchtower' else '')) }}"
     reports_release: "{{ reports_root }}/releases/{{ reports_commit }}-pkg"
+    reports_current: "{{ reports_root }}/current"
+    reports_previous: "{{ reports_root }}/previous"
     reports_cli_link: "{{ lookup('env', 'OCPP_REPORTS_CLI_LINK') | default('/usr/local/bin/ocpp-reports', true) }}"
   pre_tasks:
     - name: Validate selected installation role
@@ -308,6 +310,85 @@
       ansible.builtin.command:
         cmd: "{{ reports_release }}/venv/bin/ocpp-reports status --json"
       changed_when: false
+    - name: Inspect existing current release pointer
+      ansible.builtin.stat:
+        path: "{{ reports_current }}"
+        follow: false
+      register: reports_current_pointer
+    - name: Validate existing current release pointer
+      ansible.builtin.assert:
+        that:
+          - not reports_current_pointer.stat.exists or reports_current_pointer.stat.islnk
+        fail_msg: "Reports current must be a managed symlink."
+    - name: Resolve existing active Reports release
+      ansible.builtin.command:
+        argv: [readlink, -f, "{{ reports_cli_link }}"]
+      register: reports_old_cli_target
+      changed_when: false
+      failed_when: false
+    - name: Validate existing Reports CLI ownership
+      ansible.builtin.assert:
+        that:
+          - reports_old_cli_target.rc != 0 or reports_old_cli_target.stdout is match('^' ~ (reports_root | regex_escape) ~ '/releases/[^/]+/venv/bin/ocpp-reports      ansible.builtin.file:
+        src: "{{ reports_current }}/venv/bin/ocpp-reports"
+        dest: "{{ reports_cli_link }}"
+        state: link
+        force: true
+      become: true
+    - name: Apply selected Reports role
+      ansible.builtin.include_role:
+        name: "{{ reports_role }}"
+    - name: Persist immutable Reports role after successful installation
+      ansible.builtin.copy:
+        dest: "{{ reports_root }}/role"
+        content: "{{ reports_role }}"
+        owner: root
+        group: root
+        mode: '0644'
+        force: false
+      become: true
+)
+        fail_msg: "Existing CLI points outside managed Reports releases."
+    - name: Capture previous active release
+      ansible.builtin.set_fact:
+        reports_old_release: "{{ reports_old_cli_target.stdout | regex_replace('/venv/bin/ocpp-reports      ansible.builtin.file:
+        src: "{{ reports_release }}/venv/bin/ocpp-reports"
+        dest: "{{ reports_cli_link }}"
+        state: link
+        force: true
+      become: true
+    - name: Apply selected Reports role
+      ansible.builtin.include_role:
+        name: "{{ reports_role }}"
+    - name: Persist immutable Reports role after successful installation
+      ansible.builtin.copy:
+        dest: "{{ reports_root }}/role"
+        content: "{{ reports_role }}"
+        owner: root
+        group: root
+        mode: '0644'
+        force: false
+      become: true
+, '') }}"
+        reports_release_changed: "{{ reports_old_cli_target.rc != 0 or reports_old_cli_target.stdout != reports_release ~ '/venv/bin/ocpp-reports' }}"
+    - name: Preserve previous release on upgrade
+      ansible.builtin.file:
+        src: "{{ reports_old_release }}"
+        dest: "{{ reports_previous }}"
+        state: link
+        force: true
+      become: true
+      when:
+        - reports_release_changed | bool
+        - reports_old_cli_target.rc == 0
+        - reports_old_release != reports_release
+    - name: Promote validated Reports release
+      ansible.builtin.file:
+        src: "{{ reports_release }}"
+        dest: "{{ reports_current }}"
+        state: link
+        force: true
+      become: true
     - name: Link active Reports CLI
       ansible.builtin.file:
         src: "{{ reports_release }}/venv/bin/ocpp-reports"
