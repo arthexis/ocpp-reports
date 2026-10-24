@@ -42,16 +42,17 @@ def test_systemd_service_uses_unified_run_and_writable_state():
     assert "--send" in service
 
 
-def test_ansible_installs_from_privileged_release_staging_not_runner_checkout():
-    playbook = (Path(__file__).resolve().parents[1] / "ansible/playbook.yml").read_text()
-    assert "Stage pinned Reports package files in the owned release" in playbook
+def test_ansible_uses_staged_immutable_wheel_and_reusable_dependencies():
+    root = Path(__file__).resolve().parents[1]
+    playbook = (root / "ansible/playbook.yml").read_text()
+    assert "Stage pinned Reports package files" in playbook
     assert "- pyproject.toml" in playbook
     assert "- README.md" in playbook
     assert "- src/" in playbook
-    assert "ansible/install_release.py" not in playbook  # installer is referenced relative to playbook_dir
-    assert "{{ playbook_dir }}/install_release.py" in playbook
-    assert "creates: \"{{ reports_release }}/.installed\"" in playbook
-    installer = (Path(__file__).resolve().parents[1] / "ansible/install_release.py").read_text()
-    assert "\"--only-binary=:all:\"" in installer
-    assert "source / \"pyproject.toml\"" in installer
-    assert "pip install {{ playbook_dir }}/.." not in playbook
+    assert "dependency_plan.py" in playbook
+    assert "Converge reusable runtime dependencies" in playbook
+    assert "--only-binary=:all:" in playbook
+    assert "--no-index --no-deps" in playbook
+    assert ".installed" not in playbook
+    assert "install_release.py" not in playbook
+    assert "Reject incomplete immutable Reports release" in playbook
