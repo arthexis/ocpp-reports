@@ -343,7 +343,7 @@
     - name: Capture release transition
       ansible.builtin.set_fact:
         reports_release_changed: "{{ not reports_existing_cli_link.stat.exists or reports_old_cli_target.stdout != reports_release ~ '/venv/bin/ocpp-reports' }}"
-        reports_old_release: "{{ (reports_old_cli_target.stdout | default('')) | regex_replace('/venv/bin/ocpp-reports
+        reports_old_release: "{{ (reports_old_cli_target.stdout | default('')) | regex_replace('/venv/bin/ocpp-reports' ~ '$', '') }}"
     - name: Preserve previous release on upgrade
       ansible.builtin.file:
         src: "{{ reports_old_release }}"
