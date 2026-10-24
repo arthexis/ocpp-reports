@@ -381,14 +381,3 @@
         mode: '0644'
         force: false
       become: true
-      ansible.builtin.include_role:
-        name: "{{ reports_role }}"
-    - name: Persist immutable Reports role after successful installation
-      ansible.builtin.copy:
-        dest: "{{ reports_root }}/role"
-        content: "{{ reports_role }}"
-        owner: root
-        group: root
-        mode: '0644'
-        force: false
-      become: true
