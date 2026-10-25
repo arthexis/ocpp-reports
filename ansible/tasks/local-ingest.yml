@@ -64,6 +64,17 @@
   become: true
   changed_when: false
 
+- name: Verify CSMS read-only export as Reports service account
+  ansible.builtin.command:
+    argv:
+      - "{{ reports_release }}/venv/bin/python"
+      - "{{ playbook_dir }}/../scripts/preflight_csms_export.py"
+      - "{{ reports_local_csms_data_dir }}"
+  become: true
+  become_user: ocpp-reports
+  register: reports_local_export_probe
+  changed_when: false
+
 - name: Install local ingestion systemd unit
   ansible.builtin.template:
     src: "{{ playbook_dir }}/templates/ocpp-reports-ingest.service.j2"
