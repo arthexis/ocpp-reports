@@ -23,6 +23,29 @@
   register: reports_collector_credentials
   when: reports_service == 'collector'
 
+- name: Require regular Forwarder configuration before managing permissions
+  ansible.builtin.assert:
+    that:
+      - reports_forwarder_env.stat.isreg | default(false)
+    fail_msg: "Forwarder configuration must be a regular file."
+  when: reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false))
+
+- name: Normalize protected Forwarder configuration permissions
+  ansible.builtin.file:
+    path: /etc/ocpp-reports/forwarder.toml
+    owner: root
+    group: ocpp
+    mode: '0640'
+  become: true
+  when: reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false))
+
+- name: Reinspect normalized Forwarder configuration
+  ansible.builtin.stat:
+    path: /etc/ocpp-reports/forwarder.toml
+  become: true
+  register: reports_forwarder_env
+  when: reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false))
+
 - name: Validate configured Forwarder credentials
   ansible.builtin.assert:
     that:
