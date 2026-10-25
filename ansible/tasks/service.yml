@@ -66,6 +66,29 @@
   ansible.builtin.set_fact:
     reports_service_ready: "{{ (reports_service == 'dashboard') or (reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false))) or (reports_service == 'collector' and (reports_collector_credentials.stat.exists | default(false))) }}"
 
+- name: Inspect existing Forwarder cursor database
+  ansible.builtin.stat:
+    path: /var/lib/ocpp-reports/forwarder.sqlite
+  become: true
+  register: reports_forwarder_state
+  when: reports_service == 'forwarder'
+
+- name: Refuse nonregular Forwarder cursor state
+  ansible.builtin.assert:
+    that:
+      - reports_forwarder_state.stat.isreg | default(false)
+    fail_msg: "Forwarder state must be a regular SQLite file."
+  when: reports_service == 'forwarder' and (reports_forwarder_state.stat.exists | default(false))
+
+- name: Restore Forwarder cursor file ownership without modifying contents
+  ansible.builtin.file:
+    path: /var/lib/ocpp-reports/forwarder.sqlite
+    owner: ocpp-reports
+    group: ocpp
+    mode: '0660'
+  become: true
+  when: reports_service == 'forwarder' and (reports_forwarder_state.stat.exists | default(false))
+
 - name: Enable and start configured service
   ansible.builtin.systemd_service:
     name: "ocpp-reports-{{ reports_service }}.service"
