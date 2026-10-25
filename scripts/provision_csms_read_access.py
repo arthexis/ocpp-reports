@@ -35,6 +35,19 @@ def grant_tree(root: Path, user: str, *, future: bool) -> None:
             acl(path, f"u:{user}:{mode}")
 
 
+def active_launcher(argv: list[str]) -> Path:
+    """Find the CSMS console script even when Python is argv[0]."""
+    launchers = [Path(arg) for arg in argv if Path(arg).name == "ocpp-csms"
+                 and Path(arg).is_absolute()]
+    if len(launchers) != 1:
+        raise RuntimeError("Expected exactly one active CSMS launcher argument")
+    executable = launchers[0].resolve(strict=True)
+    if ("/releases/" not in str(executable) or executable.parent.name != "bin"
+            or executable.parent.parent.name != "venv"):
+        raise RuntimeError("Unexpected CSMS executable path")
+    return executable
+
+
 def main() -> int:
     if os.geteuid() != 0:
         raise RuntimeError("CSMS ACL provisioning requires root")
@@ -51,13 +64,7 @@ def main() -> int:
     # Console entry points may run under Python, so argv[0] is often the
     # interpreter rather than the ocpp-csms launcher. Match the launcher
     # argument before resolving paths (which can change its basename).
-    launchers = [Path(arg) for arg in argv if Path(arg).name == "ocpp-csms"
-                 and Path(arg).is_absolute()]
-    if len(launchers) != 1:
-        raise RuntimeError("Expected exactly one active CSMS launcher argument")
-    executable = launchers[0].resolve(strict=True)
-    if "/releases/" not in str(executable) or executable.parent.name != "bin" or executable.parent.parent.name != "venv":
-        raise RuntimeError("Unexpected CSMS executable path")
+    executable = active_launcher(argv)
     # The venv's Python and packages live beneath this release.
     release = next((p for p in executable.parents if p.parent.name == "releases"), None)
     if release is None:
