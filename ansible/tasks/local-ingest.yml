@@ -48,6 +48,22 @@
       - reports_local_csms_active.rc == 0
     fail_msg: "ocpp-csms.service must be active before local ingestion is enabled."
 
+- name: Ensure POSIX ACL tools are available
+  ansible.builtin.package:
+    name: acl
+    state: present
+  become: true
+
+- name: Grant Reports read-only access to active CSMS evidence and producer
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ playbook_dir }}/../scripts/provision_csms_read_access.py"
+      - ocpp-reports
+      - "{{ reports_local_csms_data_dir }}"
+  become: true
+  changed_when: false
+
 - name: Install local ingestion systemd unit
   ansible.builtin.template:
     src: "{{ playbook_dir }}/templates/ocpp-reports-ingest.service.j2"
