@@ -39,6 +39,13 @@
   become: true
   when: reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false))
 
+- name: Reinspect normalized Forwarder configuration
+  ansible.builtin.stat:
+    path: /etc/ocpp-reports/forwarder.toml
+  become: true
+  register: reports_forwarder_env
+  when: reports_service == 'forwarder' and (reports_forwarder_env.stat.exists | default(false))
+
 - name: Validate configured Forwarder credentials
   ansible.builtin.assert:
     that:
