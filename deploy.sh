@@ -38,7 +38,19 @@ else
   # Never adopt a legacy current pointer or an unrecognized CLI link.
   cli="${OCPP_REPORTS_CLI_LINK:-/usr/local/bin/ocpp-reports}"
   if [ -e "$root/current" ] || [ -L "$root/current" ]; then
-    echo "Legacy Reports installation without role marker; refusing deployment" >&2; exit 2
+    # Activation precedes role persistence. Resume only a recognizable, linked,
+    # immutable release, and only when the operator explicitly selects a role.
+    current_target=$(readlink "$root/current" 2>/dev/null || true)
+    case "$current_target" in
+      "$root"/releases/*-pkg)
+        if [ -z "$role" ] || [ ! -d "$current_target" ] || [ ! -x "$current_target/venv/bin/ocpp-reports" ]; then
+          echo "Unmarked active Reports release requires an explicit role and valid release" >&2; exit 2
+        fi
+        ;;
+      *)
+        echo "Unrecognized Reports current pointer without role marker; refusing deployment" >&2; exit 2
+        ;;
+    esac
   fi
   if [ -e "$root/releases" ] || [ -L "$root/releases" ] || [ -L "$cli" ] || [ -e "$cli" ]; then
     if [ -z "$role" ] || [ ! -d "$root/releases" ] || [ -L "$root/releases" ]; then
