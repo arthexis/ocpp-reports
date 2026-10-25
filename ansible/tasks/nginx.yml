@@ -1,4 +1,16 @@
 ---
+- name: Install HTTPS exposure dependencies
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - certbot
+      - python3-certbot-nginx
+      - acl
+      - apache2-utils
+    state: present
+  become: true
+  when: reports_nginx_enabled | bool
+
 - name: Check whether diagnostic download hostname resolves
   ansible.builtin.command:
     argv: [getent, ahostsv4, "{{ reports_diagnostics_hostname }}"]
@@ -162,9 +174,15 @@
 - name: Refuse incomplete HTTPS configuration
   ansible.builtin.assert:
     that:
-      - reports_nginx_prerequisites.results | map(attribute='stat.exists') | min
-      - reports_nginx_prerequisites.results | map(attribute='stat.isreg') | min
-    fail_msg: "Provide the TLS certificate/key for each selected HTTPS host and required credentials for full Reports exposure."
+      - item.stat.exists | default(false)
+      - item.stat.isreg | default(false)
+    fail_msg: >-
+      Missing or invalid HTTPS prerequisite: {{ item.item }}.
+      Certificates must cover the configured hostname; authentication files
+      must be explicitly provisioned (no generated placeholder credentials).
+  loop: "{{ reports_nginx_prerequisites.results }}"
+  loop_control:
+    label: "{{ item.item }}"
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Verify Collector service is running before public exposure

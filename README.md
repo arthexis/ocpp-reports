@@ -47,3 +47,43 @@ ocpp-reports run --source verified-summary.json --period previous-day --send
 ### Reporting timezone
 
 `run` uses `UTC` by default, or `America/Monterrey` when `--profile audi` is selected. Pass `--timezone IANA_ZONE` to override either default. The selected zone determines previous-day/week/month boundaries and how the Audi CSV timestamps are displayed. Explicit `--since` and `--until` retain their supplied offsets. Previously verified summaries retain their own recorded reporting period and timezone; changing the zone requires generating a new summary from source data.
+
+
+## Watchtower HTTPS setup (Porsche)
+
+Watchtower and control installations enable Dashboard, Collector and Diagnostics HTTPS by default. Satellite and terminal installations do not publish these services. To explicitly disable watchtower HTTPS, set `OCPP_REPORTS_NGINX_ENABLED=false` for deployment.
+
+The installer installs `nginx`, `certbot`, `python3-certbot-nginx`, `acl`, and `apache2-utils` (provides `htpasswd`) when publishing HTTPS. It does not invent or rotate passwords, replication tokens, or Let's Encrypt accounts.
+
+Before the first public exposure, ensure DNS points to the server and issue certificates for the two independent names:
+
+```sh
+sudo certbot certonly --nginx -d collector.gelectriic.com
+sudo certbot certonly --nginx -d porsche.gelectriic.com
+sudo certbot certificates
+```
+
+The diagnostic hostname uses its independent certificate, managed by the diagnostics deployment. If the Nginx Certbot plugin is missing on an older installation, install `python3-certbot-nginx` first.
+
+Provision the Dashboard login once (interactive password prompt; do not put the password on the command line):
+
+```sh
+sudo htpasswd -c /etc/ocpp-reports/dashboard.htpasswd admin
+sudo chown root:www-data /etc/ocpp-reports/dashboard.htpasswd
+sudo chmod 0640 /etc/ocpp-reports/dashboard.htpasswd
+```
+
+Only use `-c` when creating the file. For subsequent users, omit it to preserve existing credentials. Also provision the Collector token mapping in `/etc/ocpp-reports/collector.toml`, with a matching token in each satellite's `/etc/ocpp-reports/forwarder.toml`; keep these files protected.
+
+Deploy and verify on the watchtower:
+
+```sh
+./deploy.sh --watchtower
+sudo nginx -t
+curl -i https://collector.gelectriic.com/api/replication
+curl -I https://porsche.gelectriic.com/
+```
+
+For an unauthenticated GET, Collector should return **403** (Nginx allows only POST to `/api/replication`) and Dashboard should return **401** with the Basic Auth challenge. Both must pass TLS hostname validation without `curl -k`. These responses verify HTTPS routing and access control, *not* successful replication; on the satellite, verify `forward_cursors` advances and compare the Collector's acknowledged source cursor.
+
+If deployment rejects HTTPS prerequisites, look for the exact missing path in Ansible output. Required files include the fullchain and private key for both names, the diagnostic certificate, `/etc/ocpp-reports/dashboard.htpasswd`, and `/etc/ocpp-reports/collector.toml`. Do not disable TLS verification to bypass a missing certificate.
