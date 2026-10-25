@@ -43,3 +43,24 @@ def test_release_tree_does_not_set_inherited_acl(tmp_path):
         module.grant_tree(root, "ocpp-reports", future=False)
     assert actions
     assert not any(default for _, _, default in actions)
+
+
+def test_launcher_detection_with_python_argv0(tmp_path):
+    release = tmp_path / "releases" / "b04d6888dfb4"
+    script = release / "venv" / "bin" / "ocpp-csms"
+    script.parent.mkdir(parents=True)
+    script.write_text("#!/bin/sh\n")
+    assert module.active_launcher([
+        str(release / "venv" / "bin" / "python"),
+        str(script),
+        "--data-dir",
+        "/home/arthe/ocpp-csms-data/schemas/8",
+        "serve",
+    ]) == script
+
+
+def test_launcher_detection_with_direct_argv0(tmp_path):
+    script = tmp_path / "releases" / "b04d6888dfb4" / "venv" / "bin" / "ocpp-csms"
+    script.parent.mkdir(parents=True)
+    script.write_text("#!/bin/sh\n")
+    assert module.active_launcher([str(script), "serve"]) == script
