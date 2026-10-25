@@ -59,7 +59,7 @@ def main() -> int:
     grant_tree(data_dir, user, future=True)
     # Verify the effective identity, not merely filesystem metadata.
     probe = subprocess.run(
-        ["runuser", "-u", user, "--", "test", "-r", str(executable)],
+        ["runuser", "-u", user, "--", "test", "-x", str(executable)],
         check=False)
     if probe.returncode:
         raise RuntimeError("Reports cannot read the CSMS executable")
@@ -68,6 +68,9 @@ def main() -> int:
         check=False)
     if probe.returncode:
         raise RuntimeError("Reports cannot read CSMS evidence")
+    # An actual --help run catches inaccessible venv modules or shebang interpreter.
+    subprocess.run(["runuser", "-u", user, "--", str(executable), "--help"],
+                   check=True, stdout=subprocess.DEVNULL, timeout=20)
     return 0
 
 
