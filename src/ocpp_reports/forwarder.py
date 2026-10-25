@@ -13,6 +13,15 @@ import httpx
 from .changefeed import changes_page
 
 
+def local_evidence_source(database: Path) -> str:
+    """Resolve the single underlying CSMS identity without forwarding its UUID."""
+    with sqlite3.connect(f"file:{database.resolve()}?mode=ro", uri=True) as db:
+        rows = db.execute("SELECT source_id FROM sources ORDER BY source_id").fetchall()
+    if len(rows) != 1 or not isinstance(rows[0][0], str) or not rows[0][0]:
+        raise ValueError("Forwarder requires exactly one local CSMS source")
+    return rows[0][0]
+
+
 def confirmed_cursor(state: Path, source_id: str) -> int:
     if not state.exists():
         return 0
@@ -50,7 +59,11 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
     if database.resolve() == state.resolve():
         raise ValueError("Forwarder state must be separate from the warehouse")
     after = confirmed_cursor(state, source_id)
-    batch = changes_page(database, source_id, after=after, limit=limit)
+    evidence_source = local_evidence_source(database)
+    batch = changes_page(database, evidence_source, after=after, limit=limit)
+    # Collector identity and cursor use the stable configured node name.
+    # The local warehouse retains the CSMS UUID unchanged.
+    batch["source_id"] = source_id
     if not batch["changes"]:
         return after
     owns_client = client is None
