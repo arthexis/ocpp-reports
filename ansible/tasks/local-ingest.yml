@@ -1,4 +1,18 @@
 ---
+- name: Discover active CSMS evidence directory
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ playbook_dir }}/../scripts/discover_csms_data_dir.py"
+  become: true
+  register: reports_discovered_csms_dir
+  changed_when: false
+  when: not reports_local_csms_data_dir | trim
+
+- name: Resolve local CSMS evidence directory
+  ansible.builtin.set_fact:
+    reports_local_csms_data_dir: "{{ (reports_local_csms_data_dir | trim) or (reports_discovered_csms_dir.stdout | trim) }}"
+
 - name: Validate local CSMS ingestion settings
   ansible.builtin.assert:
     that:
