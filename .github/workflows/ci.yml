@@ -76,6 +76,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Isolated runners cannot request public ACME certificates or provision credentials.
+          # Exercise the explicit HTTPS opt-out while keeping production default enabled.
+          export OCPP_REPORTS_NGINX_ENABLED=false
           export OCPP_REPORTS_INSTALL_ROOT="/opt/ocpp-reports-ci"
           export OCPP_REPORTS_CLI_LINK="/usr/local/bin/ocpp-reports-ci"
           ./deploy.sh --${{ matrix.role }}
