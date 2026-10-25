@@ -48,8 +48,15 @@ def main() -> int:
     if pid <= 0:
         raise RuntimeError("CSMS is not active")
     argv = [part.decode() for part in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0") if part]
-    executable = Path(argv[0]).resolve(strict=True)
-    if executable.name != "ocpp-csms" or "/releases/" not in str(executable):
+    # Console entry points may run under Python, so argv[0] is often the
+    # interpreter rather than the ocpp-csms launcher. Match the launcher
+    # argument before resolving paths (which can change its basename).
+    launchers = [Path(arg) for arg in argv if Path(arg).name == "ocpp-csms"
+                 and Path(arg).is_absolute()]
+    if len(launchers) != 1:
+        raise RuntimeError("Expected exactly one active CSMS launcher argument")
+    executable = launchers[0].resolve(strict=True)
+    if "/releases/" not in str(executable) or executable.parent.name != "bin" or executable.parent.parent.name != "venv":
         raise RuntimeError("Unexpected CSMS executable path")
     # The venv's Python and packages live beneath this release.
     release = next((p for p in executable.parents if p.parent.name == "releases"), None)
