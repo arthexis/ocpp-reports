@@ -91,6 +91,10 @@ jobs:
           sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json
           test -x "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg/venv/bin/ocpp-reports"
           bash deploy.sh
+          # Explicit role must always re-enter Ansible, even for an installed SHA.
+          ./deploy.sh --${{ matrix.role }} > /tmp/ocpp-reports-explicit-redeploy.log
+          ! grep -q 'skipped Ansible' /tmp/ocpp-reports-explicit-redeploy.log
+          grep -q 'PLAY RECAP' /tmp/ocpp-reports-explicit-redeploy.log
           test -L "$OCPP_REPORTS_INSTALL_ROOT/current"
           test ! -e "$OCPP_REPORTS_INSTALL_ROOT/previous"
           if [ "${{ matrix.role }}" = watchtower ] || [ "${{ matrix.role }}" = control ]; then

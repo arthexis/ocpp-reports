@@ -3,9 +3,11 @@ set -eu
 cd "$(dirname "$0")"
 
 role=""
+explicit_role=false
 case "${1:-}" in
   --terminal|--satellite|--watchtower|--control)
     role="${1#--}"
+    explicit_role=true
     shift
     ;;
   --*)
@@ -67,7 +69,7 @@ fi
 
 # Default deployments may skip convergence only for a verified active release.
 # Explicit role selection and environment overrides continue through Ansible.
-if [ "$#" -eq 0 ] &&
+if [ "$explicit_role" = false ] &&
    [ -z "${OCPP_REPORTS_LOCAL_INGEST_ENABLED+x}" ] &&
    [ -z "${OCPP_REPORTS_NGINX_ENABLED+x}" ]; then
   revision=$(git rev-parse --verify HEAD)
