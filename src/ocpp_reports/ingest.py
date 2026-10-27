@@ -163,7 +163,7 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
                 VALUES (?,?,?,?,?,?,?,?)""", values)
             # Reconcile the materialized projection in the same transaction as
             # evidence and cursor. Old-page replays cannot regress its state.
-            current_tx = db.execute("""SELECT page_next, page_after, fingerprint
+            current_tx = db.execute("""SELECT page_next, page_after, fingerprint, imported_at
                 FROM current_transactions
                 WHERE source_id=? AND charger_id=? AND transaction_id=?""",
                 (source, tx["charger_id"], tx["id"])).fetchone()
