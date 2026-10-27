@@ -32,9 +32,9 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                 where.append("charger_id=?")
                 args.append(charger_id)
             clause = " WHERE " + " AND ".join(where) if where else ""
-            connectors = [dict(r) for r in db.execute(
+            connectors = [{**{k: v for k, v in dict(r).items() if k != "payload"},\n                           "power_observed_at": json.loads(r["payload"]).get("power_observed_at"),\n                           "energy_observed_at": json.loads(r["payload"]).get("energy_observed_at")}\n                          for r in db.execute(
                 "SELECT source_id,charger_id,connector_id,status,connected,transaction_id,"
-                "power_w,energy_wh,observed_at,synced_at FROM connector_state" + clause +
+                "power_w,energy_wh,observed_at,synced_at,payload FROM connector_state" + clause +
                 " ORDER BY source_id,charger_id,connector_id", args)]
         def recent(table, ordering, column):
             if table not in tables:
@@ -84,7 +84,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                         continue
                     identity = (source, charger, connector)
                     if identity not in existing_connectors:
-                        connectors.append({"source_id": source, **{key: payload.get(key) for key in ("charger_id", "connector_id", "status", "connected", "transaction_id", "power_w", "energy_wh", "observed_at", "synced_at")}})
+                        connectors.append({"source_id": source, **{key: payload.get(key) for key in ("charger_id", "connector_id", "status", "connected", "transaction_id", "power_w", "energy_wh", "observed_at", "synced_at", "power_observed_at", "energy_observed_at")}})
                         existing_connectors.add(identity)
                 elif item["kind"] == "transaction":
                     charger = payload.get("charger_id")
