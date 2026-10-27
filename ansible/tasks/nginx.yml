@@ -9,7 +9,7 @@
       - apache2-utils
     state: present
   become: true
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 # Public ingress ownership is opt-in, independent of role and DNS resolution.
 # A shared hostname resolving to another host is not deployment authority.
@@ -299,7 +299,7 @@
     owner: root
     group: root
     mode: '0644'
-  loop: "{{ ['dashboard', 'collector', 'diagnostics'] if reports_nginx_enabled | bool else ['diagnostics'] }}"
+  loop: "{{ (['dashboard', 'collector'] if reports_nginx_enabled | bool else []) + (['diagnostics'] if reports_diagnostics_nginx_enabled | bool else []) }}"
   become: true
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
@@ -308,7 +308,7 @@
     src: "/etc/nginx/sites-available/ocpp-reports-{{ item }}"
     dest: "/etc/nginx/sites-enabled/ocpp-reports-{{ item }}"
     state: link
-  loop: "{{ ['dashboard', 'collector', 'diagnostics'] if reports_nginx_enabled | bool else ['diagnostics'] }}"
+  loop: "{{ (['dashboard', 'collector'] if reports_nginx_enabled | bool else []) + (['diagnostics'] if reports_diagnostics_nginx_enabled | bool else []) }}"
   become: true
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
