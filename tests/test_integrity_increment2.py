@@ -66,3 +66,28 @@ def test_conflicting_collector_replay_preserves_cursor(tmp_path):
     with sqlite3.connect(db) as con:
         assert con.execute("SELECT sequence FROM collector_cursors").fetchone()[0] == 1
         assert con.execute("SELECT COUNT(*) FROM collector_changes").fetchone()[0] == 1
+
+def test_measurement_age_is_independent_of_status_poll(tmp_path):
+    db = tmp_path / "warehouse.sqlite3"
+    first = page()
+    first["data"]["cursor"] = {"after": 0, "next": 1, "more": False}
+    first["data"]["events"] = [{
+        "id": 1, "at": "2026-10-27T12:00:00Z", "charger_id": "cp",
+        "kind": "meter", "action": "MeterValues"
+    }]
+    first["data"]["energy"] = [{
+        "source_event_id": 1, "sample_index": 0,
+        "at": "2026-10-27T11:59:59Z", "charger_id": "cp", "connector_id": 1,
+        "power_w": 7200, "energy_wh": 15000
+    }]
+    sync_page(db, first)
+    second = page()
+    second["data"]["cursor"] = {"after": 1, "next": 1, "more": False}
+    second["data"]["exported_at"] = "2026-10-27T12:01:00Z"
+    sync_page(db, second)
+    connector = current_connectors(db)[0]
+    assert connector["power_w"] == 7200
+    assert connector["energy_wh"] == 15000
+    assert connector["observed_at"] == "2026-10-27T12:01:00Z"
+    assert connector["power_observed_at"] == "2026-10-27T11:59:59Z"
+    assert connector["energy_observed_at"] == "2026-10-27T11:59:59Z"
