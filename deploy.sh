@@ -67,21 +67,7 @@ else
   role="${role:-terminal}"
 fi
 
-# Default deployments may skip convergence only for a verified active release.
-# Explicit role selection and environment overrides continue through Ansible.
-if [ "$explicit_role" = false ] &&
-   [ -z "${OCPP_REPORTS_LOCAL_INGEST_ENABLED+x}" ] &&
-   [ -z "${OCPP_REPORTS_NGINX_ENABLED+x}" ]; then
-  revision=$(git rev-parse --verify HEAD)
-  release="$root/releases/$revision-pkg"
-  cli="${OCPP_REPORTS_CLI_LINK:-/usr/local/bin/ocpp-reports}"
-  if [ "$(readlink "$root/current" 2>/dev/null || true)" = "$release" ] &&
-     { [ "$(readlink "$cli" 2>/dev/null || true)" = "$root/current/venv/bin/ocpp-reports" ] || [ "$(readlink "$cli" 2>/dev/null || true)" = "$release/venv/bin/ocpp-reports" ]; } &&
-     [ -x "$release/venv/bin/ocpp-reports" ] &&
-     "$release/venv/bin/ocpp-reports" status --json >/dev/null 2>&1; then
-    printf 'Reports revision %s already installed and healthy; skipped Ansible.\n' "$revision"
-    exit 0
-  fi
-fi
-
+# Always reconcile the requested role. A linked release and an exit-zero CLI
+# do not prove that post-activation Ansible tasks completed successfully.
+# Ansible is idempotent; failed deployments must be retryable.
 exec ansible-playbook -i localhost, -c local ansible/playbook.yml -e "reports_role=$role"
