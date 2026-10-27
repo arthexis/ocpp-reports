@@ -6,7 +6,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .csms_export import validate_export
 
@@ -24,7 +24,8 @@ def _canonical(value: Any) -> str:
 def _schema(db: sqlite3.Connection) -> None:
     db.executescript("""
     CREATE TABLE IF NOT EXISTS sources (
-        source_id TEXT PRIMARY KEY, cursor INTEGER NOT NULL DEFAULT 0,\n        last_ingested_at TEXT
+        source_id TEXT PRIMARY KEY, cursor INTEGER NOT NULL DEFAULT 0,
+        last_ingested_at TEXT
     );
     CREATE TABLE IF NOT EXISTS events (
         source_id TEXT NOT NULL, event_id INTEGER NOT NULL,
@@ -97,7 +98,8 @@ def _schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE sources ADD COLUMN last_ingested_at TEXT")
 
 
-def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str | None = None) -> int:
+def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str | None = None,
+                project: Callable[[sqlite3.Connection], None] | None = None) -> int:
     """Persist one validated sequential page atomically; return current cursor.
 
     Same-cursor replays may carry newer transaction observations. Immutable
@@ -161,13 +163,15 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
                 VALUES (?,?,?,?,?,?,?,?)""", values)
             # Reconcile the materialized projection in the same transaction as
             # evidence and cursor. Old-page replays cannot regress its state.
-            current_tx = db.execute("""SELECT page_next, page_after, fingerprint
+            current_tx = db.execute("""SELECT page_next, page_after, fingerprint, imported_at
                 FROM current_transactions
                 WHERE source_id=? AND charger_id=? AND transaction_id=?""",
                 (source, tx["charger_id"], tx["id"])).fetchone()
             position = (cursor["next"], cursor["after"])
             if current_tx is None or position > (current_tx[0], current_tx[1]) or (
                 position == (current_tx[0], current_tx[1]) and digest != current_tx[2]
+                and datetime.fromisoformat(timestamp.replace("Z", "+00:00")) >
+                    datetime.fromisoformat(current_tx[3].replace("Z", "+00:00"))
             ):
                 db.execute("""INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)
                     ON CONFLICT(source_id,charger_id,transaction_id) DO UPDATE SET
@@ -176,5 +180,7 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
                     imported_at=excluded.imported_at""", values)
         if cursor["after"] == current:
             db.execute("UPDATE sources SET cursor=? WHERE source_id=?", (cursor["next"], source))
+        if project is not None:
+            project(db)
         db.execute("UPDATE sources SET last_ingested_at=? WHERE source_id=?", (timestamp, source))
         return db.execute("SELECT cursor FROM sources WHERE source_id=?", (source,)).fetchone()[0]

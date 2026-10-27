@@ -117,3 +117,18 @@ def test_cli_generate_from_sqlite(tmp_path):
         "2026-01-01T00:00:00Z", "--until", "2026-01-02T00:00:00Z"])
     assert result.exit_code == 0, result.output
     assert "completeness" in output.read_text(encoding="utf-8")
+
+def test_older_same_cursor_revision_cannot_regress_projection(tmp_path):
+    database = tmp_path / "reports.sqlite3"
+    first = fixture("active.json")
+    ingest_page(database, first, imported_at="2026-01-01T00:01:00Z")
+    latest = copy.deepcopy(first)
+    latest["data"]["transactions"][0]["energy_wh"] = 1500
+    ingest_page(database, latest, imported_at="2026-01-01T00:03:00Z")
+    older = copy.deepcopy(first)
+    older["data"]["transactions"][0]["energy_wh"] = 800
+    ingest_page(database, older, imported_at="2026-01-01T00:02:00Z")
+    assert current_transactions(database)[0]["transaction"]["energy_wh"] == 1500
+    with sqlite3.connect(database) as db:
+        assert db.execute("SELECT COUNT(*) FROM transaction_observations").fetchone()[0] == 3
+
