@@ -22,15 +22,15 @@ def source_cursor(database: Path, source_id: str) -> int:
 
 
 def sync_page(database: Path, page: dict[str, Any]) -> int:
-    """Persist evidence first, then snapshot status with its own observation time.
+    """Commit evidence, cursor and connector projections atomically.
 
     A status snapshot may change even when the event cursor has not advanced.
     Do not let an older producer observation overwrite a newer snapshot.
     """
-    cursor = ingest_page(database, page)
     data = page["data"]
     observed = data.get("exported_at") or datetime.now(timezone.utc).isoformat()
     source = data["source_id"]
+    database.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(database) as db:
         db.execute("""CREATE TABLE IF NOT EXISTS connector_state (
             source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
@@ -66,6 +66,7 @@ def sync_page(database: Path, page: dict[str, Any]) -> int:
                         'energy_wh',NEW.energy_wh,'observed_at',NEW.observed_at));
         END;
         """)
+    def project(db: sqlite3.Connection) -> None:
         # The producer status is a read snapshot, not a stream of immutable events.
         # Preserve the most recent energy sample already seen when a page is empty.
         samples = {}
@@ -94,7 +95,7 @@ def sync_page(database: Path, page: dict[str, Any]) -> int:
                      int(bool(charger.get("connected"))), transaction.get("id"),
                      power, energy, observed, datetime.now(timezone.utc).isoformat(),
                      json.dumps({"charger": charger, "connector": connector}, sort_keys=True)))
-    return cursor
+    return ingest_page(database, page, project=project)
 
 
 def follow(database: Path, data_dir: Path, *, interval: float = 5.0,
