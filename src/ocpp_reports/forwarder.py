@@ -1,2 +1,5 @@
-"""Backward-compatible import path; canonical implementation: replication.forwarder."""
-from .replication.forwarder import *  # noqa: F401,F403
+"""Compatibility module alias: monkeypatching legacy globals must still work."""
+import sys
+from .replication import forwarder as _implementation
+
+sys.modules[__name__] = _implementation
