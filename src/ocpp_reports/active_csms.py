@@ -58,8 +58,16 @@ def active_csms_export(data_dir: Path, *, after: int, limit: int) -> dict:
         "from ocpp_csms.export_contract import export_contract;"
         "print(json.dumps(export_contract(Path(sys.argv[1]),after=int(sys.argv[2]),limit=int(sys.argv[3]))))"
     )
+    command = [interpreter, "-c", code, str(data_dir), str(after), str(limit)]
     result = subprocess.run(
-        [interpreter, "-c", code, str(data_dir), str(after), str(limit)],
-        capture_output=True, text=True, check=True, timeout=45,
+        command, capture_output=True, text=True, check=False, timeout=45,
     )
+    if result.returncode:
+        # Python's CalledProcessError hides captured stderr by default.
+        # Surface the producer traceback rather than an opaque argv dump.
+        details = result.stderr.strip() or result.stdout.strip() or "no diagnostic output"
+        raise RuntimeError(
+            f"Active CSMS export failed (exit {result.returncode}): "
+            f"{details[-6000:]}"
+        )
     return json.loads(result.stdout)
