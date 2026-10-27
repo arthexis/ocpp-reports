@@ -27,9 +27,15 @@ def test_bad_connector_rolls_back_cursor_and_evidence(tmp_path):
     bad = copy.deepcopy(first)
     bad["data"]["status"]["chargers"][0]["connectors"][0]["id"] = None
     bad["data"]["exported_at"] = "2026-10-27T12:00:05Z"
+    bad["data"]["cursor"] = {"after": 0, "next": 1, "more": False}
+    bad["data"]["events"] = [{"id": 1, "at": "2026-10-27T12:00:04Z",
+        "charger_id": "cp", "kind": "request", "action": "Heartbeat"}]
     with pytest.raises(sqlite3.IntegrityError):
         sync_page(db, bad)
     assert source_cursor(db, "uuid-001") == 0
+    with sqlite3.connect(db) as con:
+        assert con.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 0
+        assert con.execute("SELECT COUNT(*) FROM replication_changes").fetchone()[0] == 1
     assert current_connectors(db)[0]["observed_at"] == "2026-10-27T12:00:00Z"
 
 
