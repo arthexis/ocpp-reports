@@ -1,4 +1,4 @@
-"""Read the transaction projection reconciled atomically by ingest."""
+"""Read current transactions from local ingestion and replicated collectors."""
 from __future__ import annotations
 
 import hashlib
@@ -11,14 +11,11 @@ from typing import Any
 def current_transactions(database: str | Path, *, source_id: str | None = None) -> list[dict[str, Any]]:
     """One current snapshot per source/CP/transaction; never sum revisions.
 
-    Ingest maintains this table atomically with evidence and its cursor.
+    Local ingest maintains its projection atomically; collectors store latest replicas.
     This is an observation projection, not a guarantee of physical finality.
     """
     with sqlite3.connect(f"file:{Path(database).resolve()}?mode=ro", uri=True) as db:
         db.row_factory = sqlite3.Row
-        table_exists = db.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='current_transactions'"
-        ).fetchone()
         tables = {row[0] for row in db.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         )}
