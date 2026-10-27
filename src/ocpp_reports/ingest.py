@@ -169,7 +169,9 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
                 (source, tx["charger_id"], tx["id"])).fetchone()
             position = (cursor["next"], cursor["after"])
             if current_tx is None or position > (current_tx[0], current_tx[1]) or (
-                position == (current_tx[0], current_tx[1]) and digest != current_tx[2]\n                and datetime.fromisoformat(timestamp.replace("Z", "+00:00")) >\n                    datetime.fromisoformat(current_tx[3].replace("Z", "+00:00"))
+                position == (current_tx[0], current_tx[1]) and digest != current_tx[2]
+                and datetime.fromisoformat(timestamp.replace("Z", "+00:00")) >
+                    datetime.fromisoformat(current_tx[3].replace("Z", "+00:00"))
             ):
                 db.execute("""INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)
                     ON CONFLICT(source_id,charger_id,transaction_id) DO UPDATE SET
