@@ -11,7 +11,8 @@
     reports_local_ingest_interval: "{{ lookup('env', 'OCPP_REPORTS_LOCAL_INGEST_INTERVAL') | default('30', true) }}"
     reports_nginx_enabled: >-
       {{ lookup('env', 'OCPP_REPORTS_NGINX_ENABLED')
-         | default(reports_role in ['watchtower', 'control'], true) | bool }}
+         | default('false', true) | bool }}
+    reports_diagnostics_nginx_enabled: "{{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_NGINX_ENABLED') | default('false', true) | bool }}"
     reports_diagnostics_hostname: "{{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_HOSTNAME') | default('diagnose.gelectriic.com', true) }}"
     reports_diagnostics_certificate: >-
       {{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_TLS_CERT') | default('/etc/letsencrypt/live/diagnose.gelectriic.com/fullchain.pem', true) }}

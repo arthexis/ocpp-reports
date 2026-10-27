@@ -9,29 +9,16 @@
       - apache2-utils
     state: present
   become: true
-  when: reports_nginx_enabled | bool
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
-- name: Check whether diagnostic download hostname resolves
-  ansible.builtin.command:
-    argv: [getent, ahostsv4, "{{ reports_diagnostics_hostname }}"]
-  register: reports_diagnostics_dns
-  changed_when: false
-  failed_when: false
-  when:
-    - reports_role in ['watchtower', 'control']
-    - not (lookup('env', 'CI') | default('false', true) | bool)
-
-- name: Check for previously issued diagnostic certificate
-  ansible.builtin.stat:
-    path: "{{ reports_diagnostics_certificate }}"
-  register: reports_diagnostics_auto_cert
-  become: true
-  when: reports_role in ['watchtower', 'control']
-
-- name: Enable diagnostic downloads when hostname is available
-  ansible.builtin.set_fact:
-    reports_diagnostics_nginx_enabled: "{{ (reports_diagnostics_dns.rc | default(1) == 0) or (reports_diagnostics_auto_cert.stat.exists | default(false)) }}"
-  when: reports_role in ['watchtower', 'control']
+# Public ingress ownership is opt-in, independent of role and DNS resolution.
+# A shared hostname resolving to another host is not deployment authority.
+- name: Require explicit public HTTPS ownership on supported roles
+  ansible.builtin.assert:
+    that:
+      - reports_role in ['watchtower', 'control']
+    fail_msg: "Public Reports ingress is supported only on watchtower/control roles."
+  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Validate independent HTTPS hostnames
   ansible.builtin.assert:
@@ -68,6 +55,7 @@
 - name: Provision diagnostic TLS certificate with Certbot webroot
   when:
     - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - reports_diagnostics_nginx_enabled | bool
     - not (reports_diagnostics_cert_existing.stat.exists | default(false))
   block:
     - name: Require default Let's Encrypt certificate paths for automatic issuance
@@ -166,7 +154,7 @@
   ansible.builtin.stat:
     path: "{{ item }}"
     follow: true
-  loop: "{{ ([reports_dashboard_certificate, reports_dashboard_private_key, reports_collector_certificate, reports_collector_private_key, reports_nginx_htpasswd, '/etc/ocpp-reports/collector.toml'] if reports_nginx_enabled | bool else []) + ([reports_diagnostics_certificate, reports_diagnostics_private_key] if (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool) else []) }}"
+  loop: "{{ ([reports_dashboard_certificate, reports_dashboard_private_key, reports_collector_certificate, reports_collector_private_key, reports_nginx_htpasswd, '/etc/ocpp-reports/collector.toml'] if reports_nginx_enabled | bool else []) + ([reports_diagnostics_certificate, reports_diagnostics_private_key] if reports_diagnostics_nginx_enabled | bool else []) }}"
   become: true
   register: reports_nginx_prerequisites
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
@@ -266,7 +254,7 @@
     path: "/etc/nginx/sites-available/{{ reports_diagnostics_hostname }}"
   register: reports_old_diagnostics_host
   become: true
-  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+  when: reports_diagnostics_nginx_enabled | bool
 
 - name: Read legacy diagnostics virtual host before ownership transfer
   ansible.builtin.slurp:
@@ -274,7 +262,7 @@
   register: reports_old_diagnostics_contents
   become: true
   when:
-    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - reports_diagnostics_nginx_enabled | bool
     - reports_old_diagnostics_host.stat.isreg | default(false)
 
 - name: Refuse replacing an unrelated diagnostics hostname configuration
@@ -283,7 +271,7 @@
       - "(reports_old_diagnostics_contents.content | b64decode).startswith('# Dedicated authenticated download host.')"
     fail_msg: "Existing diagnostics nginx host is not the known CSMS site; resolve ownership manually."
   when:
-    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - reports_diagnostics_nginx_enabled | bool
     - reports_old_diagnostics_host.stat.exists | default(false)
 
 - name: Disable known CSMS-owned diagnostics site during Reports takeover
@@ -292,7 +280,7 @@
     state: absent
   become: true
   when:
-    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - reports_diagnostics_nginx_enabled | bool
     - reports_old_diagnostics_host.stat.exists | default(false)
 
 - name: Remove known CSMS-owned diagnostics site after disabling it
@@ -301,7 +289,7 @@
     state: absent
   become: true
   when:
-    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - reports_diagnostics_nginx_enabled | bool
     - reports_old_diagnostics_host.stat.exists | default(false)
 
 - name: Render independent Reports virtual hosts
@@ -311,7 +299,7 @@
     owner: root
     group: root
     mode: '0644'
-  loop: "{{ ['dashboard', 'collector', 'diagnostics'] if reports_nginx_enabled | bool else ['diagnostics'] }}"
+  loop: "{{ (['dashboard', 'collector'] if reports_nginx_enabled | bool else []) + (['diagnostics'] if reports_diagnostics_nginx_enabled | bool else []) }}"
   become: true
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
@@ -320,7 +308,7 @@
     src: "/etc/nginx/sites-available/ocpp-reports-{{ item }}"
     dest: "/etc/nginx/sites-enabled/ocpp-reports-{{ item }}"
     state: link
-  loop: "{{ ['dashboard', 'collector', 'diagnostics'] if reports_nginx_enabled | bool else ['diagnostics'] }}"
+  loop: "{{ (['dashboard', 'collector'] if reports_nginx_enabled | bool else []) + (['diagnostics'] if reports_diagnostics_nginx_enabled | bool else []) }}"
   become: true
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
