@@ -6,7 +6,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .csms_export import validate_export
 
@@ -97,7 +97,7 @@ def _schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE sources ADD COLUMN last_ingested_at TEXT")
 
 
-def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str | None = None) -> int:
+def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str | None = None,\n                project: Callable[[sqlite3.Connection], None] | None = None) -> int:
     """Persist one validated sequential page atomically; return current cursor.
 
     Same-cursor replays may carry newer transaction observations. Immutable
@@ -176,5 +176,5 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
                     imported_at=excluded.imported_at""", values)
         if cursor["after"] == current:
             db.execute("UPDATE sources SET cursor=? WHERE source_id=?", (cursor["next"], source))
-        db.execute("UPDATE sources SET last_ingested_at=? WHERE source_id=?", (timestamp, source))
+        if project is not None:\n            project(db)\n        db.execute("UPDATE sources SET last_ingested_at=? WHERE source_id=?", (timestamp, source))
         return db.execute("SELECT cursor FROM sources WHERE source_id=?", (source,)).fetchone()[0]
