@@ -80,7 +80,10 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
         raise ValueError("Forwarder state must be separate from the warehouse")
     after = confirmed_cursor(state, source_id)
     evidence_source = local_evidence_source(database)
-    # Bind a durable forwarding cursor to its original evidence identity.\n    # A later CSMS identity change must not replay a new source under an old ACK.\n    verify_source_binding(state, source_id, evidence_source)\n    batch = changes_page(database, evidence_source, after=after, limit=limit)
+    # Bind a durable forwarding cursor to its original evidence identity.
+    # A later CSMS identity change must not replay a new source under an old ACK.
+    verify_source_binding(state, source_id, evidence_source)
+    batch = changes_page(database, evidence_source, after=after, limit=limit)
     # Collector identity and cursor use the stable configured node name.
     # The local warehouse retains the CSMS UUID unchanged.
     batch["source_id"] = source_id
