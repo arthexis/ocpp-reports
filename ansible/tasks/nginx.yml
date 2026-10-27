@@ -254,7 +254,7 @@
     path: "/etc/nginx/sites-available/{{ reports_diagnostics_hostname }}"
   register: reports_old_diagnostics_host
   become: true
-  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+  when: reports_diagnostics_nginx_enabled | bool
 
 - name: Read legacy diagnostics virtual host before ownership transfer
   ansible.builtin.slurp:
@@ -262,7 +262,7 @@
   register: reports_old_diagnostics_contents
   become: true
   when:
-    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - reports_diagnostics_nginx_enabled | bool
     - reports_old_diagnostics_host.stat.isreg | default(false)
 
 - name: Refuse replacing an unrelated diagnostics hostname configuration
@@ -271,7 +271,7 @@
       - "(reports_old_diagnostics_contents.content | b64decode).startswith('# Dedicated authenticated download host.')"
     fail_msg: "Existing diagnostics nginx host is not the known CSMS site; resolve ownership manually."
   when:
-    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - reports_diagnostics_nginx_enabled | bool
     - reports_old_diagnostics_host.stat.exists | default(false)
 
 - name: Disable known CSMS-owned diagnostics site during Reports takeover
@@ -280,7 +280,7 @@
     state: absent
   become: true
   when:
-    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - reports_diagnostics_nginx_enabled | bool
     - reports_old_diagnostics_host.stat.exists | default(false)
 
 - name: Remove known CSMS-owned diagnostics site after disabling it
@@ -289,7 +289,7 @@
     state: absent
   become: true
   when:
-    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - reports_diagnostics_nginx_enabled | bool
     - reports_old_diagnostics_host.stat.exists | default(false)
 
 - name: Render independent Reports virtual hosts
