@@ -44,6 +44,26 @@ def save_cursor(state: Path, source_id: str, cursor: int) -> None:
             WHERE excluded.sequence >= forward_cursors.sequence""", (source_id, cursor))
 
 
+def verify_source_binding(state: Path, node_id: str, evidence_source: str) -> None:
+    """Persist mapping once, reject accidental identity switches without losing cursors."""
+    state.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(state) as db:
+        db.execute("""CREATE TABLE IF NOT EXISTS source_bindings (
+            node_id TEXT PRIMARY KEY, evidence_source TEXT NOT NULL
+        )""")
+        old = db.execute(
+            "SELECT evidence_source FROM source_bindings WHERE node_id=?", (node_id,)
+        ).fetchone()
+        if old and old[0] != evidence_source:
+            raise ValueError(
+                f"CSMS evidence identity changed for {node_id}; explicit maintenance migration required"
+            )
+        db.execute(
+            "INSERT OR IGNORE INTO source_bindings VALUES (?,?)",
+            (node_id, evidence_source),
+        )
+
+
 def validate_endpoint(endpoint: str) -> None:
     if not (endpoint.startswith('https://') or endpoint.startswith('http://127.0.0.1:')):
         raise ValueError('Forwarder endpoint must use HTTPS (or loopback HTTP)')
@@ -60,7 +80,7 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
         raise ValueError("Forwarder state must be separate from the warehouse")
     after = confirmed_cursor(state, source_id)
     evidence_source = local_evidence_source(database)
-    batch = changes_page(database, evidence_source, after=after, limit=limit)
+    # Bind a durable forwarding cursor to its original evidence identity.\n    # A later CSMS identity change must not replay a new source under an old ACK.\n    verify_source_binding(state, source_id, evidence_source)\n    batch = changes_page(database, evidence_source, after=after, limit=limit)
     # Collector identity and cursor use the stable configured node name.
     # The local warehouse retains the CSMS UUID unchanged.
     batch["source_id"] = source_id
