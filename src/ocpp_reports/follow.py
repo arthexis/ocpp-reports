@@ -40,6 +40,14 @@ def sync_page(database: Path, page: dict[str, Any]) -> int:
             payload TEXT NOT NULL,
             PRIMARY KEY(source_id, charger_id, connector_id)
         )""")
+        # Upgrade pre-existing triggers so replicated snapshots include measurement age.
+        # Schema changes are committed before the atomic evidence transaction.
+        for trigger in ("replicate_connector_insert", "replicate_connector_update"):
+            definition = db.execute(
+                "SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?", (trigger,)
+            ).fetchone()
+            if definition and "power_observed_at" not in definition[0]:
+                db.execute('DROP TRIGGER "' + trigger + '"')
         db.executescript("""
         CREATE TRIGGER IF NOT EXISTS replicate_connector_insert
         AFTER INSERT ON connector_state BEGIN
