@@ -46,10 +46,10 @@ on loopback for watchtower/control roles.
 
 ## Separate HTTPS hosts (watchtower/control)
 
-The existing CSMS virtual host `porsche-abb.gelectriic.com` is untouched.
+The existing CSMS virtual host `customer-vendor.gelectriic.com` is untouched.
 Reports manages two different Nginx sites, using independent certificates:
 
-- `porsche.gelectriic.com`: Basic Auth dashboard, loopback port 8080.
+- `customer.gelectriic.com`: Basic Auth dashboard, loopback port 8080.
 - `collector.gelectriic.com`: only `POST /api/replication`, source bearer authentication, loopback port 8081.
 
 Provision both certificates (for example using Certbot on the server) before
