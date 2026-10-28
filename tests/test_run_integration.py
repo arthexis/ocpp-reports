@@ -118,15 +118,15 @@ def test_profile_timezone_default_and_explicit_override(tmp_path):
     default = runner.invoke(app, base)
     assert default.exit_code == 0, default.output
     assert json.loads(default.stdout)["period"]["timezone"] == "UTC"
-    # Audi requires CSV; its default zone is visible in a generated JSON summary
+    # vendor requires CSV; its default zone is visible in a generated JSON summary
     # only through an explicit override on the standard profile.
     overridden = runner.invoke(app, base + ["--timezone", "America/Monterrey"])
     assert overridden.exit_code == 0, overridden.output
     assert json.loads(overridden.stdout)["period"]["timezone"] == "America/Monterrey"
-    audi = runner.invoke(app, ["run", "--source", str(source), *BOUNDS,
-                               "--format", "csv", "--profile", "audi"])
-    assert audi.exit_code == 0, audi.output
+    vendor = runner.invoke(app, ["run", "--source", str(source), *BOUNDS,
+                               "--format", "csv", "--profile", "vendor"])
+    assert vendor.exit_code == 0, vendor.output
     explicit = runner.invoke(app, ["run", "--source", str(source), *BOUNDS,
-                                   "--format", "csv", "--profile", "audi",
+                                   "--format", "csv", "--profile", "vendor",
                                    "--timezone", "UTC"])
     assert explicit.exit_code == 0, explicit.output

@@ -27,8 +27,10 @@
       - reports_collector_hostname is match('^[A-Za-z0-9.-]+$')
       - reports_dashboard_hostname != reports_collector_hostname
       - reports_diagnostics_hostname not in [reports_dashboard_hostname, reports_collector_hostname]
-      - reports_dashboard_hostname != 'porsche-abb.gelectriic.com'
-      - reports_collector_hostname != 'porsche-abb.gelectriic.com'
+      - reports_csms_hostname | length > 0
+      - reports_dashboard_hostname != reports_csms_hostname
+      - reports_collector_hostname != reports_csms_hostname
+      - reports_diagnostics_hostname != reports_csms_hostname
       - reports_role in ['watchtower', 'control']
     fail_msg: "Dashboard and Collector need distinct hostnames; do not reuse the CSMS hostname."
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)

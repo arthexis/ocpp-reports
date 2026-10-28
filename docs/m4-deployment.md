@@ -21,7 +21,7 @@ Create `/etc/ocpp-reports/forwarder.env` with the following fields:
 
 ```ini
 REPORTS_SOURCE_ID=site-001
-REPORTS_COLLECTOR_URL=https://collector.gelectriic.com/api/replication
+REPORTS_COLLECTOR_URL=https://collector.example.com/api/replication
 ```
 
 Create `/etc/ocpp-reports/forwarder-token` containing the source-specific
@@ -46,11 +46,11 @@ on loopback for watchtower/control roles.
 
 ## Separate HTTPS hosts (watchtower/control)
 
-The existing CSMS virtual host `porsche-abb.gelectriic.com` is untouched.
+The existing CSMS virtual host `csms.example.com` is untouched.
 Reports manages two different Nginx sites, using independent certificates:
 
-- `porsche.gelectriic.com`: Basic Auth dashboard, loopback port 8080.
-- `collector.gelectriic.com`: only `POST /api/replication`, source bearer authentication, loopback port 8081.
+- `customer.example.com`: Basic Auth dashboard, loopback port 8080.
+- `collector.example.com`: only `POST /api/replication`, source bearer authentication, loopback port 8081.
 
 Provision both certificates (for example using Certbot on the server) before
 enabling HTTPS. Certificate issuance and renewal remain operator-managed.

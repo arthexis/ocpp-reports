@@ -141,7 +141,7 @@ def generate(
     json_output: bool = typer.Option(False, "-j", "--json"),
     format: str = typer.Option("json", "--format", help="json or csv"),
     source_id: str | None = typer.Option(None, "--source-id", help="CSMS source identity for Reports SQLite"),
-    profile: str | None = typer.Option(None, "--profile", help="CSV layout profile: audi"),
+    profile: str | None = typer.Option(None, "--profile", help="CSV layout profile: vendor"),
     locations: Path | None = typer.Option(None, "--locations", help="JSON map of charger ID to location"),
 ) -> None:
     """Generate a report from CSMS export JSON or Reports-owned SQLite."""
@@ -149,10 +149,10 @@ def generate(
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
     try:
         ZoneInfo(timezone)
-        if profile is not None and (profile != "audi" or format != "csv"):
-            raise ValueError("--profile audi requires --format csv")
-        if locations is not None and profile != "audi":
-            raise ValueError("--locations requires --profile audi")
+        if profile is not None and (profile != "vendor" or format != "csv"):
+            raise ValueError("--profile vendor requires --format csv")
+        if locations is not None and profile != "vendor":
+            raise ValueError("--locations requires --profile vendor")
         if format not in {"json", "csv"}:
             raise ValueError("format must be json or csv")
         start = datetime.fromisoformat(since.replace("Z", "+00:00"))
@@ -215,7 +215,7 @@ def run(
         cadence = {"previous-day": "daily", "previous-week": "weekly", "previous-month": "monthly"}.get(period)
         if cadence is None and period != "current-month":
             raise ValueError("Invalid --period")
-        timezone = timezone or ("America/Monterrey" if profile == "audi" else "UTC")
+        timezone = timezone or ("America/Monterrey" if profile == "vendor" else "UTC")
         ZoneInfo(timezone)
         parse = lambda value: datetime.fromisoformat(value.replace("Z", "+00:00"))
         start = parse(since) if since is not None else None
@@ -226,10 +226,10 @@ def run(
                           else previous_period(now, cadence=cadence, zone=timezone))
         if start.tzinfo is None or end.tzinfo is None or start >= end:
             raise ValueError("Expected ordered timezone-aware reporting bounds")
-        if profile is not None and (profile != "audi" or format != "csv"):
-            raise ValueError("--profile audi requires --format csv")
-        if locations is not None and profile != "audi":
-            raise ValueError("--locations requires --profile audi")
+        if profile is not None and (profile != "vendor" or format != "csv"):
+            raise ValueError("--profile vendor requires --format csv")
+        if locations is not None and profile != "vendor":
+            raise ValueError("--locations requires --profile vendor")
         if source is None:
             from .active_csms import discover_active_csms, active_csms_export
             from .follow import follow

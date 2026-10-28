@@ -98,15 +98,15 @@ def build_report_from_database(database: Path, since: datetime, until: datetime,
 
 def render(report: dict, fmt: str, *, profile: str | None = None, locations: dict | None = None) -> str:
     if profile is not None:
-        if fmt != "csv" or profile != "audi":
-            raise ValueError("Profile audi requires CSV format")
-        from .csv_profiles import render_audi
-        return render_audi(report, locations=locations)
+        if fmt != "csv" or profile != "vendor":
+            raise ValueError("Profile vendor requires CSV format")
+        from .csv_profiles import render_vendor
+        return render_vendor(report, locations=locations)
     if fmt == "json":
         return json.dumps(report, indent=2, sort_keys=True) + "\n"
-    if fmt == "audi-csv":
-        from ..profiles import render_audi_csv
-        return render_audi_csv(report)
+    if fmt == "vendor-csv":
+        from ..profiles import render_vendor_csv
+        return render_vendor_csv(report)
     if fmt == "csv":
         from .rendering import render_report
         return render_report(report, "csv")

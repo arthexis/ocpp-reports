@@ -20,12 +20,12 @@ def test_import_existing_and_retained_charger_archives_idempotently(tmp_path):
         folder.mkdir(parents=True)
         (folder / "upload.bin").write_bytes(payload)
     archive = tmp_path / "reports"
-    assert import_local(archive, data_dir, uploads, "porsche-abb") == 2
-    assert import_local(archive, data_dir, uploads, "porsche-abb") == 0
+    assert import_local(archive, data_dir, uploads, "customer-vendor") == 2
+    assert import_local(archive, data_dir, uploads, "customer-vendor") == 0
     for cp, payload in [("CP001", b"older CP diagnostic"), ("CP002", b"retained CP diagnostic")]:
-        items = inventory(archive, "porsche-abb", cp)
+        items = inventory(archive, "customer-vendor", cp)
         assert len(items) == 1
         digest = hashlib.sha256(payload).hexdigest()
         assert items[0]["sha256"] == digest
-        assert (archive / "porsche-abb" / cp / f"{digest}.bin").read_bytes() == payload
+        assert (archive / "customer-vendor" / cp / f"{digest}.bin").read_bytes() == payload
     assert (uploads / ("a" * 40) / "upload.bin").read_bytes() == b"older CP diagnostic"
