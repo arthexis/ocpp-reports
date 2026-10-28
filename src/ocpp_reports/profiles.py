@@ -12,10 +12,10 @@ def render_audi_csv(report: dict) -> str:
 
     for tx in report["transactions"]:
         writer.writerow([
-            blank(tx.get("location")), cell(tx.get("connector_id")),
+            blank(tx.get("location")), blank(tx.get("connector_id")),
             local_date(tx.get("started_at"), zone, iso=True), local_date(tx.get("stopped_at"), zone, iso=True),
-            cell(tx.get("meter_start_wh")), cell(tx.get("meter_stop_wh")),
-            cell(tx.get("energy_wh")), cell(tx.get("soc_start")),
-            cell(tx.get("soc_end")), cell(tx.get("stop_reason")),
+            blank(tx.get("meter_start_wh")), blank(tx.get("meter_stop_wh")),
+            blank(tx.get("energy_wh")), blank(tx.get("soc_start")),
+            blank(tx.get("soc_end")), blank(tx.get("stop_reason")),
         ])
     return output.getvalue()
