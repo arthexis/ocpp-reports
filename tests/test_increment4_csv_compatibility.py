@@ -1,9 +1,9 @@
-"""Golden compatibility contracts for both supported Audi CSV interfaces."""
+"""Golden compatibility contracts for both supported vendor CSV interfaces."""
 import csv
 import io
 
-from ocpp_reports.profiles import render_audi_csv
-from ocpp_reports.reports.csv_profiles import render_audi
+from ocpp_reports.profiles import render_vendor_csv
+from ocpp_reports.reports.csv_profiles import render_vendor
 
 
 def summary():
@@ -27,8 +27,8 @@ def summary():
     }
 
 
-def test_legacy_audi_csv_bytes():
-    actual = render_audi_csv(summary())
+def test_legacy_vendor_csv_bytes():
+    actual = render_vendor_csv(summary())
     expected = (
         "LOCACION,CONECTOR,FECHA INICIO,FECHA FINAL,WH INICIO,WH FINAL,"
         "WH USADOS,% INICIAL,% FINAL,RAZON FINAL\r\n"
@@ -38,8 +38,8 @@ def test_legacy_audi_csv_bytes():
     assert actual == expected
 
 
-def test_configurable_audi_profile_bytes():
-    actual = render_audi(summary(), locations={"cp": "Mapped Site"})
+def test_configurable_vendor_profile_bytes():
+    actual = render_vendor(summary(), locations={"cp": "Mapped Site"})
     expected = (
         "LOCACION,CONECTOR,FECHA INICIO,FECHA FINAL,WH INICIO,WH FINAL,"
         "WH USADOS,% INICIAL,% FINAL,RAZON FINAL\r\n"
@@ -52,5 +52,5 @@ def test_configurable_audi_profile_bytes():
 def test_shared_header_and_missing_cell_contract():
     report = summary()
     report["transactions"][0]["soc_start"] = None
-    rows = list(csv.reader(io.StringIO(render_audi_csv(report))))
+    rows = list(csv.reader(io.StringIO(render_vendor_csv(report))))
     assert rows[1][7] == ""
