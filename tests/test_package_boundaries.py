@@ -14,7 +14,7 @@ import pytest
     ("collector", "replication.collector", "accept_batch"),
     ("reporting", "reports.builder", "build_report_from_database"),
     ("rendering", "reports.rendering", "render_report"),
-    ("csv_profiles", "reports.csv_profiles", "render_audi"),
+    ("csv_profiles", "reports.csv_profiles", "render_vendor"),
 ])
 def test_legacy_interfaces_preserve_function_identity(legacy, canonical, public):
     old = importlib.import_module("ocpp_reports." + legacy)
