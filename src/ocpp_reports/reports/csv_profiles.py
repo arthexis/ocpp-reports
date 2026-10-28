@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 from zoneinfo import ZoneInfo
-from .audi_common import HEADERS, writer_buffer, local_date
+from .vendor_common import HEADERS, writer_buffer, local_date
 
 
 
-def render_audi(report: dict, *, locations: dict | None = None) -> str:
-    """Render the Audi ten-column layout; unknown measurements remain blank."""
+def render_vendor(report: dict, *, locations: dict | None = None) -> str:
+    """Render the vendor ten-column layout; unknown measurements remain blank."""
     from ..validation import validate_summary
     validate_summary(report)
     locations = locations or {}
