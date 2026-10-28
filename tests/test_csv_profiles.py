@@ -1,11 +1,11 @@
-"""Audi CSV compatibility profile tests."""
+"""vendor CSV compatibility profile tests."""
 import csv
 import io
 from ocpp_reports.csv_profiles import HEADERS
 from ocpp_reports.reporting import render
 
 
-def test_audi_headers_and_nullable_fields():
+def test_vendor_headers_and_nullable_fields():
     report = {
         "schema": "ocpp-reports/summary/v1",
         "source_id": "site", "revision": "test",
@@ -21,7 +21,7 @@ def test_audi_headers_and_nullable_fields():
                           "energy_wh": 0, "active": False, "state": "completed"}],
         "evidence": [],
     }
-    rows = list(csv.reader(io.StringIO(render(report, "csv", profile="audi",
+    rows = list(csv.reader(io.StringIO(render(report, "csv", profile="vendor",
                                            locations={"cp1": "Calzada"}))))
     assert rows[0] == list(HEADERS)
     assert len(rows[0]) == 10
