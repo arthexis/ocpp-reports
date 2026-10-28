@@ -58,8 +58,8 @@ The installer installs `nginx`, `certbot`, `python3-certbot-nginx`, `acl`, and `
 Before the first public exposure, ensure DNS points to the server and issue certificates for the two independent names:
 
 ```sh
-sudo certbot certonly --nginx -d collector.gelectriic.com
-sudo certbot certonly --nginx -d customer.gelectriic.com
+sudo certbot certonly --nginx -d collector.example.com
+sudo certbot certonly --nginx -d customer.example.com
 sudo certbot certificates
 ```
 
@@ -80,8 +80,8 @@ Deploy and verify on the watchtower:
 ```sh
 ./deploy.sh --watchtower
 sudo nginx -t
-curl -i https://collector.gelectriic.com/api/replication
-curl -I https://customer.gelectriic.com/
+curl -i https://collector.example.com/api/replication
+curl -I https://customer.example.com/
 ```
 
 For an unauthenticated GET, Collector should return **403** (Nginx allows only POST to `/api/replication`) and Dashboard should return **401** with the Basic Auth challenge. Both must pass TLS hostname validation without `curl -k`. These responses verify HTTPS routing and access control, *not* successful replication; on the satellite, verify `forward_cursors` advances and compare the Collector's acknowledged source cursor.
