@@ -25,7 +25,7 @@ def _timestamp(value: Any, name: str) -> None:
         raise ValueError(f"{name} must be an offset-aware timestamp")
 
 
-def validate_export(page: Any) -> dict[str, Any]:
+def validate_export(page: Any, *, require_page_consistency: bool = True) -> dict[str, Any]:
     """Validate producer-defined fields; tolerate unknown additive fields.
 
     Does not imply that a completed cursor represents a complete report period.
@@ -66,9 +66,9 @@ def validate_export(page: Any) -> dict[str, Any]:
             raise ValueError("Event kind and action are required")
     if data["events"] and previous != next_cursor:
         raise ValueError("cursor.next must match last event")
-    if not data["events"] and next_cursor != after:
+    if require_page_consistency and not data["events"] and next_cursor != after:
         raise ValueError("Empty page must not advance cursor")
-    if not data["events"] and cursor["more"]:
+    if require_page_consistency and not data["events"] and cursor["more"]:
         raise ValueError("Empty page cannot claim more events")
     for sample in data["energy"]:
         if not isinstance(sample, dict):
