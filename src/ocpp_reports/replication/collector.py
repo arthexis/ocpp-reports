@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+from ..warehouse.collector_schema import ensure_collector_schema
 
 
 class Change(BaseModel):
@@ -45,19 +46,7 @@ def accept_batch(database: Path, batch: Batch) -> int:
         raise ValueError("Invalid batch next cursor")
     database.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(database) as db:
-        db.execute("""CREATE TABLE IF NOT EXISTS collector_cursors (
-            source_id TEXT PRIMARY KEY, sequence INTEGER NOT NULL DEFAULT 0
-        )""")
-        db.execute("""CREATE TABLE IF NOT EXISTS collector_changes (
-            source_id TEXT NOT NULL, sequence INTEGER NOT NULL,
-            kind TEXT NOT NULL, record_key TEXT NOT NULL, payload TEXT NOT NULL,
-            PRIMARY KEY(source_id, sequence)
-        )""")
-        db.execute("""CREATE TABLE IF NOT EXISTS collector_latest (
-            source_id TEXT NOT NULL, kind TEXT NOT NULL, record_key TEXT NOT NULL,
-            sequence INTEGER NOT NULL, payload TEXT NOT NULL,
-            PRIMARY KEY(source_id, kind, record_key)
-        )""")
+        ensure_collector_schema(db)
         db.commit()
         db.execute("BEGIN IMMEDIATE")
         row = db.execute("SELECT sequence FROM collector_cursors WHERE source_id=?",
