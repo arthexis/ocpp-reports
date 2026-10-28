@@ -5,7 +5,8 @@ from hashlib import sha256
 from pathlib import Path
 import json
 from zoneinfo import ZoneInfo
-from ..export import read_page, Transaction
+from ..contracts.export import read_page, Transaction
+from ..validation import validate_summary
 
 def parse_time(value: str | None) -> datetime | None:
     if not value:
@@ -49,8 +50,7 @@ def build_report(source: Path, since: datetime, until: datetime, tz: str) -> dic
 def build_report_from_database(database: Path, since: datetime, until: datetime,
                                tz: str, *, source_id: str | None = None) -> dict:
     """Build a report from Reports-owned SQLite, never the producer database."""
-    from ..transaction_projection import current_transactions
-    from ..rendering import render_report
+    from ..warehouse.transactions import current_transactions
     ZoneInfo(tz)
     if (since.tzinfo is None or until.tzinfo is None
             or since.utcoffset() is None or until.utcoffset() is None
@@ -93,14 +93,14 @@ def build_report_from_database(database: Path, since: datetime, until: datetime,
         "transactions": selected, "evidence": evidence,
     }
     report["revision"] = sha256(json.dumps(report, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    render_report(report, "csv")  # Shared summary validation before returning.
+    validate_summary(report)
     return report
 
 def render(report: dict, fmt: str, *, profile: str | None = None, locations: dict | None = None) -> str:
     if profile is not None:
         if fmt != "csv" or profile != "audi":
             raise ValueError("Profile audi requires CSV format")
-        from ..csv_profiles import render_audi
+        from .csv_profiles import render_audi
         return render_audi(report, locations=locations)
     if fmt == "json":
         return json.dumps(report, indent=2, sort_keys=True) + "\n"
@@ -108,6 +108,6 @@ def render(report: dict, fmt: str, *, profile: str | None = None, locations: dic
         from ..profiles import render_audi_csv
         return render_audi_csv(report)
     if fmt == "csv":
-        from ..rendering import render_report
+        from .rendering import render_report
         return render_report(report, "csv")
     raise ValueError(f"Unsupported format: {fmt}")
