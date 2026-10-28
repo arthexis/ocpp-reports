@@ -19,6 +19,34 @@ def _tables(db: sqlite3.Connection) -> set[str]:
     return {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 
 
+def _signature(db: sqlite3.Connection) -> tuple:
+    """Schema definition and version must remain exactly unchanged."""
+    return (db.execute("PRAGMA user_version").fetchone()[0],
+            tuple(db.execute(
+                "SELECT type,name,tbl_name,sql FROM sqlite_master "
+                "WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name"
+            ).fetchall()))
+
+
+def _source_refs(db: sqlite3.Connection, old: str, new: str, allowed: set[str]) -> None:
+    """Fail closed when a new source_id column would otherwise be missed."""
+    for table in _tables(db):
+        if table.startswith("sqlite_"):
+            continue
+        columns = {row[1] for row in db.execute(
+            'PRAGMA table_info("' + table.replace('"', '""') + '")'
+        )}
+        if "source_id" not in columns:
+            continue
+        if table not in allowed:
+            count = db.execute(
+                'SELECT COUNT(*) FROM "' + table.replace('"', '""') + '" '
+                'WHERE source_id IN (?,?)', (old, new)
+            ).fetchone()[0]
+            if count:
+                raise ValueError(f"Unrecognized source references in {table}; review required")
+
+
 def migrate_copies(csms: Path, warehouse: Path, forwarder: Path, output: Path,
                    old: str, new: str, node: str) -> dict:
     """Create checked candidate DBs; operator controls cutover/rollback separately."""
@@ -31,12 +59,14 @@ def migrate_copies(csms: Path, warehouse: Path, forwarder: Path, output: Path,
         raise ValueError("Output directory must not exist (no overwrite)")
     output.mkdir(parents=True)
     candidates = {}
+    signatures = {}
     try:
         for name, source in sources.items():
             dest = output / (name + ".sqlite3")
             with sqlite3.connect(f"file:{source.resolve()}?mode=ro", uri=True) as original:
                 with sqlite3.connect(dest) as target:
                     original.backup(target)
+                    signatures[name] = _signature(original)
             candidates[name] = dest
         with sqlite3.connect(candidates["csms"]) as db:
             if "appliance_metadata" not in _tables(db):
@@ -54,6 +84,7 @@ def migrate_copies(csms: Path, warehouse: Path, forwarder: Path, output: Path,
             present = _tables(db)
             if "sources" not in present:
                 raise ValueError("Warehouse lacks sources table")
+            _source_refs(db, old, new, set(WAREHOUSE_TABLES))
             if db.execute("SELECT 1 FROM sources WHERE source_id=?", (new,)).fetchone():
                 raise ValueError("Destination identity already exists in warehouse")
             if not db.execute("SELECT 1 FROM sources WHERE source_id=?", (old,)).fetchone():
@@ -85,10 +116,12 @@ def migrate_copies(csms: Path, warehouse: Path, forwarder: Path, output: Path,
             # forward_cursors must remain keyed by node, not CSMS evidence UUID.
             if db.execute("SELECT 1 FROM forward_cursors WHERE source_id=?", (old,)).fetchone():
                 raise ValueError("Legacy source-keyed forwarding cursors require separate review")
-        for candidate in candidates.values():
+        for name, candidate in candidates.items():
             with sqlite3.connect(candidate) as db:
                 if db.execute("PRAGMA integrity_check").fetchone() != ("ok",):
                     raise ValueError(f"SQLite integrity check failed: {candidate}")
+                if _signature(db) != signatures[name]:
+                    raise ValueError(f"Schema or user_version changed in {name}")
         return {key: str(value) for key, value in candidates.items()}
     except Exception:
         # Never expose a partially converted directory as a successful candidate.
