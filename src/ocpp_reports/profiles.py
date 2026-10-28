@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 from zoneinfo import ZoneInfo
-from .reports.audi_common import HEADERS, writer_buffer, local_date, blank
+from .reports.vendor_common import HEADERS, writer_buffer, local_date, blank
 
 
 
-def render_audi_csv(report: dict) -> str:
+def render_vendor_csv(report: dict) -> str:
     output, writer = writer_buffer()
     zone = ZoneInfo(report["period"]["timezone"])
 
