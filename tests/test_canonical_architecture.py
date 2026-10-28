@@ -34,3 +34,18 @@ def test_collector_schema_creation_is_idempotent(tmp_path):
             "SELECT name FROM sqlite_master WHERE type='table'"
         )}
         assert {"collector_changes", "collector_latest", "collector_cursors"} <= tables
+
+def test_historical_file_compatibility_does_not_weaken_ingestion(tmp_path):
+    import json
+    import pytest
+    from ocpp_reports.contracts.export import read_page
+    from ocpp_reports.contracts.csms_export import validate_export
+    page = {"schema": "ocpp-csms/export/v1", "data": {
+        "source_id": "legacy", "cursor": {"after": 0, "next": 2, "more": False},
+        "events": [], "energy": [], "transactions": [], "status": {},
+    }}
+    path = tmp_path / "export.json"
+    path.write_text(json.dumps(page), encoding="utf-8")
+    assert read_page(path).data.source_id == "legacy"
+    with pytest.raises(ValueError, match="Empty page"):
+        validate_export(page)
