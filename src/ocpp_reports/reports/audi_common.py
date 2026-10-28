@@ -1,6 +1,6 @@
-"""Shared Audi CSV primitives; preserve both established output layouts.
+"""Shared vendor CSV primitives; preserve both established output layouts.
 
-The historical audi-csv renderer uses ISO-8601 dates and legacy field names.
+The historical vendor-csv renderer uses ISO-8601 dates and legacy field names.
 The configurable profile uses a space-separated local timestamp and battery
 field names. These are deliberately separate public output contracts.
 """
