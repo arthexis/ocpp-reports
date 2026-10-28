@@ -13,21 +13,22 @@
       {{ lookup('env', 'OCPP_REPORTS_NGINX_ENABLED')
          | default('false', true) | bool }}
     reports_diagnostics_nginx_enabled: "{{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_NGINX_ENABLED') | default('false', true) | bool }}"
-    reports_diagnostics_hostname: "{{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_HOSTNAME') | default('diagnose.gelectriic.com', true) }}"
+    reports_diagnostics_hostname: "{{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_HOSTNAME') | default('diagnostics.example.invalid', true) }}"
     reports_diagnostics_certificate: >-
-      {{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_TLS_CERT') | default('/etc/letsencrypt/live/diagnose.gelectriic.com/fullchain.pem', true) }}
+      {{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_TLS_CERT') | default('/etc/letsencrypt/live/diagnostics.example.invalid/fullchain.pem', true) }}
     reports_diagnostics_private_key: >-
-      {{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_TLS_KEY') | default('/etc/letsencrypt/live/diagnose.gelectriic.com/privkey.pem', true) }}
-    reports_dashboard_hostname: "{{ lookup('env', 'OCPP_REPORTS_DASHBOARD_HOSTNAME') | default('porsche.gelectriic.com', true) }}"
-    reports_collector_hostname: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_HOSTNAME') | default('collector.gelectriic.com', true) }}"
+      {{ lookup('env', 'OCPP_REPORTS_DIAGNOSTICS_TLS_KEY') | default('/etc/letsencrypt/live/diagnostics.example.invalid/privkey.pem', true) }}
+    reports_dashboard_hostname: "{{ lookup('env', 'OCPP_REPORTS_DASHBOARD_HOSTNAME') | default('dashboard.example.invalid', true) }}"
+    reports_collector_hostname: "{{ lookup('env', 'OCPP_REPORTS_COLLECTOR_HOSTNAME') | default('collector.example.invalid', true) }}"
     reports_dashboard_certificate: >-
-      {{ lookup('env', 'OCPP_REPORTS_DASHBOARD_TLS_CERT') | default('/etc/letsencrypt/live/porsche.gelectriic.com/fullchain.pem', true) }}
+      {{ lookup('env', 'OCPP_REPORTS_DASHBOARD_TLS_CERT') | default('/etc/letsencrypt/live/dashboard.example.invalid/fullchain.pem', true) }}
     reports_dashboard_private_key: >-
-      {{ lookup('env', 'OCPP_REPORTS_DASHBOARD_TLS_KEY') | default('/etc/letsencrypt/live/porsche.gelectriic.com/privkey.pem', true) }}
+      {{ lookup('env', 'OCPP_REPORTS_DASHBOARD_TLS_KEY') | default('/etc/letsencrypt/live/dashboard.example.invalid/privkey.pem', true) }}
     reports_collector_certificate: >-
-      {{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_CERT') | default('/etc/letsencrypt/live/collector.gelectriic.com/fullchain.pem', true) }}
+      {{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_CERT') | default('/etc/letsencrypt/live/collector.example.invalid/fullchain.pem', true) }}
     reports_collector_private_key: >-
-      {{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_KEY') | default('/etc/letsencrypt/live/collector.gelectriic.com/privkey.pem', true) }}
+      {{ lookup('env', 'OCPP_REPORTS_COLLECTOR_TLS_KEY') | default('/etc/letsencrypt/live/collector.example.invalid/privkey.pem', true) }}
+    reports_csms_hostname: "{{ lookup('env', 'OCPP_REPORTS_CSMS_HOSTNAME') | default('', true) }}"
     reports_nginx_htpasswd: "{{ lookup('env', 'OCPP_REPORTS_HTPASSWD') | default('/etc/ocpp-reports/dashboard.htpasswd', true) }}"
     reports_operator: "{{ lookup('env', 'OCPP_REPORTS_OPERATOR') | default(lookup('pipe', 'stat -c %U ' ~ playbook_dir ~ '/..'), true) }}"
     reports_commit: "{{ lookup('pipe', 'git -C ' ~ playbook_dir ~ '/.. rev-parse HEAD') | trim }}"
