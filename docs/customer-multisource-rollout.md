@@ -3,8 +3,8 @@
 This deployment joins the Watchtower's locally managed vendor charger and the
 customer-ev charger managed by gway-005 in one **read-only dashboard**. The two
 CSMS instances stay independent. Collector traffic uses
-`https://collector.gelectriic.com/api/replication`; dashboard traffic uses
-`https://customer.gelectriic.com`.
+`https://collector.example.com/api/replication`; dashboard traffic uses
+`https://customer.example.com`.
 
 ## Prepare
 
@@ -21,7 +21,7 @@ CSMS instances stay independent. Collector traffic uses
 4. On gway-005, edit `/etc/ocpp-reports/forwarder.toml` using
    `ocpp-reports forwarder config`; set
    `source_id = "gway-005"`, `endpoint =
-   "https://collector.gelectriic.com/api/replication"`, and the same token.
+   "https://collector.example.com/api/replication"`, and the same token.
    Keep protected TOML files mode 0600 or 0640 as required by Ansible.
 5. On the customer host ensure the collector TLS certificate, dashboard TLS
    certificate, dashboard HTTP Basic credentials and nginx vhosts exist.
