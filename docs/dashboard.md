@@ -10,4 +10,4 @@ Open http://127.0.0.1:8080/ locally. The dashboard reads **only** Reports-owned 
 
 Security: `serve` rejects non-loopback binds. It has no user accounts or authentication; do not expose it publicly. M4 will add nginx HTTPS, authentication, and Ansible services. The browser refreshes every 15 seconds; no WebSockets. M2 does not require forwarder or collector.
 
-**Field validation:** install on Porsche ABB dedicated host; verify warehouse is populated, dashboard shows live/stale connector state, active and stopped transactions, and survives stopped ingest with visibly old timestamps. This PR does not claim that field validation has occurred.
+**Field validation:** install on customer vendor dedicated host; verify warehouse is populated, dashboard shows live/stale connector state, active and stopped transactions, and survives stopped ingest with visibly old timestamps. This PR does not claim that field validation has occurred.
