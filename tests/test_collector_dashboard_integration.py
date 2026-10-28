@@ -1,4 +1,4 @@
-"""Two-source collector integration: local ABB plus a forwarded satellite."""
+"""Two-source collector integration: local vendor plus a forwarded satellite."""
 from fastapi.testclient import TestClient
 
 from ocpp_reports.collector import create_collector
@@ -8,10 +8,10 @@ from ocpp_reports.web import create_app
 
 def local_page():
     return {"schema": "ocpp-csms/export/v1", "data": {
-        "source_id": "porsche-abb", "exported_at": "2026-10-24T12:00:00Z",
+        "source_id": "customer-vendor", "exported_at": "2026-10-24T12:00:00Z",
         "cursor": {"after": 0, "next": 0, "more": False},
         "events": [], "energy": [], "transactions": [],
-        "status": {"chargers": [{"id": "abb", "connected": True,
+        "status": {"chargers": [{"id": "vendor", "connected": True,
             "connectors": [{"id": 1, "status": "Available", "transaction": None}]}]}
     }}
 
@@ -40,13 +40,13 @@ def test_local_and_forwarded_chargers_share_dashboard_without_identity_collision
     response = web.get("/api/snapshot")
     assert response.status_code == 200
     data = response.json()
-    assert {s["source_id"] for s in data["sources"]} == {"porsche-abb", "gway-005"}
+    assert {s["source_id"] for s in data["sources"]} == {"customer-vendor", "gway-005"}
     assert {(c["source_id"], c["charger_id"]) for c in data["connectors"]} == {
-        ("porsche-abb", "abb"), ("gway-005", "etron")}
+        ("customer-vendor", "vendor"), ("gway-005", "etron")}
     assert len([t for t in data["transactions"] if t["source_id"] == "gway-005"]) == 1
     assert len([e for e in data["events"] if e["source_id"] == "gway-005"]) == 1
     assert len(web.get("/api/snapshot?source_id=gway-005").json()["connectors"]) == 1
-    assert web.get("/api/snapshot?source_id=gway-005&charger_id=abb").json()["connectors"] == []
+    assert web.get("/api/snapshot?source_id=gway-005&charger_id=vendor").json()["connectors"] == []
     remote_connector = next(c for c in data["connectors"] if c["source_id"] == "gway-005")
     assert remote_connector["power_w"] is None
     assert remote_connector["energy_wh"] is None
