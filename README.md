@@ -15,9 +15,9 @@ The single executable is `ocpp-reports`; there is no singular `ocpp-report` alia
 
 These are one-shot operations. A direct export snapshot is not a live CSMS status query. No background scheduler or automatic ingest is started by the CLI.
 
-### Audi CSV compatibility profile
+### vendor CSV compatibility profile
 
-`ocpp-reports run --source reports.sqlite3 --source-id SOURCE --since 2026-01-01T00:00:00Z --until 2026-02-01T00:00:00Z --format csv --profile audi --locations locations.json --output audi.csv`
+`ocpp-reports run --source reports.sqlite3 --source-id SOURCE --since 2026-01-01T00:00:00Z --until 2026-02-01T00:00:00Z --format csv --profile vendor --locations locations.json --output vendor.csv`
 
 The optional `locations.json` is a JSON object mapping charge-point IDs to agency names, for example `{"CP-001":"Calzada","CP-002":"Vasconcelos"}`. The profile reproduces the ten historical columns `LOCACION,CONECTOR,FECHA INICIO,FECHA FINAL,WH INICIO,WH FINAL,WH USADOS,% INICIAL,% FINAL,RAZON FINAL`. The legacy `ARCHIVO FUENTE` column is deliberately omitted. Unavailable values are blank, including missing location, SoC and stop reason; zero energy is preserved as zero. Dates are formatted in the requested report timezone. The existing standard CSV remains unchanged. The CSMS export currently supplies start/stop meter readings but does not export stop reason or SoC in its transaction snapshots; see `arthexis/ocpp-csms#270`.
 
@@ -46,10 +46,10 @@ ocpp-reports run --source verified-summary.json --period previous-day --send
 
 ### Reporting timezone
 
-`run` uses `UTC` by default, or `America/Monterrey` when `--profile audi` is selected. Pass `--timezone IANA_ZONE` to override either default. The selected zone determines previous-day/week/month boundaries and how the Audi CSV timestamps are displayed. Explicit `--since` and `--until` retain their supplied offsets. Previously verified summaries retain their own recorded reporting period and timezone; changing the zone requires generating a new summary from source data.
+`run` uses `UTC` by default, or `America/Monterrey` when `--profile vendor` is selected. Pass `--timezone IANA_ZONE` to override either default. The selected zone determines previous-day/week/month boundaries and how the vendor CSV timestamps are displayed. Explicit `--since` and `--until` retain their supplied offsets. Previously verified summaries retain their own recorded reporting period and timezone; changing the zone requires generating a new summary from source data.
 
 
-## Watchtower HTTPS setup (Porsche)
+## Watchtower HTTPS setup (customer)
 
 Watchtower and control installations enable Dashboard, Collector and Diagnostics HTTPS by default. Satellite and terminal installations do not publish these services. To explicitly disable watchtower HTTPS, set `OCPP_REPORTS_NGINX_ENABLED=false` for deployment.
 
@@ -59,7 +59,7 @@ Before the first public exposure, ensure DNS points to the server and issue cert
 
 ```sh
 sudo certbot certonly --nginx -d collector.gelectriic.com
-sudo certbot certonly --nginx -d porsche.gelectriic.com
+sudo certbot certonly --nginx -d customer.gelectriic.com
 sudo certbot certificates
 ```
 
@@ -81,7 +81,7 @@ Deploy and verify on the watchtower:
 ./deploy.sh --watchtower
 sudo nginx -t
 curl -i https://collector.gelectriic.com/api/replication
-curl -I https://porsche.gelectriic.com/
+curl -I https://customer.gelectriic.com/
 ```
 
 For an unauthenticated GET, Collector should return **403** (Nginx allows only POST to `/api/replication`) and Dashboard should return **401** with the Basic Auth challenge. Both must pass TLS hostname validation without `curl -k`. These responses verify HTTPS routing and access control, *not* successful replication; on the satellite, verify `forward_cursors` advances and compare the Collector's acknowledged source cursor.
