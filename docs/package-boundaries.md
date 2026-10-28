@@ -1,6 +1,6 @@
 # Increment 3 package boundaries
 
-Internal implementation packages are now `contracts`, `warehouse`, `replication`, and `reports`. Previous flat import paths are compatibility modules and must remain until a separate public-interface deprecation audit.
+Internal implementation packages are now `contracts`, `warehouse`, `replication`, and `reports`. Previous flat import paths are compatibility modules and must remain until a separate public-interface deprecation vendort.
 
 | Boundary | Canonical modules | Legacy aliases |
 | --- | --- | --- |
@@ -11,7 +11,7 @@ Internal implementation packages are now `contracts`, `warehouse`, `replication`
 
 The CLI, systemd entrypoints, CSMS read-only export contract, SQLite warehouse and replication schemas, and four immutable installation roles are unchanged.
 
-This PR **does not** remove legacy interfaces or merge the two distinct Audi CSV formatting behaviors. Those remain intentional compatibility surfaces until Increment 4 audits their callers. It also does not change the migration behavior introduced in Increment 2.
+This PR **does not** remove legacy interfaces or merge the two distinct vendor CSV formatting behaviors. Those remain intentional compatibility surfaces until Increment 4 vendorts their callers. It also does not change the migration behavior introduced in Increment 2.
 
 CI acceptance requires Python 3.11/3.13, role matrix (terminal/satellite/watchtower/control) and existing fixture-based report equivalence tests. New package-identity checks ensure old imports delegate to canonical implementations.
 
@@ -23,4 +23,4 @@ CI acceptance requires Python 3.11/3.13, role matrix (terminal/satellite/watchto
 - `reports.builder.build_report_from_database` validates via `validation.validate_summary` rather than invoking the CSV renderer as a side effect.
 - `test_canonical_architecture.py` checks package boundaries and schema idempotency alongside prior legacy import-identity regression tests.
 
-The refactor does not yet remove the distinct legacy Audi CSV layouts, rename public commands or apply a production source-ID migration.
+The refactor does not yet remove the distinct legacy vendor CSV layouts, rename public commands or apply a production source-ID migration.
