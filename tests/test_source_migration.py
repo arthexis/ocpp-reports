@@ -52,3 +52,31 @@ def test_collision_refuses_and_removes_candidates(tmp_path):
     with pytest.raises(ValueError, match="already exists"):
         migrate_copies(csms, warehouse, forwarder, output, "uuid-old", "gway-005", "gway-005")
     assert not output.exists()
+
+
+def test_schema_versions_and_ddl_are_unchanged(tmp_path):
+    csms, warehouse, forwarder = init(tmp_path)
+    sources = {"csms": csms, "warehouse": warehouse, "forwarder": forwarder}
+    before = {}
+    for name, path in sources.items():
+        with sqlite3.connect(path) as db:
+            db.execute("PRAGMA user_version=8")
+            before[name] = (db.execute("PRAGMA user_version").fetchone()[0],
+                            db.execute("SELECT type,name,sql FROM sqlite_master ORDER BY type,name").fetchall())
+    files = migrate_copies(csms, warehouse, forwarder, tmp_path / "copies", "uuid-old", "gway-005", "gway-005")
+    for name, path in files.items():
+        with sqlite3.connect(path) as db:
+            after = (db.execute("PRAGMA user_version").fetchone()[0],
+                     db.execute("SELECT type,name,sql FROM sqlite_master ORDER BY type,name").fetchall())
+        assert after == before[name]
+
+
+def test_unknown_source_references_fail_closed(tmp_path):
+    csms, warehouse, forwarder = init(tmp_path)
+    with sqlite3.connect(warehouse) as db:
+        db.execute("CREATE TABLE new_projection (source_id TEXT, value INTEGER)")
+        db.execute("INSERT INTO new_projection VALUES ('uuid-old', 1)")
+    output = tmp_path / "copies"
+    with pytest.raises(ValueError, match="Unrecognized source references"):
+        migrate_copies(csms, warehouse, forwarder, output, "uuid-old", "gway-005", "gway-005")
+    assert not output.exists()
