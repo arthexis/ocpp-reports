@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from ..csms_export import validate_export
+from ..contracts.csms_export import validate_export
 
 
 def load_page(path: str | Path) -> dict[str, Any]:
