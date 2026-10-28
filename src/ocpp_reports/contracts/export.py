@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
+from .csms_export import validate_export
 
 class Cursor(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -41,6 +42,7 @@ class ExportPage(BaseModel):
 
 def read_page(path: Path) -> ExportPage:
     raw = json.loads(path.read_text(encoding="utf-8"))
+    validate_export(raw)
     page = ExportPage.model_validate(raw)
     if page.schema_id != "ocpp-csms/export/v1":
         raise ValueError(f"Unsupported CSMS export schema: {page.schema_id}")
