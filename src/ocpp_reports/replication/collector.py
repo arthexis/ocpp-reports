@@ -34,6 +34,10 @@ def _canonical(value: dict) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
 
+class SourceHeldError(ValueError):
+    """The operator has drained and held this source for maintenance."""
+
+
 def accept_batch(database: Path, batch: Batch) -> int:
     if batch.schema_ != "ocpp-reports/replication/v1":
         raise ValueError("Unsupported replication schema")
@@ -49,6 +53,9 @@ def accept_batch(database: Path, batch: Batch) -> int:
         ensure_collector_schema(db)
         db.commit()
         db.execute("BEGIN IMMEDIATE")
+        if db.execute("SELECT 1 FROM collector_source_holds WHERE source_id=?",
+                      (batch.source_id,)).fetchone():
+            raise SourceHeldError("Source forwarding held for maintenance")
         row = db.execute("SELECT sequence FROM collector_cursors WHERE source_id=?",
                          (batch.source_id,)).fetchone()
         cursor = row[0] if row else 0
@@ -97,6 +104,8 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
                                 headers={"WWW-Authenticate": "Bearer"})
         try:
             cursor = accept_batch(warehouse, batch)
+        except SourceHeldError as exc:
+            raise HTTPException(503, str(exc), headers={"Retry-After": "60"}) from exc
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
         return {"source_id": batch.source_id, "ack": cursor}

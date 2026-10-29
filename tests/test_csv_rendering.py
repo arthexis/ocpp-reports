@@ -83,5 +83,5 @@ def test_noninteger_transaction_identity_is_rejected(identity):
 
 
 def test_formula_prefixes_preserve_real_leading_controls():
-    for value in ('\t=1+1', '\r@evil', '\ufeff+SUM(1)', '\n-2'):
+    for value in ('\t=1+1', '\r@evil', '\ufeff+SUM(1)', '\n-2', '\r\n=1'):
         assert parsed([{'id': 1, 'charger_id': 'CP', 'rfid': value}])[0]['rfid'] == "'" + value
