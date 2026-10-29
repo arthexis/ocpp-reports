@@ -6,10 +6,12 @@ The private backup directory is the rollback boundary until forwarding starts.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sqlite3
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from .source_migration import migrate_copies
 from .source_activation_plan import inventory
@@ -91,6 +93,67 @@ def _stage(candidate: Path, destination: Path, ownership_source: Path) -> Path:
     return staged
 
 
+
+def _journal(directory: Path, status: str, targets: dict[str, Path],
+             *, touched: list[str] | None = None) -> None:
+    """Durable recovery marker. Never store credentials or evidence payloads."""
+    path = directory / "recovery.json"
+    temporary = directory / "recovery.json.tmp"
+    payload = {"status": status, "targets": {key: str(value) for key, value in targets.items()},
+               "replaced": list(touched or [])}
+    with temporary.open("w", encoding="utf-8") as stream:
+        json.dump(payload, stream, sort_keys=True)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, path)
+    descriptor = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def recover(backup_dir: Path) -> dict[str, Any]:
+    """Explicit crash recovery; refuse when services are running."""
+    require_stopped()
+    path = backup_dir / "recovery.json"
+    if not path.is_file() or path.is_symlink():
+        raise ValueError("No protected recovery journal")
+    marker = json.loads(path.read_text(encoding="utf-8"))
+    if marker["status"] == "completed":
+        raise ValueError("Completed conversion requires operator-led rollback")
+    if marker["status"] == "recovered":
+        return {"status": "recovered", "backup_dir": str(backup_dir)}
+    targets = {name: Path(p) for name, p in marker["targets"].items()}
+    if set(targets) - {"csms", "warehouse", "forwarder"}:
+        raise ValueError("Unexpected recovery target")
+    for name in ("csms", "warehouse"):
+        if name not in targets or not (backup_dir / f"{name}.sqlite3").is_file():
+            raise ValueError("Missing recovery evidence")
+    _journal(backup_dir, "recovering", targets, touched=marker.get("replaced", []))
+    for name, target in targets.items():
+        original = backup_dir / ("forwarder-empty.sqlite3" if name == "forwarder"
+                                 else f"{name}.sqlite3")
+        if name == "forwarder" and not (backup_dir / "forwarder-existed").exists():
+            target.unlink(missing_ok=True)
+            continue
+        if not original.is_file():
+            raise ValueError("Recovery state missing: " + name)
+        staged = target.with_name(target.name + ".source-activation-rollback")
+        if staged.exists():
+            raise ValueError("Unresolved recovery staging file")
+        backup_sqlite(original, staged)
+        info = target.stat() if target.exists() else original.stat()
+        os.chown(staged, info.st_uid, info.st_gid)
+        os.chmod(staged, info.st_mode & 0o777)
+        for suffix in ("-wal", "-shm"):
+            target.with_name(target.name + suffix).unlink(missing_ok=True)
+        os.replace(staged, target)
+    _journal(backup_dir, "recovered", targets)
+    return {"status": "recovered", "backup_dir": str(backup_dir)}
+
+
 def activate(csms: Path, warehouse: Path, forwarder: Path, backup_dir: Path,
              old: str, new: str, node: str, *, role: str = "satellite",
              collector_snapshot: Path | None = None) -> dict:
@@ -107,8 +170,10 @@ def activate(csms: Path, warehouse: Path, forwarder: Path, backup_dir: Path,
         raise ValueError("Backup directory already exists")
     if not csms.is_file() or not warehouse.is_file():
         raise ValueError("Missing CSMS or warehouse")
-    if role != "satellite":
-        raise ValueError("Apply for this topology requires a separately verified activation implementation")
+    if role not in ("satellite", "control"):
+        raise ValueError("This role has no locally activatable producer")
+    if role == "control" and forwarder.exists():
+        raise ValueError("Control producer activation cannot use a forwarder state")
     if any(path.is_symlink() for path in (csms, warehouse, forwarder)):
         raise ValueError("Database symlinks are not supported")
     with sqlite3.connect(csms.resolve().as_uri() + "?mode=ro", uri=True) as db:
@@ -117,6 +182,7 @@ def activate(csms: Path, warehouse: Path, forwarder: Path, backup_dir: Path,
     backup_dir.mkdir(parents=True, mode=0o700)
     os.chmod(backup_dir, 0o700)
     originals = {"csms": csms, "warehouse": warehouse}
+    targets = {**originals, **({"forwarder": forwarder} if role == "satellite" else {})}
     stages: dict[str, Path] = {}
     touched: list[str] = []
     try:
@@ -124,6 +190,8 @@ def activate(csms: Path, warehouse: Path, forwarder: Path, backup_dir: Path,
             backup_sqlite(path, backup_dir / f"{kind}.sqlite3")
         state = backup_dir / "forwarder-empty.sqlite3"
         if forwarder.exists():
+            (backup_dir / "forwarder-existed").touch(mode=0o600)
+        if role == "satellite" and forwarder.exists():
             backup_sqlite(forwarder, state)
             # Compare the actual durable acknowledgement against independently
             # captured collector history before allowing any state-preserving conversion.
@@ -143,24 +211,26 @@ def activate(csms: Path, warehouse: Path, forwarder: Path, backup_dir: Path,
         for kind, original in {**originals, "forwarder": state}.items():
             verify_candidate(original if kind == "forwarder" else backup_dir / f"{kind}.sqlite3",
                              candidates[kind], old, new, kind)
-        targets = {**originals, "forwarder": forwarder}
         for kind, target in targets.items():
             stages[kind] = _stage(candidates[kind], target, warehouse)
         # SQLite backup includes WAL content. Remove old sidecars only after all
         # backups and candidate checks pass, while services remain stopped.
         require_stopped()
+        _journal(backup_dir, "installing", targets)
         for kind, target in targets.items():
+            _journal(backup_dir, "installing", targets, touched=touched + [kind])
             touched.append(kind)
             for suffix in ("-wal", "-shm"):
                 target.with_name(target.name + suffix).unlink(missing_ok=True)
             os.replace(stages[kind], target)
+        _journal(backup_dir, "completed", targets, touched=touched)
         return {"backup_dir": str(backup_dir), "source_id": new,
                 "converted": tuple(touched)}
     except Exception:
         # Keep services stopped. Restore every replaced database from the
         # verified SQLite backups, including the first replacement on failure.
         for kind in reversed(touched):
-            target = {**originals, "forwarder": forwarder}[kind]
+            target = targets[kind]
             if kind == "forwarder":
                 if plan["mode"] == "existing-history":
                     recovery = target.with_name(target.name + ".source-activation-rollback")
@@ -178,6 +248,8 @@ def activate(csms: Path, warehouse: Path, forwarder: Path, backup_dir: Path,
                 os.chown(recovery, info.st_uid, info.st_gid)
                 os.chmod(recovery, info.st_mode & 0o777)
                 os.replace(recovery, target)
+        if (backup_dir / "recovery.json").exists():
+            _journal(backup_dir, "recovered", targets)
         raise
     finally:
         for staged in stages.values():
@@ -191,7 +263,11 @@ def main() -> None:
     parser.add_argument("--role", choices=("satellite", "control", "watchtower", "terminal"),
                         default="satellite")
     parser.add_argument("--collector-snapshot", type=Path)
+    parser.add_argument("--recover", action="store_true")
     args = parser.parse_args()
+    if args.recover:
+        print(recover(Path(args.backup_dir)))
+        return
     print(activate(Path(args.csms), Path(args.warehouse), Path(args.forwarder),
                    Path(args.backup_dir), args.old, args.new, args.node,
                    role=args.role, collector_snapshot=args.collector_snapshot))
