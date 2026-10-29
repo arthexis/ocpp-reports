@@ -61,3 +61,15 @@ def test_active_transaction_denies_apply(tmp_path):
     report = inventory("satellite", csms, warehouse, state, "uuid-old", "node-a", "node-a")
     assert report["active_transactions"] == 1
     assert report["apply_allowed"] is False
+
+
+def test_existing_binding_without_ack_still_requires_collector_evidence(tmp_path):
+    csms, warehouse, state = _inputs(tmp_path)
+    with sqlite3.connect(state) as db:
+        db.execute("CREATE TABLE source_bindings(node_id TEXT PRIMARY KEY,evidence_source TEXT)")
+        db.execute("CREATE TABLE forward_cursors(source_id TEXT PRIMARY KEY,sequence INTEGER)")
+        db.execute("INSERT INTO source_bindings VALUES('node-a','uuid-old')")
+    report = inventory("satellite", csms, warehouse, state, "uuid-old", "node-a", "node-a")
+    assert report["mode"] == "existing-history"
+    assert report["requires_collector_preflight"]
+    assert report["apply_allowed"] is False
