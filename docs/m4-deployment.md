@@ -108,6 +108,16 @@ Before enabling, identify the actual CSMS schema-8 evidence directory
 to read the CSMS SQLite files and traverse their parent directories.
 The producer runs under CSMS's own installed Python interpreter. The installer does not modify CSMS or its DB.
 
+SQLite WAL databases require readable WAL/shared-memory sidecars even for
+read-only exports. The optional `ocpp-reports-csms-reader.service` runs as the
+existing, unprivileged CSMS user and keeps an idle read-only connection open.
+It grants Reports read-only access to the temporary sidecars; the main database
+is mounted read-only in the helper, and no transaction is held between polls.
+CSMS writers and checkpoints continue normally. Reports ingestion stays under
+its separate `ocpp-reports` identity with the whole CSMS directory read-only.
+The helper signals readiness before export preflight and ingestion start;
+stopping ingestion also stops the helper. No CSMS restart is required.
+
 ```sh
 export OCPP_REPORTS_LOCAL_INGEST_ENABLED=true
 export OCPP_REPORTS_CSMS_DATA_DIR=/actual/path/to/csms/schemas/8

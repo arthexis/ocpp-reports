@@ -1,6 +1,7 @@
 [Unit]
 Description=OCPP Reports Local CSMS Ingestion
-After=network.target
+Requires=ocpp-reports-csms-reader.service
+After=network.target ocpp-reports-csms-reader.service
 ConditionPathIsDirectory={{ reports_local_csms_data_dir }}
 
 [Service]

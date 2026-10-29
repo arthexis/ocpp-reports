@@ -64,6 +64,40 @@
   become: true
   changed_when: false
 
+- name: Discover unprivileged CSMS read-access identity
+  ansible.builtin.command:
+    argv:
+      - "{{ reports_release }}/venv/bin/python"
+      - -m
+      - ocpp_reports.csms_wal_reader
+      - --describe
+      - --data-dir
+      - "{{ reports_local_csms_data_dir }}"
+  become: true
+  register: reports_local_reader_identity
+  changed_when: false
+
+- name: Capture CSMS read-access identity
+  ansible.builtin.set_fact:
+    reports_local_csms_reader: "{{ reports_local_reader_identity.stdout | from_json }}"
+
+- name: Install CSMS read-only WAL access unit
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates/ocpp-reports-csms-reader.service.j2"
+    dest: /etc/systemd/system/ocpp-reports-csms-reader.service
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  register: reports_local_reader_unit
+
+- name: Start CSMS read access and wait for readiness
+  ansible.builtin.systemd_service:
+    name: ocpp-reports-csms-reader.service
+    daemon_reload: true
+    state: "{{ 'restarted' if (reports_local_reader_unit.changed or reports_release_changed | bool) else 'started' }}"
+  become: true
+
 - name: Verify CSMS read-only export as Reports service account
   ansible.builtin.command:
     argv:
