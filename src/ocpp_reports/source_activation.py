@@ -133,6 +133,8 @@ def recover(backup_dir: Path) -> dict[str, Any]:
             raise ValueError("Missing recovery evidence")
     _journal(backup_dir, "recovering", targets, touched=marker.get("replaced", []))
     for name, target in targets.items():
+        if target.is_symlink():
+            raise ValueError("Recovery target must not be a symlink")
         original = backup_dir / ("forwarder-empty.sqlite3" if name == "forwarder"
                                  else f"{name}.sqlite3")
         if name == "forwarder" and not (backup_dir / "forwarder-existed").exists():
