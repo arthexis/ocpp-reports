@@ -84,3 +84,56 @@ def test_refuses_active_transaction_before_any_backup(tmp_path, monkeypatch):
         activation.activate(csms, warehouse, state, tmp_path / "backup",
                             "uuid-old", "gway-002", "gway-002")
     assert not (tmp_path / "backup").exists()
+
+
+def test_control_activation_does_not_create_forwarder(tmp_path, monkeypatch):
+    csms, warehouse, state = _inputs(tmp_path)
+    monkeypatch.setattr(activation, "require_stopped", lambda: None)
+    result = activation.activate(csms, warehouse, state, tmp_path / "control-backup",
+                                 "uuid-old", "node-a", "node-a", role="control")
+    assert result["converted"] == ("csms", "warehouse")
+    assert not state.exists()
+    with sqlite3.connect(csms) as db:
+        assert db.execute("SELECT value FROM appliance_metadata").fetchone() == ("node-a",)
+    assert (tmp_path / "control-backup" / "recovery.json").exists()
+
+
+def test_crash_recovery_restores_stopped_snapshot(tmp_path, monkeypatch):
+    csms, warehouse, state = _inputs(tmp_path)
+    monkeypatch.setattr(activation, "require_stopped", lambda: None)
+    backup = tmp_path / "recovery-backup"
+    activation.activate(csms, warehouse, state, backup, "uuid-old", "node-a", "node-a")
+    # Simulate an interrupted activation using its verified pre-replacement files.
+    activation._journal(backup, "installing", {"csms": csms, "warehouse": warehouse,
+                                            "forwarder": state}, touched=["csms"])
+    result = activation.recover(backup)
+    assert result["status"] == "recovered"
+    with sqlite3.connect(csms) as db:
+        assert db.execute("SELECT value FROM appliance_metadata").fetchone() == ("uuid-old",)
+    with sqlite3.connect(warehouse) as db:
+        assert db.execute("SELECT source_id FROM sources").fetchone() == ("uuid-old",)
+    assert not state.exists()
+    assert activation.recover(backup)["status"] == "recovered"
+
+
+def test_recovery_refuses_completed_cutover(tmp_path, monkeypatch):
+    csms, warehouse, state = _inputs(tmp_path)
+    monkeypatch.setattr(activation, "require_stopped", lambda: None)
+    backup = tmp_path / "complete"
+    activation.activate(csms, warehouse, state, backup, "uuid-old", "node-a", "node-a")
+    with pytest.raises(ValueError, match="Completed conversion"):
+        activation.recover(backup)
+
+
+def test_existing_forwarder_refuses_without_collector_snapshot(tmp_path, monkeypatch):
+    csms, warehouse, state = _inputs(tmp_path)
+    with sqlite3.connect(state) as db:
+        db.execute("CREATE TABLE source_bindings(node_id TEXT PRIMARY KEY,evidence_source TEXT)")
+        db.execute("CREATE TABLE forward_cursors(source_id TEXT PRIMARY KEY,sequence INTEGER)")
+        db.execute("INSERT INTO source_bindings VALUES('node-a','uuid-old')")
+        db.execute("INSERT INTO forward_cursors VALUES('node-a',1)")
+    monkeypatch.setattr(activation, "require_stopped", lambda: None)
+    with pytest.raises(ValueError, match="collector snapshot"):
+        activation.activate(csms, warehouse, state, tmp_path / "backup",
+                            "uuid-old", "node-a", "node-a")
+    assert not (tmp_path / "backup").exists()
