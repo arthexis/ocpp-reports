@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from ocpp_reports import collector_admin as admin
 from ocpp_reports.replication import collector
 from ocpp_reports.cli import app
+from ocpp_reports.follow import sync_page
 
 
 def batch(source="gway-005", sequence=1, after=0, payload=None):
@@ -176,3 +177,69 @@ def test_public_cli_requires_explicit_source_and_supports_repeated_resets(tmp_pa
         assert runner.invoke(app, ["collector", "release", *args]).exit_code == 0
         assert collector.accept_batch(path, batch()) == 1
     assert admin.maintain(path, "other-source", "status")["cursor"] == 12
+
+
+def local_page():
+    return {"schema": "ocpp-csms/export/v1", "data": {
+        "source_id": "local-abb", "exported_at": "2026-10-29T12:00:00Z",
+        "cursor": {"after": 0, "next": 1, "more": False},
+        "events": [{"id": 1, "at": "2026-10-29T12:00:00Z", "kind": "ocpp",
+                    "action": "Heartbeat", "charger_id": "fixture-local"}],
+        "energy": [], "transactions": [],
+        "status": {"chargers": [{"id": "fixture-local", "connected": True,
+            "connectors": [{"id": 1, "status": "Available", "transaction": None}]}]},
+    }}
+
+
+@pytest.mark.parametrize("journal_mode", ["delete", "wal"])
+def test_mixed_warehouse_reset_preserves_local_evidence_triggers_and_allocator(tmp_path, journal_mode):
+    path = seeded(tmp_path)
+    sync_page(path, local_page())
+    with sqlite3.connect(path) as db:
+        db.execute("PRAGMA journal_mode=" + journal_mode)
+        local_before = {table: db.execute(f"SELECT * FROM {table}").fetchall()
+                        for table in (*admin.LOCAL_COLUMNS, "sqlite_sequence")}
+        schema_before = admin._schema(db)
+    assert admin.maintain(path, "gway-005", "status")["cursor"] == 8
+    admin.maintain(path, "gway-005", "hold")
+    result = admin.maintain(path, "gway-005", "reset", tmp_path / "mixed-backup.sqlite")
+    assert result["backup_verified"] and result["other_sources_unchanged"]
+    assert not any(result["after"]["rows"].values())
+    with sqlite3.connect(path) as db:
+        assert admin._schema(db) == schema_before
+        for table, rows in local_before.items():
+            assert db.execute(f"SELECT * FROM {table}").fetchall() == rows
+    assert admin.maintain(path, "other-source", "status")["cursor"] == 12
+    admin.maintain(path, "gway-005", "release")
+    assert collector.accept_batch(path, batch()) == 1
+    # Existing local ingestion triggers still journal new evidence afterward.
+    page = local_page()
+    page["data"]["cursor"] = {"after": 1, "next": 2, "more": False}
+    page["data"]["events"][0]["id"] = 2
+    sync_page(path, page)
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT COUNT(*) FROM events WHERE source_id='local-abb'").fetchone()[0] == 2
+        assert db.execute("SELECT MAX(sequence) FROM replication_changes").fetchone()[0] > 2
+
+
+def test_mixed_warehouse_refuses_reset_of_locally_ingested_source(tmp_path):
+    path = seeded(tmp_path)
+    sync_page(path, local_page())
+    admin.maintain(path, "local-abb", "hold")
+    backup = tmp_path / "must-not-create.sqlite"
+    with pytest.raises(ValueError, match="locally ingested evidence"):
+        admin.maintain(path, "local-abb", "reset", backup)
+    assert not backup.exists()
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT COUNT(*) FROM events WHERE source_id='local-abb'").fetchone()[0] == 1
+
+
+def test_mixed_warehouse_still_rejects_collector_delete_triggers(tmp_path):
+    path = seeded(tmp_path)
+    sync_page(path, local_page())
+    admin.maintain(path, "gway-005", "hold")
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TRIGGER unsafe_delete AFTER DELETE ON collector_changes "
+                   "BEGIN DELETE FROM events; END")
+    with pytest.raises(ValueError, match="triggers require reset review"):
+        admin.maintain(path, "gway-005", "reset", tmp_path / "rejected.sqlite")
