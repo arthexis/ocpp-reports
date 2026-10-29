@@ -1,13 +1,16 @@
 """Source maintenance must preserve other tenants and serialize with batches."""
 from concurrent.futures import ThreadPoolExecutor
+import json
 import sqlite3
 import threading
 
 from fastapi.testclient import TestClient
 import pytest
+from typer.testing import CliRunner
 
 from ocpp_reports import collector_admin as admin
 from ocpp_reports.replication import collector
+from ocpp_reports.cli import app
 
 
 def batch(source="gway-005", sequence=1, after=0, payload=None):
@@ -139,3 +142,27 @@ def test_missing_database_is_not_created(tmp_path):
     with pytest.raises(sqlite3.OperationalError):
         admin.maintain(path, "gway-005", "hold")
     assert not path.exists()
+
+
+def test_public_cli_requires_explicit_source_and_supports_repeated_resets(tmp_path):
+    path = seeded(tmp_path)
+    runner = CliRunner()
+    base = ["collector", "reset", "--database", str(path)]
+    assert runner.invoke(app, base + ["--backup", str(tmp_path / "missing-source")]).exit_code == 2
+    assert runner.invoke(app, base + ["--source", "gway-005"]).exit_code == 2
+    for cycle in (1, 2):
+        args = ["--database", str(path), "--source", "gway-005"]
+        assert runner.invoke(app, ["collector", "hold", *args]).exit_code == 0
+        backup = tmp_path / f"cycle-{cycle}.sqlite"
+        result = runner.invoke(app, ["collector", "reset", *args, "--backup", str(backup)])
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output)["backup_verified"]
+        status = runner.invoke(app, ["collector", "status", *args])
+        assert status.exit_code == 0
+        state = json.loads(status.output)
+        assert state["held"] and not any(state["rows"].values())
+        repeat = runner.invoke(app, ["collector", "reset", *args, "--backup", str(backup)])
+        assert repeat.exit_code == 2  # Never overwrite an earlier rollback snapshot.
+        assert runner.invoke(app, ["collector", "release", *args]).exit_code == 0
+        assert collector.accept_batch(path, batch()) == 1
+    assert admin.maintain(path, "other-source", "status")["cursor"] == 12

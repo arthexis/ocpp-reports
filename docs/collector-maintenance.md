@@ -1,19 +1,28 @@
-# Watchtower source reset for issue #97
+# Repeatable collector source reset
 
 This command is a local operator interface, never a network administration API.
 It does not change credentials, TLS, diagnostic archives or CSMS history. Deploy
 the reviewed hold-aware collector release to **all collector workers** first;
 an older collector does not enforce the hold. Keep the prior release for rollback.
 
-Wait for `FORWARDING_HELD` and `GWAY005_READY` from Agent A. Check its consistent
-backups, retained historical coverage and maintenance authorization in #97.
-Do not infer these gates from a quiet collector. Then, on Watchtower, using the
-installed release's Python and source path:
+Use `ocpp-reports collector status|hold|reset|release` for a source-scoped reseed.
+Every command requires an explicit database and source. Reset additionally
+requires a new backup path and an existing hold; there is no global-reset option.
+Commands emit sanitized JSON counts/cursors for operator receipts.
+
+First coordinate the source: stop its forwarder, preserve verified CSMS,
+local Reports and forwarder backups, rebuild only regenerable evidence, reset
+the matching forwarder cursor/binding coherently, and verify retained historical
+coverage. Leave forwarding stopped. Obtain any required charging maintenance
+authorization. Do not infer these gates from a quiet collector.
+
+For issue #97 specifically, wait for `FORWARDING_HELD` and `GWAY005_READY` from
+Agent A. Then, on Watchtower:
 
 ```sh
-python -m ocpp_reports.collector_admin hold --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005
-python -m ocpp_reports.collector_admin status --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005
-python -m ocpp_reports.collector_admin reset --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005 --backup /private/issue97/collector-before-reset.sqlite
+sudo ocpp-reports collector hold --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005
+sudo ocpp-reports collector status --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005
+sudo ocpp-reports collector reset --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005 --backup /private/issue97/collector-before-reset.sqlite
 ```
 
 The hold shares SQLite's writer lock with batch acceptance. Successful acquisition
@@ -35,12 +44,17 @@ post `WATCHTOWER_READY` with sanitized counts, release and backup path. **Leave
 the hold in place.** Only after a coordinator posts `RELEASE_FORWARDING`:
 
 ```sh
-python -m ocpp_reports.collector_admin release --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005
+sudo ocpp-reports collector release --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005
 ```
 
 Agent A starts its forwarder using the existing credential. Verify its first
 batch and durable ACK, later progress, idempotent retry, historical coverage and
 natural OCPP events independently at both ends before closing #97.
+
+For a later reseed, repeat the coordination and hold/reset/release sequence
+with the intended source ID and a **new backup filename each time**. Do not
+automatically release or reset on a replication error. A previous reset receipt
+does not satisfy a later operation's backup, readiness or authorization gates.
 
 Before release, rollback may restore the verified collector backup while the
 collector is stopped, preserving owner/mode and the hold-aware release. Never

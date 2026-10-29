@@ -1,4 +1,4 @@
-"""Local-only, source-scoped collector maintenance (issue #97).
+"""Local-only, repeatable, source-scoped collector maintenance.
 
 Hold acquisition shares the batch writer lock: on return, earlier batches have
 committed and later batches cannot write. All collector workers must run the
