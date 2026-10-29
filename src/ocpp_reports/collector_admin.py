@@ -20,6 +20,26 @@ from .warehouse.collector_schema import ensure_collector_schema
 
 DATA_TABLES = ("collector_changes", "collector_latest", "collector_cursors")
 HOLD_TABLE = "collector_source_holds"
+LOCAL_COLUMNS = {
+    "sources": ["source_id", "cursor", "last_ingested_at"],
+    "events": ["source_id", "event_id", "payload"],
+    "energy_samples": ["source_id", "event_id", "sample_index", "payload"],
+    "current_transactions": ["source_id", "charger_id", "transaction_id", "page_after",
+                             "page_next", "fingerprint", "payload", "imported_at"],
+    "transaction_observations": ["source_id", "charger_id", "transaction_id", "page_after",
+                                 "page_next", "fingerprint", "payload", "imported_at"],
+    "replication_changes": ["sequence", "source_id", "kind", "record_key", "payload"],
+    "connector_state": ["source_id", "charger_id", "connector_id", "status", "connected",
+                        "transaction_id", "power_w", "energy_wh", "observed_at",
+                        "synced_at", "payload"],
+}
+LOCAL_TRIGGERS = {
+    "replicate_event_insert": "events",
+    "replicate_transaction_insert": "current_transactions",
+    "replicate_transaction_update": "current_transactions",
+    "replicate_connector_insert": "connector_state",
+    "replicate_connector_update": "connector_state",
+}
 
 
 def _connect(database: Path, *, readonly: bool = False) -> sqlite3.Connection:
@@ -40,33 +60,46 @@ def _schema(db: sqlite3.Connection) -> tuple:
 def _check_schema(db: sqlite3.Connection, *, legacy_status: bool = False) -> None:
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
               if not r[0].startswith("sqlite_")}
-    if tables != {*DATA_TABLES, HOLD_TABLE} and not (legacy_status and tables == set(DATA_TABLES)):
+    required = set(DATA_TABLES) | (set() if legacy_status else {HOLD_TABLE})
+    allowed = {*DATA_TABLES, HOLD_TABLE, *LOCAL_COLUMNS}
+    if not required.issubset(tables) or tables - allowed:
         raise ValueError("Unrecognized collector tables; reset requires schema review")
-    if db.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' LIMIT 1").fetchone():
-        raise ValueError("Collector triggers require reset review")
+    local_tables = tables.intersection(LOCAL_COLUMNS)
+    if local_tables and not (set(LOCAL_COLUMNS) - {"connector_state"}).issubset(local_tables):
+        raise ValueError("Incomplete local ingestion schema; reset requires schema review")
+    for name, table in db.execute("SELECT name,tbl_name FROM sqlite_master WHERE type='trigger'"):
+        # Local ingestion triggers cannot fire on collector-only deletions.
+        # Collector triggers and unknown local triggers still fail closed.
+        if LOCAL_TRIGGERS.get(name) != table:
+            raise ValueError("Collector triggers require reset review")
     expected = {
         "collector_changes": ["source_id", "sequence", "kind", "record_key", "payload"],
         "collector_latest": ["source_id", "kind", "record_key", "sequence", "payload"],
         "collector_cursors": ["source_id", "sequence"],
         HOLD_TABLE: ["source_id", "held_at"],
+        **{table: LOCAL_COLUMNS[table] for table in local_tables},
     }
     for table, columns in expected.items():
         if legacy_status and table == HOLD_TABLE and table not in tables:
             continue
         if [r[1] for r in db.execute(f'PRAGMA table_info("{table}")')] != columns:
             raise ValueError("Unrecognized collector columns; reset requires schema review")
+        if db.execute(f'PRAGMA foreign_key_list("{table}")').fetchone():
+            raise ValueError("Foreign keys require reset review")
 
 
 def _digest(db: sqlite3.Connection, source: str | None = None) -> str:
     """Stable logical digest, independent of SQLite file layout and row order."""
     result = hashlib.sha256()
-    for table in (*DATA_TABLES, HOLD_TABLE):
+    tables = sorted(r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                    if not r[0].startswith("sqlite_") or r[0] == "sqlite_sequence")
+    for table in tables:
         result.update(table.encode())
         count = len(db.execute(f'PRAGMA table_info("{table}")').fetchall())
         order = ",".join(str(i) for i in range(1, count + 1))
         query = f'SELECT * FROM "{table}"'
         params = ()
-        if source is not None:
+        if source is not None and table != "sqlite_sequence":
             query += " WHERE source_id<>?"
             params = (source,)
         for row in db.execute(query + " ORDER BY " + order, params):
@@ -109,6 +142,11 @@ def maintain(database: Path, source: str, action: str, backup: Path | None = Non
         else:
             if not _status(db, source)["held"]:
                 raise ValueError("Source must be held before reset")
+            for table in LOCAL_COLUMNS:
+                if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                              (table,)).fetchone() and db.execute(
+                        f"SELECT 1 FROM {table} WHERE source_id=? LIMIT 1", (source,)).fetchone():
+                    raise ValueError("Source has locally ingested evidence; coordinated local reseed required")
             if backup is None:
                 raise ValueError("A new private backup path is required")
             if db.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:

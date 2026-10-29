@@ -31,7 +31,11 @@ return authenticated HTTP 503 with Retry-After. Other sources and diagnostics
 continue normally. Holds survive process restarts. Status is read-only.
 
 Reset requires a held source and an existing recognized collector database. It
-rejects unknown tables, columns and triggers for schema review. While holding
+supports the known combined local-ingestion/collector schema and preserves all
+local evidence, its replication journal and SQLite sequence allocator. A source
+that also has locally ingested evidence requires a separate coordinated local
+reseed; collector-only reset refuses it. Unknown tables, columns, triggers and
+foreign keys still require schema review. While holding
 the writer lock, it creates an exclusive mode-0600 SQLite backup, verifies full
 integrity, schema/version and logical content, then removes only the specified
 source's changes, latest projections and cursor (the durable ACK receipt). It
