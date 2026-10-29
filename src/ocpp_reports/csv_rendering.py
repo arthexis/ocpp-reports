@@ -23,16 +23,22 @@ def _safe(value: Any) -> str:
     return text
 
 
+def _record(cells) -> str:
+    output = io.StringIO(newline="")
+    # Include both CR and LF in CSV's quoting rules, then normalize only the
+    # record terminator. Embedded carriage returns and CRLF remain intact.
+    csv.writer(output, lineterminator="\r\n").writerow(cells)
+    return output.getvalue()[:-2] + "\n"
+
+
 def render_csv(report: dict[str, Any]) -> str:
     """One row per transaction; absent measurements remain empty, never zero."""
     validate_summary(report)
     normalized = list(report["transactions"])
     normalized.sort(key=lambda row: (row["charger_id"], row["id"]))
-    output = io.StringIO(newline="")
-    writer = csv.writer(output, lineterminator="\n")
-    writer.writerow(COLUMNS)
+    records = [_record(COLUMNS)]
     for row in normalized:
         complete = row.get("energy_wh") is not None and row.get("state") in {"completed", "stopped"} and row.get("active") is not True
         cells = [row.get(column) if column != "completeness" else ("complete" if complete else "provisional") for column in COLUMNS]
-        writer.writerow([_safe(cell) for cell in cells])
-    return output.getvalue()
+        records.append(_record([_safe(cell) for cell in cells]))
+    return "".join(records)
