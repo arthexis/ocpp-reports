@@ -12,6 +12,8 @@ import subprocess
 from pathlib import Path
 
 from .source_migration import migrate_copies
+from .source_activation_plan import inventory
+from .source_preflight import check_snapshots
 
 
 SERVICES = (
@@ -90,14 +92,23 @@ def _stage(candidate: Path, destination: Path, ownership_source: Path) -> Path:
 
 
 def activate(csms: Path, warehouse: Path, forwarder: Path, backup_dir: Path,
-             old: str, new: str, node: str) -> dict:
+             old: str, new: str, node: str, *, role: str = "satellite",
+             collector_snapshot: Path | None = None) -> dict:
+    # Read-only capability check runs before any mutations or backup creation.
+    plan = inventory(role, csms, warehouse, forwarder, old, new, node)
+    if plan["active_transactions"]:
+        raise ValueError("Active CSMS transactions block source activation")
+    if plan["requires_collector_preflight"] and collector_snapshot is None:
+        raise ValueError("Existing forwarding state requires coordinated collector snapshot")
     require_stopped()
     if not old or not new or old == new or new != node:
         raise ValueError("Distinct old/new identities and matching new node required")
     if backup_dir.exists():
         raise ValueError("Backup directory already exists")
-    if not csms.is_file() or not warehouse.is_file() or forwarder.exists():
-        raise ValueError("Expected CSMS and warehouse files and no prior forwarder state")
+    if not csms.is_file() or not warehouse.is_file():
+        raise ValueError("Missing CSMS or warehouse")
+    if role != "satellite":
+        raise ValueError("Apply for this topology requires a separately verified activation implementation")
     if any(path.is_symlink() for path in (csms, warehouse, forwarder)):
         raise ValueError("Database symlinks are not supported")
     with sqlite3.connect(csms.resolve().as_uri() + "?mode=ro", uri=True) as db:
@@ -112,10 +123,18 @@ def activate(csms: Path, warehouse: Path, forwarder: Path, backup_dir: Path,
         for kind, path in originals.items():
             backup_sqlite(path, backup_dir / f"{kind}.sqlite3")
         state = backup_dir / "forwarder-empty.sqlite3"
-        with sqlite3.connect(state) as db:
-            db.executescript("CREATE TABLE forward_cursors(source_id TEXT PRIMARY KEY, sequence INTEGER NOT NULL);"
-                             "CREATE TABLE source_bindings(node_id TEXT PRIMARY KEY, evidence_source TEXT NOT NULL);")
-            db.execute("INSERT INTO source_bindings VALUES (?,?)", (node, old))
+        if forwarder.exists():
+            backup_sqlite(forwarder, state)
+            # Compare the actual durable acknowledgement against independently
+            # captured collector history before allowing any state-preserving conversion.
+            check_snapshots(backup_dir / "csms.sqlite3",
+                            backup_dir / "warehouse.sqlite3", state,
+                            collector_snapshot, old, new, node)
+        else:
+            with sqlite3.connect(state) as db:
+                db.executescript("CREATE TABLE forward_cursors(source_id TEXT PRIMARY KEY, sequence INTEGER NOT NULL);"
+                                 "CREATE TABLE source_bindings(node_id TEXT PRIMARY KEY, evidence_source TEXT NOT NULL);")
+                db.execute("INSERT INTO source_bindings VALUES (?,?)", (node, old))
         os.chmod(state, 0o600)
         converted = migrate_copies(backup_dir / "csms.sqlite3",
                                    backup_dir / "warehouse.sqlite3", state,
@@ -143,7 +162,15 @@ def activate(csms: Path, warehouse: Path, forwarder: Path, backup_dir: Path,
         for kind in reversed(touched):
             target = {**originals, "forwarder": forwarder}[kind]
             if kind == "forwarder":
-                target.unlink(missing_ok=True)
+                if plan["mode"] == "existing-history":
+                    recovery = target.with_name(target.name + ".source-activation-rollback")
+                    backup_sqlite(backup_dir / "forwarder-empty.sqlite3", recovery)
+                    info = target.stat()
+                    os.chown(recovery, info.st_uid, info.st_gid)
+                    os.chmod(recovery, info.st_mode & 0o777)
+                    os.replace(recovery, target)
+                else:
+                    target.unlink(missing_ok=True)
             else:
                 recovery = target.with_name(target.name + ".source-activation-rollback")
                 backup_sqlite(backup_dir / f"{kind}.sqlite3", recovery)
@@ -161,9 +188,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("csms", "warehouse", "forwarder", "backup-dir", "old", "new", "node"):
         parser.add_argument("--" + name, required=True)
+    parser.add_argument("--role", choices=("satellite", "control", "watchtower", "terminal"),
+                        default="satellite")
+    parser.add_argument("--collector-snapshot", type=Path)
     args = parser.parse_args()
     print(activate(Path(args.csms), Path(args.warehouse), Path(args.forwarder),
-                   Path(args.backup_dir), args.old, args.new, args.node))
+                   Path(args.backup_dir), args.old, args.new, args.node,
+                   role=args.role, collector_snapshot=args.collector_snapshot))
 
 
 if __name__ == "__main__":
