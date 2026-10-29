@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 
@@ -111,5 +112,23 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             events.sort(key=lambda r: (r["source_id"], r.get("id") or 0), reverse=True)
             transactions = transactions[:limit]
             events = events[:limit]
+    # Estimates are never finalized consumption and must carry actual meter age.
+    now = datetime.now(timezone.utc)
+    for transaction in transactions:
+        transaction["live_energy_stale"] = True
+        value = transaction.get("live_energy_wh")
+        at = transaction.get("live_energy_observed_at")
+        if transaction.get("energy_wh") is not None or value is None or not isinstance(at, str):
+            continue
+        if not transaction.get("active") or transaction.get("state") not in ("open", "active", "charging"):
+            continue
+        try:
+            measured = datetime.fromisoformat(at.replace("Z", "+00:00"))
+            if measured.tzinfo is None:
+                continue
+            age = now - measured.astimezone(timezone.utc)
+            transaction["live_energy_stale"] = not (timedelta(0) <= age <= timedelta(minutes=5))
+        except ValueError:
+            pass
     return {"sources": sources, "connectors": connectors,
             "transactions": transactions, "events": events}
