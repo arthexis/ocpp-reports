@@ -144,6 +144,16 @@ def test_missing_database_is_not_created(tmp_path):
     assert not path.exists()
 
 
+def test_status_inspects_legacy_collector_without_schema_writes(tmp_path):
+    path = seeded(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute("DROP TABLE collector_source_holds")
+    before = path.read_bytes()
+    state = admin.maintain(path, "gway-005", "status")
+    assert state["cursor"] == 8 and not state["held"]
+    assert path.read_bytes() == before
+
+
 def test_public_cli_requires_explicit_source_and_supports_repeated_resets(tmp_path):
     path = seeded(tmp_path)
     runner = CliRunner()

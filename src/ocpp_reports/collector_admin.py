@@ -37,10 +37,10 @@ def _schema(db: sqlite3.Connection) -> tuple:
                        "WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name").fetchall())
 
 
-def _check_schema(db: sqlite3.Connection) -> None:
+def _check_schema(db: sqlite3.Connection, *, legacy_status: bool = False) -> None:
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
               if not r[0].startswith("sqlite_")}
-    if tables != {*DATA_TABLES, HOLD_TABLE}:
+    if tables != {*DATA_TABLES, HOLD_TABLE} and not (legacy_status and tables == set(DATA_TABLES)):
         raise ValueError("Unrecognized collector tables; reset requires schema review")
     if db.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' LIMIT 1").fetchone():
         raise ValueError("Collector triggers require reset review")
@@ -51,6 +51,8 @@ def _check_schema(db: sqlite3.Connection) -> None:
         HOLD_TABLE: ["source_id", "held_at"],
     }
     for table, columns in expected.items():
+        if legacy_status and table == HOLD_TABLE and table not in tables:
+            continue
         if [r[1] for r in db.execute(f'PRAGMA table_info("{table}")')] != columns:
             raise ValueError("Unrecognized collector columns; reset requires schema review")
 
@@ -74,8 +76,10 @@ def _digest(db: sqlite3.Connection, source: str | None = None) -> str:
 
 
 def _status(db: sqlite3.Connection, source: str) -> dict:
+    holds_exist = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                            (HOLD_TABLE,)).fetchone()
     return {"source_id": source,
-            "held": bool(db.execute(f"SELECT 1 FROM {HOLD_TABLE} WHERE source_id=?",
+            "held": bool(holds_exist and db.execute(f"SELECT 1 FROM {HOLD_TABLE} WHERE source_id=?",
                                     (source,)).fetchone()),
             "rows": {table: db.execute(f"SELECT COUNT(*) FROM {table} WHERE source_id=?",
                                        (source,)).fetchone()[0] for table in DATA_TABLES},
@@ -89,7 +93,7 @@ def maintain(database: Path, source: str, action: str, backup: Path | None = Non
     if action == "status":
         with closing(_connect(database, readonly=True)) as db:
             db.execute("BEGIN")
-            _check_schema(db)
+            _check_schema(db, legacy_status=True)
             return _status(db, source)
     with closing(_connect(database)) as db, db:
         if action == "hold":
