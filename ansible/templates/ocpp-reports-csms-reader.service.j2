@@ -1,0 +1,21 @@
+[Unit]
+Description=OCPP Reports CSMS read-only WAL access
+Requires=ocpp-csms.service
+After=ocpp-csms.service
+Before=ocpp-reports-ingest.service
+PartOf=ocpp-reports-ingest.service
+
+[Service]
+Type=notify
+User={{ reports_local_csms_reader.user }}
+ExecStart={{ reports_release }}/venv/bin/python -m ocpp_reports.csms_wal_reader --data-dir {{ reports_local_csms_data_dir }}
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=30
+NoNewPrivileges=true
+CapabilityBoundingSet=
+ProtectSystem=strict
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths={{ reports_local_csms_data_dir }}
+ReadOnlyPaths={{ reports_local_csms_reader.database }}
