@@ -72,10 +72,12 @@ def inventory(role: str, csms: Path | None, warehouse: Path | None,
             if binding != (old,):
                 raise ValueError("Existing binding does not match original source")
             ack = ack_row[0] if ack_row else None
+            # Any persisted state warrants collector verification; a missing ACK
+            # is not proof the central collector has never received batches.
+            mode = "existing-history"
             if ack is not None:
                 if not isinstance(ack, int) or not 0 <= ack <= tip:
                     raise ValueError("Invalid persisted forwarding cursor")
-                mode = "existing-history"
     elif cap["forwarder"] and forwarder is None:
         raise ValueError("Satellite requires explicit forwarder state path")
     return {
