@@ -9,6 +9,41 @@ The `source_migration` utility creates **candidate copies only**. It never updat
 5. **Explicit operator authorization required for a real cutover.** Production replacement is not performed by the utility. Coordinate transactional replacement, rollback snapshots, matching configuration, and collector/CSMS acceptance with the local agent; all services stay stopped until verified.
 6. Restart under operator supervision, verify no replay gaps or duplicate transactions, then verify collector and Reports report generation. Roll back all affected files/configuration together on mismatch. Never silently migrate or delete historical CSMS schemas on an ordinary deploy.
 
+## Offline collector synchronization preflight (#79)
+
+Stop producers, drain pending replication, then stop consumers and capture
+coordinated SQLite backup snapshots of all four databases, including the central
+collector independently. Preserve the original snapshots as rollback evidence.
+Run this read-only command before the copy conversion:
+
+```sh
+python -m ocpp_reports.source_preflight \
+  --csms CSMS_SNAPSHOT --warehouse REPORTS_SNAPSHOT \
+  --forwarder FORWARDER_SNAPSHOT --collector COLLECTOR_SNAPSHOT \
+  --old OLD_UUID --new gway-005 --node gway-005
+```
+
+The command requires the existing source binding, durable node-keyed ACK and
+collector receipt. It rejects legacy collector UUID references, mismatched
+cursors, pending replication, and missing or conflicting retained change records.
+Collector `gway-005` history must exactly match the local UUID's history; it must
+never be merged with unrelated history merely because cursor numbers match.
+JSON payload formatting differences are allowed because the collector canonicalizes
+payloads. Missing or pruned history requires separate review, not an assumed pass.
+The JSON report records the source cursor, replication tip, ACK, collector cursor
+and retained count, and explicitly reports `cutover_authorized: false`. Failure
+returns a nonzero exit status without modifying inputs or creating databases.
+
+This verifies snapshot replication agreement only. Independently verify the CSMS
+export cursor is caught up, effective node configuration, credentials, warehouse
+projections and collector latest state. Separate read transactions cannot prove
+cross-host synchronization of live databases. A passing report does not establish
+a maintenance window or authorize replacement. Keep all services stopped across
+the final coordinated snapshots, conversion and verification; record a common
+rollback boundary for all databases and configuration. Once forwarding resumes,
+the collector can acquire new receipts: reverting only local files is no longer
+a coordinated rollback. Reconcile those receipts before any rollback or retry.
+
 ## Other integrity invariants
 
 - `sync_page` commits events, transaction observations, cursor and connector status through one ingestion transaction. A projection failure must roll back the page.
