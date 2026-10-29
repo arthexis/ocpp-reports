@@ -5,7 +5,7 @@ This is an explicit operator maintenance action, not part of normal deploy or re
 | Role | Local CSMS | Forwarder | Identity plan | Activation |
 |---|---|---|---|---|
 | satellite | Required | Optional (fresh or preserved) | Yes | Supervised, guarded |
-| control | Required | Not assumed | Yes | Not enabled until role-specific safe activation is implemented |
+| control | Required | No | Yes | Explicit stopped-writer activation; no forwarder state created |
 | watchtower | No local producer | No | Reject | Reject |
 | terminal | No local producer | No | Reject | Reject |
 
@@ -24,4 +24,4 @@ For established forwarding, acquire **coordinated drained offline SQLite snapsho
 
 Before apply: obtain explicit operator maintenance approval, verify no active charging, stop the relevant CSMS/Reports writers, take WAL-consistent backups and ensure staged paths are clear. The activation tool never starts services or releases forwarding. Keep its backup directory private and preserve the original files. Inspect `/etc/ocpp-csms/node.toml` and installed producer identity independently: this tool does not edit that config. Verify schema versions, row counts, configuration and producer export after supervised restart. The forwarding service must remain held until collector readiness and a coordinator release.
 
-**Recovery:** If activation fails synchronously, the command attempts restoring backed-up files and leaves services stopped. A process kill or machine crash during multiple file replacements is not yet automatically recoverable. Inspect every installed identity against private backups before any service start; do not run an automatic retry or restore only one DB after central forwarding has resumed. Keep issue #105 open for a durable crash journal and role-specific control activation if these remain required.
+**Recovery:** If activation fails synchronously, the command attempts restoring backed-up files and leaves services stopped. A durable `recovery.json` records the installation phase, target paths, and previously verified backups before file replacements. If a process kill or machine crash occurs mid-activation, keep services stopped and use `python -m ocpp_reports.source_activation --recover` with the original mandatory path/identity arguments and `--backup-dir` to explicitly restore local backups. A completed conversion refuses implicit recovery: rollback after forwarding resumes is a separate coordinated collector operation. Inspect source identity and `node.toml` before restarting services. Never restart forwarding automatically.
