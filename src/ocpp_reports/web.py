@@ -74,20 +74,33 @@ def _filter_dashboard(data: dict, *, term: str, status: str,
             state = row.get("status") if key == "connectors" else row.get("state") if key == "transactions" else row.get("action")
             if status and status not in str(state or "").casefold():
                 continue
-            date = (row.get("status_observed_at") or row.get("observed_at")) if key == "connectors" else (
-                row.get("started_at") if key == "transactions" else row.get("at"))
             if date_from or date_to:
-                if not isinstance(date, str):
-                    continue
-                try:
-                    parsed = datetime.fromisoformat(date.replace("Z", "+00:00"))
-                except ValueError:
-                    continue
-                if parsed.tzinfo is None:
-                    continue
-                day = parsed.astimezone(ZoneInfo(zone)).date().isoformat()
-                if (date_from and day < date_from) or (date_to and day > date_to):
-                    continue
+                def local_day(value: object) -> str | None:
+                    if not isinstance(value, str):
+                        return None
+                    try:
+                        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                    except ValueError:
+                        return None
+                    if parsed.tzinfo is None:
+                        return None
+                    return parsed.astimezone(ZoneInfo(zone)).date().isoformat()
+
+                if key == "transactions":
+                    start_day = local_day(row.get("started_at"))
+                    stop_day = local_day(row.get("stopped_at"))
+                    # Include a transaction that intersects the selected date range,
+                    # not only one that happens to start inside it.
+                    first, last = start_day or stop_day, stop_day or start_day
+                    if not first or not last:
+                        continue
+                    if (date_from and last < date_from) or (date_to and first > date_to):
+                        continue
+                else:
+                    observed = (row.get("status_observed_at") or row.get("observed_at")) if key == "connectors" else row.get("at")
+                    day = local_day(observed)
+                    if not day or (date_from and day < date_from) or (date_to and day > date_to):
+                        continue
             matched.append(row)
         result[key] = matched
     if term:
