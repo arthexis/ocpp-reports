@@ -21,12 +21,12 @@ app.add_typer(locations_app, name="locations")
 
 @locations_app.command("list")
 def locations_list(
-    database: Path = typer.Option(..., "--database", help="Existing collector warehouse"),
+    database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
     source: str | None = typer.Option(None, "--source"),
 ) -> None:
-    from .charger_locations import manage
+    from .charger_locations import collector_database, manage
     try:
-        typer.echo(json.dumps(manage(database, "list", source=source), ensure_ascii=False))
+        typer.echo(json.dumps(manage(collector_database(database), "list", source=source), ensure_ascii=False))
     except (OSError, ValueError, __import__("sqlite3").Error) as exc:
         typer.echo(f"Location lookup refused: {type(exc).__name__}", err=True)
         raise typer.Exit(2)
@@ -34,14 +34,14 @@ def locations_list(
 
 @locations_app.command("set")
 def locations_set(
-    database: Path = typer.Option(..., "--database"),
+    database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
     source: str = typer.Option(..., "--source"),
     charger: str = typer.Option(..., "--charger"),
     location: str = typer.Option(..., "--location"),
 ) -> None:
-    from .charger_locations import manage
+    from .charger_locations import collector_database, manage
     try:
-        typer.echo(json.dumps(manage(database, "set", source=source, charger=charger,
+        typer.echo(json.dumps(manage(collector_database(database), "set", source=source, charger=charger,
                                      location=location), ensure_ascii=False))
     except (OSError, ValueError, __import__("sqlite3").Error) as exc:
         typer.echo(f"Location assignment refused: {type(exc).__name__}", err=True)
@@ -50,13 +50,13 @@ def locations_set(
 
 @locations_app.command("remove")
 def locations_remove(
-    database: Path = typer.Option(..., "--database"),
+    database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
     source: str = typer.Option(..., "--source"),
     charger: str = typer.Option(..., "--charger"),
 ) -> None:
-    from .charger_locations import manage
+    from .charger_locations import collector_database, manage
     try:
-        typer.echo(json.dumps(manage(database, "remove", source=source,
+        typer.echo(json.dumps(manage(collector_database(database), "remove", source=source,
                                      charger=charger), ensure_ascii=False))
     except (OSError, ValueError, __import__("sqlite3").Error) as exc:
         typer.echo(f"Location removal refused: {type(exc).__name__}", err=True)
