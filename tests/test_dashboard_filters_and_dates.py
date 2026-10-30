@@ -109,14 +109,23 @@ def test_dashboard_text_status_location_and_date_filters(monkeypatch, tmp_path):
 
 def test_group_repeated_events_by_source_charger_action():
     events = [
-        {"source_id": "a", "charger_id": "cp", "action": "Heartbeat", "id": 3},
-        {"source_id": "a", "charger_id": "cp", "action": "Heartbeat", "id": 2},
-        {"source_id": "a", "charger_id": "cp", "action": "StatusNotification", "id": 1},
-        {"source_id": "b", "charger_id": "cp", "action": "Heartbeat", "id": 9},
+        {"source_id": "a", "charger_id": "cp", "kind": "ocpp", "action": "Heartbeat", "id": 8},
+        {"source_id": "a", "charger_id": "cp", "kind": "ocpp", "action": "Heartbeat", "id": 7},
+        {"source_id": "a", "charger_id": "cp", "kind": "status", "action": "StatusNotification",
+         "status": "Available", "error_code": None, "connector_id": 1, "id": 6},
+        {"source_id": "a", "charger_id": "cp", "kind": "status", "action": "StatusNotification",
+         "status": "Available", "error_code": None, "connector_id": 1, "id": 5},
+        {"source_id": "a", "charger_id": "cp", "kind": "status", "action": "StatusNotification",
+         "status": "Faulted", "error_code": "InternalError", "connector_id": 1, "id": 4},
+        {"source_id": "a", "charger_id": "cp", "kind": "status", "action": "StatusNotification",
+         "status": "Faulted", "error_code": "InternalError", "connector_id": 1, "id": 3},
+        {"source_id": "a", "charger_id": "cp", "kind": "transaction_started",
+         "action": "StartTransaction", "id": 2},
+        {"source_id": "b", "charger_id": "cp", "kind": "ocpp", "action": "Heartbeat", "id": 1},
     ]
     grouped = web._group_events(events)
-    assert [len(g["items"]) for g in grouped] == [2, 1, 1]
-    assert grouped[0]["items"][0]["id"] == 3
+    assert [len(g["items"]) for g in grouped] == [2, 2, 1, 1, 1, 1]
+    assert grouped[0]["items"][0]["id"] == 8
     assert sum(len(g["items"]) for g in grouped) == len(events)
 
 
