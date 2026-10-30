@@ -74,7 +74,9 @@ def test_d3_filters_sources_and_orders_by_activity(tmp_path):
     assert page.status_code == 200
     assert 'value="satellite-a"' in page.text
     assert 'value="cp-1"' in page.text
-    assert "Limpiar filtros" in page.text
+    assert 'id="dashboard-filters"' in page.text
+    assert "Limpiar" in page.text
+    assert 'type="submit"' not in page.text
     assert "cp-2" not in page.text
 
 def test_d4_accessibility_and_empty_state(tmp_path):
