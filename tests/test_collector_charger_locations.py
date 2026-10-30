@@ -5,7 +5,7 @@ import sqlite3
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from ocpp_reports.charger_locations import manage
+from ocpp_reports.charger_locations import collector_database, manage
 from ocpp_reports.cli import app
 from ocpp_reports.replication.collector import accept_batch, Batch
 from ocpp_reports.warehouse.queries import snapshot
@@ -123,3 +123,57 @@ def test_location_applies_to_transactions_and_events(tmp_path):
     html = TestClient(create_app(db)).get("/").text
     assert "<th>Ubicación</th>" in html
     assert html.count("Site West") >= 3
+
+
+def test_cli_infers_collector_database_from_installed_setting(tmp_path, monkeypatch):
+    database = tmp_path / "warehouse.sqlite"
+    accept_batch(database, batch("node-a", "charger-1"))
+    monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(database))
+    runner = CliRunner()
+    result = runner.invoke(app, ["locations", "list"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == []
+    result = runner.invoke(app, ["locations", "set", "--source", "node-a",
+                                 "--charger", "charger-1", "--location", "Site A"])
+    assert result.exit_code == 0, result.output
+    result = runner.invoke(app, ["locations", "list"])
+    assert json.loads(result.output)[0]["location"] == "Site A"
+    result = runner.invoke(app, ["locations", "remove", "--source", "node-a",
+                                 "--charger", "charger-1"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(runner.invoke(app, ["locations", "list"]).output) == []
+    assert collector_database() == database.resolve()
+
+
+def test_missing_or_unrelated_inferred_database_fails_closed(tmp_path, monkeypatch):
+    missing = tmp_path / "missing.sqlite"
+    monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(missing))
+    result = CliRunner().invoke(app, ["locations", "list"])
+    assert result.exit_code == 2
+    assert not missing.exists()
+    unrelated = tmp_path / "unrelated.sqlite"
+    with sqlite3.connect(unrelated) as db:
+        db.execute("CREATE TABLE other (id INTEGER)")
+    monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(unrelated))
+    result = CliRunner().invoke(app, ["locations", "set", "--source", "node-a",
+                                     "--charger", "cp", "--location", "Site A"])
+    assert result.exit_code == 2
+    with sqlite3.connect(unrelated) as db:
+        assert db.execute(
+            "SELECT name FROM sqlite_master WHERE name='collector_charger_locations'"
+        ).fetchone() is None
+
+
+def test_explicit_override_wins_over_inferred_path(tmp_path, monkeypatch):
+    first = tmp_path / "first.sqlite"
+    second = tmp_path / "second.sqlite"
+    accept_batch(first, batch("node-a", "charger-1"))
+    accept_batch(second, batch("node-b", "charger-2"))
+    monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(first))
+    args = ["--database", str(second)]
+    result = CliRunner().invoke(app, ["locations", "set", *args,
+                                      "--source", "node-b", "--charger", "charger-2",
+                                      "--location", "Second"])
+    assert result.exit_code == 0, result.output
+    assert manage(first, "list") == []
+    assert manage(second, "list")[0]["location"] == "Second"
