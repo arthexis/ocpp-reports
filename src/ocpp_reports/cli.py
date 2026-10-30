@@ -429,6 +429,7 @@ def serve(
     port: int = typer.Option(8080, "--port", min=1, max=65535),
     source_ids: list[str] | None = typer.Option(None, "--source-id", help="Allowed source; repeat for each source. Omit for all sources"),
     title: str = typer.Option("OCPP Reports", "--title", help="Dashboard title"),
+    timezone: list[str] | None = typer.Option(None, "--timezone", help="Allowed IANA timezone; repeat to offer choices"),
 ) -> None:
     """Serve the read-only dashboard; external exposure requires a secure proxy."""
     if host not in {"127.0.0.1", "::1", "localhost"}:
@@ -437,7 +438,7 @@ def serve(
     import uvicorn
     from .web import create_app
     uvicorn.run(create_app(database, allowed_source_ids=tuple(source_ids) if source_ids is not None else None,
-                           title=title), host=host, port=port)
+                           title=title, timezones=tuple(timezone or ("UTC",))), host=host, port=port)
 
 
 @app.command("forward")
