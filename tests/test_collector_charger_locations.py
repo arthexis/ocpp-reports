@@ -255,3 +255,73 @@ def test_inference_from_local_connector_and_persisted_label_after_reset(tmp_path
                                        "--charger", "remote-cp"])
     assert removed.exit_code == 0, removed.output
     assert manage(remote, "list") == []
+
+
+def test_name_is_required_and_old_location_option_not_accepted(tmp_path):
+    db = tmp_path / "collector.sqlite3"
+    accept_batch(db, batch("node-a", "charger-1"))
+    runner = CliRunner()
+    base = ["locations", "set", "--database", str(db),
+            "--source", "node-a", "--charger", "charger-1"]
+    old = runner.invoke(app, [*base, "--location", "Legacy"])
+    assert old.exit_code != 0
+    assert manage(db, "list") == []
+    new = runner.invoke(app, [*base, "--name", "New Label"])
+    assert new.exit_code == 0, new.output
+    assert manage(db, "list")[0]["location"] == "New Label"
+
+
+def test_sqlite_write_failures_show_actionable_guidance(monkeypatch, tmp_path):
+    from ocpp_reports import charger_locations
+    db = tmp_path / "collector.sqlite3"
+    accept_batch(db, batch("node-a", "charger-1"))
+    actual_manage = charger_locations.manage
+
+    def denied(database, action, **kwargs):
+        if action in ("set", "remove"):
+            raise sqlite3.OperationalError("attempt to write a readonly database")
+        return actual_manage(database, action, **kwargs)
+
+    monkeypatch.setattr(charger_locations, "manage", denied)
+    runner = CliRunner()
+    result = runner.invoke(app, ["locations", "set", "--database", str(db),
+                                 "--source", "node-a", "--name", "Site"])
+    assert result.exit_code == 2
+    assert "not writable by this user" in result.output
+    assert "ocpp-reports service account" in result.output
+    assert actual_manage(db, "list") == []
+    result = runner.invoke(app, ["locations", "remove", "--database", str(db),
+                                 "--source", "node-a"])
+    assert result.exit_code == 2
+    assert "not writable by this user" in result.output
+
+
+def test_locked_sqlite_has_distinct_message(monkeypatch, tmp_path):
+    from ocpp_reports import charger_locations
+    db = tmp_path / "collector.sqlite3"
+    accept_batch(db, batch("node-a", "charger-1"))
+
+    def busy(*args, **kwargs):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(charger_locations, "manage", busy)
+    result = CliRunner().invoke(app, ["locations", "set",
+                                      "--database", str(db), "--charger", "charger-1",
+                                      "--name", "Site"])
+    assert result.exit_code == 2
+    assert "busy/locked" in result.output
+
+
+def test_other_sqlite_error_reports_actual_cause(monkeypatch, tmp_path):
+    from ocpp_reports import charger_locations
+    db = tmp_path / "collector.sqlite3"
+    accept_batch(db, batch("node-a", "charger-1"))
+
+    def broken(*args, **kwargs):
+        raise sqlite3.OperationalError("no such column: charger_id")
+
+    monkeypatch.setattr(charger_locations, "manage", broken)
+    result = CliRunner().invoke(app, ["locations", "set", "--database", str(db),
+                                      "--charger", "charger-1", "--name", "Site"])
+    assert result.exit_code == 2
+    assert "no such column: charger_id" in result.output
