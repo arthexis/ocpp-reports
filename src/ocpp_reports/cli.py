@@ -19,6 +19,25 @@ locations_app = typer.Typer(help="Collector-owned charger location labels.", no_
 app.add_typer(locations_app, name="locations")
 
 
+def _location_output(rows: list[dict]) -> str:
+    """Readable fixed-width columns, including sources without known chargers."""
+    if not rows:
+        return "No matching sources or chargers."
+    columns = (
+        ("Source", [r["source_id"] for r in rows]),
+        ("Charger", [r["charger_id"] or "(not observed)" for r in rows]),
+        ("Name", [r["location"] or "(unassigned)" for r in rows]),
+    )
+    widths = [max(len(header), *(len(str(value)) for value in values))
+              for header, values in columns]
+    header = "  ".join(header.ljust(width) for (header, _), width in zip(columns, widths))
+    lines = [header, "  ".join("-" * width for width in widths)]
+    for index in range(len(rows)):
+        lines.append("  ".join(str(values[index]).ljust(width)
+                               for (_, values), width in zip(columns, widths)))
+    return "\\n".join(lines)
+
+
 def _location_sqlite_error(operation: str, exc: Exception) -> None:
     """Explain common collector SQLite access failures without relaxing permissions."""
     import sqlite3
@@ -43,11 +62,22 @@ def _location_sqlite_error(operation: str, exc: Exception) -> None:
 def locations_list(
     database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
     source: str | None = typer.Option(None, "--source"),
+    set_only: bool = typer.Option(False, "--set", help="Show assigned names only"),
+    unset_only: bool = typer.Option(False, "--unset", help="Show unassigned sources and chargers only"),
+    json_output: bool = typer.Option(False, "--json", help="Machine-readable output"),
 ) -> None:
-    from .charger_locations import collector_database, manage
+    from .charger_locations import collector_database, list_inventory
+    if set_only and unset_only:
+        typer.echo("Choose either --set or --unset", err=True)
+        raise typer.Exit(2)
     try:
-        typer.echo(json.dumps(manage(collector_database(database), "list", source=source), ensure_ascii=False))
-    except (OSError, ValueError, __import__("sqlite3").Error) as exc:
+        rows = list_inventory(collector_database(database), source=source,
+                              assigned=True if set_only else False if unset_only else None)
+        typer.echo(json.dumps(rows, ensure_ascii=False) if json_output else _location_output(rows))
+    except ValueError as exc:
+        typer.echo(f"Location lookup refused: {exc}", err=True)
+        raise typer.Exit(2)
+    except (OSError, __import__("sqlite3").Error) as exc:
         _location_sqlite_error("lookup", exc)
 
 
@@ -57,11 +87,14 @@ def locations_set(
     source: str | None = typer.Option(None, "--source", help="Infer if charger is unambiguous"),
     charger: str | None = typer.Option(None, "--charger", help="Infer if source has one charger"),
     name: str = typer.Option(..., "--name", help="Human-readable location name"),
+    json_output: bool = typer.Option(False, "--json", help="Machine-readable output"),
 ) -> None:
     from .charger_locations import collector_database, manage
     try:
-        typer.echo(json.dumps(manage(collector_database(database), "set", source=source, charger=charger,
-                                     location=name), ensure_ascii=False))
+        result = manage(collector_database(database), "set", source=source,
+                        charger=charger, location=name)
+        typer.echo(json.dumps(result, ensure_ascii=False) if json_output else
+                   f"Named {result['source_id']} / {result['charger_id']}: {result['location']}")
     except ValueError as exc:
         typer.echo(f"Location assignment refused: {exc}", err=True)
         raise typer.Exit(2)
@@ -74,11 +107,14 @@ def locations_remove(
     database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
     source: str | None = typer.Option(None, "--source", help="Infer if charger is unambiguous"),
     charger: str | None = typer.Option(None, "--charger", help="Infer if source has one charger"),
+    json_output: bool = typer.Option(False, "--json", help="Machine-readable output"),
 ) -> None:
     from .charger_locations import collector_database, manage
     try:
-        typer.echo(json.dumps(manage(collector_database(database), "remove", source=source,
-                                     charger=charger), ensure_ascii=False))
+        result = manage(collector_database(database), "remove", source=source, charger=charger)
+        typer.echo(json.dumps(result, ensure_ascii=False) if json_output else
+                   f"Cleared name for {result['source_id']} / {result['charger_id']} "
+                   "(dashboard falls back to source ID).")
     except ValueError as exc:
         typer.echo(f"Location removal refused: {exc}", err=True)
         raise typer.Exit(2)
