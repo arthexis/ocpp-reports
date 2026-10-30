@@ -18,16 +18,25 @@ not part of CSMS exports, source credentials, replication batches or immutable
 evidence. Each assignment is keyed by `(source_id, charger_id)`; multiple
 chargers may share a label and the same charger ID in another source is distinct.
 
-Run these commands on the collector host with local database write permissions.
-The database must already exist (the CLI never creates a new warehouse):
+Run these commands on the collector host with local SQLite permissions.
+By default the CLI infers the deployed collector warehouse
+`/var/lib/ocpp-reports/warehouse.sqlite` (the same path used by the managed
+collector and dashboard systemd units). `OCPP_REPORTS_DATABASE` overrides this
+default if set, and `--database PATH` takes precedence. The CLI refuses a
+missing or unrelated inferred database rather than creating or guessing another
+warehouse:
 
 ```sh
-ocpp-reports locations list --database /var/lib/ocpp-reports/reports.sqlite3
-ocpp-reports locations set --database /var/lib/ocpp-reports/reports.sqlite3 \
-  --source gway-002 --charger CHARGER_ID --location 'Audi San Pedro'
-ocpp-reports locations remove --database /var/lib/ocpp-reports/reports.sqlite3 \
-  --source gway-002 --charger CHARGER_ID
+ocpp-reports locations list
+ocpp-reports locations set --source gway-002 --charger CHARGER_ID \
+  --location 'Audi San Pedro'
+ocpp-reports locations remove --source gway-002 --charger CHARGER_ID
 ```
+
+For nonstandard installations, add `--database /path/to/warehouse.sqlite`.
+Write operations require collector warehouse permissions, which may mean
+running as the configured `ocpp-reports` service account. The database must
+already exist; the CLI never creates another warehouse.
 
 The dashboard/API adds `location` to charger-specific connectors,
 transactions and events and shows **Ubicación** in place of **Origen**.
