@@ -35,8 +35,8 @@ def locations_list(
 @locations_app.command("set")
 def locations_set(
     database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
-    source: str = typer.Option(..., "--source"),
-    charger: str = typer.Option(..., "--charger"),
+    source: str | None = typer.Option(None, "--source", help="Infer if charger is unambiguous"),
+    charger: str | None = typer.Option(None, "--charger", help="Infer if source has one charger"),
     location: str = typer.Option(..., "--location"),
 ) -> None:
     from .charger_locations import collector_database, manage
@@ -51,8 +51,8 @@ def locations_set(
 @locations_app.command("remove")
 def locations_remove(
     database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
-    source: str = typer.Option(..., "--source"),
-    charger: str = typer.Option(..., "--charger"),
+    source: str | None = typer.Option(None, "--source", help="Infer if charger is unambiguous"),
+    charger: str | None = typer.Option(None, "--charger", help="Infer if source has one charger"),
 ) -> None:
     from .charger_locations import collector_database, manage
     try:
