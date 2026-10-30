@@ -49,27 +49,24 @@ main{padding:.65rem}.operations{padding:.8rem}.operations .note{font-size:.73rem
 {% set counts = namespace(faults=0, charging=0, available=0, uncertain=0) %}
 {% for c in data.connectors %}
   {% set state = (c.status or '')|lower %}
+  {% if state in ['faulted', 'unavailable'] %}{% set counts.faults = counts.faults + 1 %}{% endif %}
   {% if c.stale or not c.status %}{% set counts.uncertain = counts.uncertain + 1 %}
-  {% elif state in ['faulted', 'unavailable'] %}{% set counts.faults = counts.faults + 1 %}
   {% elif state == 'charging' %}{% set counts.charging = counts.charging + 1 %}
   {% elif state == 'available' %}{% set counts.available = counts.available + 1 %}
-  {% else %}{% set counts.uncertain = counts.uncertain + 1 %}{% endif %}
+  {% elif state not in ['faulted', 'unavailable'] %}{% set counts.uncertain = counts.uncertain + 1 %}{% endif %}
 {% endfor %}
 <section class="operations" aria-labelledby="operations-heading">
 <h2 id="operations-heading">Estado de los cargadores</h2>
-<p class="muted note">Último estado informado; no confirma conectividad en tiempo real. Los datos antiguos o desconocidos se muestran por separado.</p>
+<p class="muted note">Último estado informado, no conectividad en tiempo real. Una falla antigua también puede contarse como dato antiguo.</p>
 <div class="cards operations-cards">
-<a class="operational-card operational-card--fault" href="#connectors"><strong>{{ counts.faults }}</strong><span>Con falla o fuera de servicio</span></a>
+<a class="operational-card operational-card--fault" href="#connectors"><strong>{{ counts.faults }}</strong><span>Falla / no disponible (último estado)</span></a>
 <a class="operational-card" href="#connectors"><strong>{{ counts.charging }}</strong><span>Cargando</span></a>
 <a class="operational-card" href="#connectors"><strong>{{ counts.available }}</strong><span>Disponibles</span></a>
-<a class="operational-card" href="#connectors"><strong>{{ counts.uncertain }}</strong><span>Antiguos u otros estados</span></a>
+<a class="operational-card" href="#connectors"><strong>{{ counts.uncertain }}</strong><span>Datos antiguos / otros</span></a>
 </div></section>
 <section class="filter-panel"><h2>Filtrar resultados</h2><form class="filters" method="get" role="search" aria-label="Filtrar datos del dashboard"><label>Origen <input name="source_id" value="{{ source_id }}" placeholder="Todos"></label>
 <label>Cargador <input name="charger_id" value="{{ charger_id }}" placeholder="Todos"></label><button type="submit">Filtrar</button><a class="clear-filters" href="/">Limpiar filtros</a></form></section>
-<div class="dashboard-grid"><section id="synchronization"><h2>Sincronización</h2><p class="muted note">La recarga de la página no confirma datos nuevos del cargador.</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Última ingestión</th></tr></thead><tbody>
-{% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at or "Sin datos" }}</td></tr>{% else %}<tr><td class="empty" colspan="3">Sin orígenes</td></tr>{% endfor %}
-</tbody></table></div></section>
-<section id="connectors" class="connectors-panel"><h2>Conectores</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores"><table><thead><tr><th>Origen</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Observado</th></tr></thead><tbody>
+<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><h2>Conectores</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores"><table><thead><tr><th>Origen</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Observado</th></tr></thead><tbody>
 {% for c in data.connectors %}<tr><td data-label="Origen">{{ c.source_id }}</td><td data-label="Cargador" class="charger-identity">{{ c.charger_id }}</td><td data-label="Conector">{{ c.connector_id }}</td>
 <td data-label="Estado">{% set state = (c.status or "")|lower %}<span class="status {% if state == 'charging' %}status--active{% elif state in ['available', 'finishing'] %}status--ok{% elif state in ['preparing', 'suspendedev', 'suspendedevse'] %}status--warn{% elif state in ['faulted', 'unavailable'] %}status--off{% endif %}">{{ c.status or "Desconocido" }}</span>{% if c.stale %} <span class="status status--warn">Antiguo</span>{% endif %}</td>
 <td data-label="Conectado"><span class="status {{ 'status--ok' if c.connected else 'status--off' }}">{{ "Sí" if c.connected else "No" }} (observado)</span></td>
@@ -77,6 +74,9 @@ main{padding:.65rem}.operations{padding:.8rem}.operations .note{font-size:.73rem
 <td data-label="Medidor" class="numeric">{{ "%.2f"|format(c.energy_wh / 1000) ~ " kWh" if c.energy_wh is not none else "—" }}</td><td data-label="Observado">{{ c.observed_at or "Desconocido" }}</td></tr>
 {% else %}<tr><td class="empty" colspan="8">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
 <p class="muted note">* Última observación del productor, no una conexión en tiempo real. Energía registrada: lectura de medidor, no consumo de la sesión.</p></section>
+<section id="synchronization"><h2>Sincronización</h2><p class="muted note">La recarga de la página no confirma datos nuevos del cargador.</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Última ingestión</th></tr></thead><tbody>
+{% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at or "Sin datos" }}</td></tr>{% else %}<tr><td class="empty" colspan="3">Sin orígenes</td></tr>{% endfor %}
+</tbody></table></div></section>
 <section><h2>Transacciones recientes</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de transacciones recientes"><table><thead><tr><th>Cargador</th><th>ID</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Energía de sesión</th></tr></thead><tbody>
 {% for t in data.transactions %}<tr><td>{{ t.charger_id }}</td><td>{{ t.id }}</td><td><span class="status {{ 'status--active' if (t.state or '')|lower in ['open', 'active', 'charging'] else 'status--ok' if (t.state or '')|lower in ['closed', 'stopped', 'completed'] else '' }}">{{ t.state or "Desconocido" }}</span></td><td>{{ t.started_at or "—" }}</td><td>{{ t.stopped_at or "Activa / sin cierre" }}</td>
 <td class="numeric">{% if t.energy_wh is defined and t.energy_wh is not none %}{{ "%.2f"|format(t.energy_wh / 1000) }} kWh (final){% elif t.live_energy_wh is defined and t.live_energy_wh is not none and t.active %}{{ "%.2f"|format(t.live_energy_wh / 1000) }} kWh <span class="{{ 'stale' if t.live_energy_stale else 'muted' }}">(estimada{% if t.live_energy_stale %}, antigua{% else %}, en vivo{% endif %})</span><div class="note muted">Medición: {{ t.live_energy_observed_at or "Sin fecha" }}</div>{% elif t.active %}Final pendiente · estimación no disponible{% else %}—{% endif %}</td></tr>
