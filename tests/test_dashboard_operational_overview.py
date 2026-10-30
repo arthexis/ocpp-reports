@@ -32,9 +32,12 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
     assert html.index('id="operations-heading"') < html.index('id="connectors"')
     assert 'type="submit"' not in html
     assert 'setTimeout(apply, 650)' in html
+    assert 'name="filter"' in html and 'name="location"' in html
     assert html.index('id="connectors"') < html.index('id="synchronization"')
     assert 'href="#connectors"' in html
     assert 'data-label="Snapshot recibido"' in html
+    assert 'Estado reportado' not in html
+    assert html.index('class="transactions-panel"') < html.index('id="synchronization"')
     assert "cp-fault" in html and "Faulted" in html
     assert "Falla / no disponible (último estado)" in html
     assert "Una falla antigua también puede contarse como dato antiguo" in html
