@@ -43,7 +43,10 @@ def locations_set(
     try:
         typer.echo(json.dumps(manage(collector_database(database), "set", source=source, charger=charger,
                                      location=location), ensure_ascii=False))
-    except (OSError, ValueError, __import__("sqlite3").Error) as exc:
+    except ValueError as exc:
+        typer.echo(f"Location assignment refused: {exc}", err=True)
+        raise typer.Exit(2)
+    except (OSError, __import__("sqlite3").Error) as exc:
         typer.echo(f"Location assignment refused: {type(exc).__name__}", err=True)
         raise typer.Exit(2)
 
@@ -58,7 +61,10 @@ def locations_remove(
     try:
         typer.echo(json.dumps(manage(collector_database(database), "remove", source=source,
                                      charger=charger), ensure_ascii=False))
-    except (OSError, ValueError, __import__("sqlite3").Error) as exc:
+    except ValueError as exc:
+        typer.echo(f"Location removal refused: {exc}", err=True)
+        raise typer.Exit(2)
+    except (OSError, __import__("sqlite3").Error) as exc:
         typer.echo(f"Location removal refused: {type(exc).__name__}", err=True)
         raise typer.Exit(2)
 
