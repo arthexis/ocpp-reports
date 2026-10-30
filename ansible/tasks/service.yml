@@ -89,6 +89,13 @@
   become: true
   when: reports_service == 'forwarder' and (reports_forwarder_state.stat.exists | default(false))
 
+- name: Inspect whether Forwarder was previously enabled
+  ansible.builtin.command: systemctl is-enabled ocpp-reports-forwarder.service
+  register: reports_forwarder_was_enabled
+  changed_when: false
+  failed_when: false
+  when: reports_service == 'forwarder'
+
 # A new satellite must be recognized by the *running* collector before
 # first enable. Existing durable forwarders are intentionally exempt: a WAN
 # outage must never prevent their normal restart/retry behavior.
@@ -109,7 +116,7 @@
   when:
     - reports_service == 'forwarder'
     - reports_service_ready | bool
-    - not (reports_forwarder_state.stat.exists | default(false))
+    - not ((reports_forwarder_state.stat.exists | default(false)) and (reports_forwarder_was_enabled.rc | default(1) == 0))
 
 - name: Block unrecognized new Forwarder before enabling service
   ansible.builtin.assert:
@@ -124,7 +131,7 @@
   when:
     - reports_service == 'forwarder'
     - reports_service_ready | bool
-    - not (reports_forwarder_state.stat.exists | default(false))
+    - not ((reports_forwarder_state.stat.exists | default(false)) and (reports_forwarder_was_enabled.rc | default(1) == 0))
 
 - name: Enable and start configured service
   ansible.builtin.systemd_service:
