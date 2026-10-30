@@ -135,10 +135,10 @@ header{align-items:start;gap:.65rem}
 <p class="muted note">Eventos consecutivos de la misma acción y cargador se agrupan; abre un grupo para ver el detalle.</p>
 {% for group in event_groups %}
 <details><summary>{{ group.location or group.source_id }} · {{ group.action or 'Sin acción' }}
-{% if group.items|length > 1 %}× {{ group.items|length }}{% endif %}
-<span class="muted note"> · {{ group.items[0].at|display_date(timezone) }}</span></summary>
+{% if group["items"]|length > 1 %}× {{ group["items"]|length }}{% endif %}
+<span class="muted note"> · {{ group["items"][0].at|display_date(timezone) }}</span></summary>
 <div class="scroll"><table><thead><tr><th>ID</th><th>Ubicación</th><th>Cargador</th><th>Acción</th><th>Fecha</th></tr></thead><tbody>
-{% for e in group.items %}<tr><td>{{ e.id }}</td><td>{{ e.location }}</td><td>{{ e.charger_id }}</td>
+{% for e in group["items"] %}<tr><td>{{ e.id }}</td><td>{{ e.location }}</td><td>{{ e.charger_id }}</td>
 <td>{{ e.action }}</td><td>{{ e.at|display_date(timezone) }}</td></tr>{% endfor %}
 </tbody></table></div></details>
 {% else %}<p class="muted">Sin eventos</p>{% endfor %}
