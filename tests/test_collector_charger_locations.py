@@ -95,3 +95,31 @@ def test_location_input_rejects_controls_and_unbounded_labels(tmp_path):
         else:
             raise AssertionError("Invalid location accepted")
     assert manage(db, "list") == []
+
+
+def test_location_applies_to_transactions_and_events(tmp_path):
+    db = tmp_path / "collector.sqlite3"
+    record = Batch.model_validate({
+        "schema": "ocpp-reports/replication/v1", "source_id": "node-a",
+        "after": 0, "next": 3, "more": False,
+        "changes": [
+            {"sequence": 1, "kind": "connector", "record_key": "charger-1:1",
+             "payload": {"charger_id": "charger-1", "connector_id": 1,
+                         "status": "Available", "observed_at": "2026-10-30T12:00:00Z"}},
+            {"sequence": 2, "kind": "transaction", "record_key": "charger-1:2",
+             "payload": {"charger_id": "charger-1", "id": 2,
+                         "started_at": "2026-10-30T12:00:00Z"}},
+            {"sequence": 3, "kind": "event", "record_key": "3",
+             "payload": {"charger_id": "charger-1", "id": 3, "action": "Heartbeat",
+                         "at": "2026-10-30T12:00:00Z"}},
+        ],
+    })
+    accept_batch(db, record)
+    manage(db, "set", source="node-a", charger="charger-1", location="Site West")
+    view = snapshot(db)
+    assert view["connectors"][0]["location"] == "Site West"
+    assert view["transactions"][0]["location"] == "Site West"
+    assert view["events"][0]["location"] == "Site West"
+    html = TestClient(create_app(db)).get("/").text
+    assert "<th>Ubicación</th>" in html
+    assert html.count("Site West") >= 3
