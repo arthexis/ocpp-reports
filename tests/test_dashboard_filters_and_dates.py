@@ -133,3 +133,21 @@ def test_invalid_instance_timezone_rejected(tmp_path):
     import pytest
     with pytest.raises(ValueError, match="Invalid dashboard timezone"):
         web.create_app(tmp_path / "unused", timezones=("Not/A_Timezone",))
+
+
+def test_transaction_date_filter_includes_session_overlapping_local_day():
+    source = {"sources": [], "connectors": [], "events": [],
+              "transactions": [{
+                  "source_id": "node-a", "charger_id": "cp-1", "location": "Site A",
+                  "id": 1, "state": "stopped",
+                  "started_at": "2026-10-29T22:00:00-06:00",
+                  "stopped_at": "2026-10-30T02:00:00-06:00",
+              }]}
+    result = web._filter_dashboard(source, term="", status="", location="",
+                                   date_from="2026-10-30", date_to="2026-10-30",
+                                   zone="America/Monterrey")
+    assert len(result["transactions"]) == 1
+    outside = web._filter_dashboard(source, term="", status="", location="",
+                                    date_from="2026-10-31", date_to="2026-10-31",
+                                    zone="America/Monterrey")
+    assert outside["transactions"] == []
