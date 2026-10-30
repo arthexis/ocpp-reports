@@ -133,6 +133,21 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             events.sort(key=lambda r: (r["source_id"], r.get("id") or 0), reverse=True)
             transactions = transactions[:limit]
             events = events[:limit]
+        # Collector metadata enrichment after source-scoped queries. Never use
+        # location to authorize sources or to alter replicated evidence.
+        locations = {}
+        if "collector_charger_locations" in tables:
+            scope, arguments = source_clause()
+            for row in db.execute(
+                "SELECT source_id,charger_id,location FROM collector_charger_locations"
+                + scope, arguments
+            ):
+                locations[(row["source_id"], row["charger_id"])] = row["location"]
+        for rows in (connectors, transactions, events):
+            for row in rows:
+                source = row.get("source_id")
+                charger = row.get("charger_id")
+                row["location"] = locations.get((source, charger), source)
     # Estimates are never finalized consumption and must carry actual meter age.
     now = datetime.now(timezone.utc)
     for transaction in transactions:
