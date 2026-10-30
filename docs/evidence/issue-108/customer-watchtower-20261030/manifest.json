@@ -1,0 +1,74 @@
+{
+  "captures": [
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "origin": "https://audi.gelectriic.com",
+      "captured_at": "2026-10-30T16:40:05.759847+00:00",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "audi-desktop-20261030T163951Z.png",
+      "sha256": "210224a96c3f200ddef3a1ee40dc691fb87c89216efe7cee7d71fcf4375349b3"
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "origin": "https://porsche.gelectriic.com",
+      "captured_at": "2026-10-30T16:40:16.612692+00:00",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "porsche-desktop-20261030T163951Z.png",
+      "sha256": "1ec6205226bdc15e364b0e69732adc4fa59ae917fa07104cf0384269bf4dedd9"
+    },
+    {
+      "site": "audi",
+      "mode": "mobile-emulated",
+      "origin": "https://audi.gelectriic.com",
+      "captured_at": "2026-10-30T16:38:59.532135+00:00",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "audi-mobile-emulated-20261030T163845Z.png",
+      "sha256": "32806b55f23bad1f8b0a691f2861a29c247853629d2631595b4bc9ec3ecc35ad"
+    },
+    {
+      "site": "porsche",
+      "mode": "mobile-emulated",
+      "origin": "https://porsche.gelectriic.com",
+      "captured_at": "2026-10-30T16:39:09.077864+00:00",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "porsche-mobile-emulated-20261030T163845Z.png",
+      "sha256": "f6a6b68897e6c28ed268455fb68b26f12310d196c3ce09ed3e268b5f26cdb1b6"
+    }
+  ],
+  "physical_android": {
+    "status": "blocked",
+    "reason": "no Android device listed by adb devices -l"
+  },
+  "notes": [
+    "Desktop captures end before transaction/event record tables.",
+    "Mobile emulation is Chromium at 412x915, not an Android device capture.",
+    "Dashboard source scopes and HTTPS verification passed.",
+    "These images do not prove collector readiness or physical charger state."
+  ]
+}
