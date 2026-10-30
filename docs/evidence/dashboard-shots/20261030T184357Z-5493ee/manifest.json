@@ -1,0 +1,85 @@
+{
+  "captures": [
+    {
+      "site": "audi",
+      "mode": "android",
+      "origin": "https://audi.gelectriic.com",
+      "captured_at": "2026-10-30T18:44:09.138208+00:00",
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "audi-android-20261030T184358Z.png",
+      "sha256": "561e987b39caed7e9e826e8c830f72e83892b529cdc88d50c76fb8471db0ec5c",
+      "image_pixels": {
+        "width": 1080,
+        "height": 2220
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "origin": "https://porsche.gelectriic.com",
+      "captured_at": "2026-10-30T18:44:19.297504+00:00",
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "porsche-android-20261030T184358Z.png",
+      "sha256": "17d47604a12595554ff92e96c5d5af1a7ce272e6aa2ccd33711b67aad48b9592",
+      "image_pixels": {
+        "width": 1080,
+        "height": 2220
+      }
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "origin": "https://audi.gelectriic.com",
+      "captured_at": "2026-10-30T18:44:27.388931+00:00",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "audi-desktop-20261030T184419Z.png",
+      "sha256": "93a0957e565b2b7f465bb8e42984a48903d0826ed9f7c60105ba37cd240ca086",
+      "image_pixels": {
+        "width": 1440,
+        "height": 791
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "origin": "https://porsche.gelectriic.com",
+      "captured_at": "2026-10-30T18:44:36.991882+00:00",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "porsche-desktop-20261030T184419Z.png",
+      "sha256": "1342b42d144601c5a5a4a024662300d0427ee852f055eb11c40b70856eadf763",
+      "image_pixels": {
+        "width": 1440,
+        "height": 890
+      }
+    }
+  ],
+  "physical_android": true,
+  "android_model": "SM-G950F",
+  "android_version": "9",
+  "target": "https://github.com/arthexis/ocpp-reports/issues/108",
+  "temporary_adb_forwards_cleaned": true
+}
