@@ -351,7 +351,7 @@ def test_human_readable_inventory_and_set_unset_filters(tmp_path):
     assert len(rows) == 3
     assert all(r["assigned"] is False for r in rows)
     assert next(r for r in rows if r["source_id"] == "source-no-charger")["charger_id"] is None
-    assert runner.invoke(app, [*base, "--set"]).output == "No matching sources or chargers.\\n"
+    assert runner.invoke(app, [*base, "--set"]).output == "No matching sources or chargers.\n"
     assignment = runner.invoke(app, ["locations", "set", "--database", str(db),
                                      "--source", "node-a", "--name", "Audi Calzada"])
     assert assignment.exit_code == 0, assignment.output
