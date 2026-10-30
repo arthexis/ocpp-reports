@@ -5,10 +5,33 @@ Administrative writes never create a missing warehouse.
 """
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
 TABLE = "collector_charger_locations"
+# Matches the installed collector and customer-dashboard systemd unit templates.
+DEFAULT_COLLECTOR_DATABASE = Path("/var/lib/ocpp-reports/warehouse.sqlite")
+
+
+def collector_database(database: Path | None = None) -> Path:
+    """Resolve one installed collector warehouse; never search or create alternatives."""
+    if database is not None:
+        path = Path(database)
+    else:
+        configured = os.environ.get("OCPP_REPORTS_DATABASE")
+        path = Path(configured) if configured else DEFAULT_COLLECTOR_DATABASE
+    path = path.expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Collector warehouse not found: {path}; use --database to override")
+    if database is None:
+        # Default inference must never silently target an unrelated SQLite file.
+        with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as conn:
+            tables = {row[0] for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+            if not {"collector_cursors", "collector_latest"}.issubset(tables):
+                raise ValueError("Inferred database is not a collector warehouse; use --database")
+    return path
 
 
 def validate(value: str, field: str) -> str:
