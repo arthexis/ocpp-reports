@@ -30,7 +30,7 @@ def minute_utc(value: str | None) -> str:
 
 def dashboard_timezones(configured: tuple[str, ...]) -> tuple[str, ...]:
     """Only administrator-configured IANA zones are selectable."""
-    choices = tuple(dict.fromkeys(("UTC", *configured)))
+    choices = tuple(dict.fromkeys((*configured, "UTC")))
     for zone in choices:
         try:
             ZoneInfo(zone)
@@ -50,11 +50,11 @@ def display_date(value: str | None, zone: str) -> str:
         return "Fecha inválida"
     if parsed.tzinfo is None:
         return parsed.strftime("%Y-%m-%d %H:%M") + " (zona desconocida)"
-    return parsed.astimezone(ZoneInfo(zone)).strftime("%Y-%m-%d %H:%M")
+    return parsed.astimezone(ZoneInfo(zone)).strftime("%Y-%m-%d %H:%M") + (" UTC" if zone == "UTC" else "")
 
 
 def _filter_dashboard(data: dict, *, term: str, status: str,
-                      location: str, date_from: str, date_to: str) -> dict:
+                      location: str, date_from: str, date_to: str, zone: str) -> dict:
     """Filter presentation data only; preserve the raw snapshot API."""
     term, status, location = term.casefold().strip(), status.casefold().strip(), location.casefold().strip()
     for day in (date_from, date_to):
@@ -83,7 +83,9 @@ def _filter_dashboard(data: dict, *, term: str, status: str,
                     parsed = datetime.fromisoformat(date.replace("Z", "+00:00"))
                 except ValueError:
                     continue
-                day = parsed.date().isoformat()
+                if parsed.tzinfo is None:
+                    continue
+                day = parsed.astimezone(ZoneInfo(zone)).date().isoformat()
                 if (date_from and day < date_from) or (date_to and day > date_to):
                     continue
             matched.append(row)
@@ -137,13 +139,14 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     def index(request: Request, source_id: str | None = None,
               charger_id: str | None = None, filter: str = "",
               status: str = "", location: str = "",
-              date_from: str = "", date_to: str = "", tz: str = "UTC"):
+              date_from: str = "", date_to: str = "", tz: str | None = None):
+        tz = tz or zones[0]
         if tz not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
         data = read(source_id, charger_id, 100)
         try:
             data = _filter_dashboard(data, term=filter, status=status,
-                                     location=location, date_from=date_from, date_to=date_to)
+                                     location=location, date_from=date_from, date_to=date_to, zone=tz)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         now = datetime.now(timezone.utc)
