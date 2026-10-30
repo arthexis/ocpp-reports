@@ -98,6 +98,38 @@ def test_control_activation_does_not_create_forwarder(tmp_path, monkeypatch):
     assert (tmp_path / "control-backup" / "recovery.json").exists()
 
 
+def test_watchtower_local_activation_preserves_collector_history(tmp_path, monkeypatch):
+    csms, warehouse, state = _inputs(tmp_path)
+    with sqlite3.connect(warehouse) as db:
+        db.execute("CREATE TABLE collector_cursors(source_id TEXT PRIMARY KEY,sequence INTEGER)")
+        db.execute("CREATE TABLE collector_changes(source_id TEXT,sequence INTEGER,kind TEXT,record_key TEXT,payload TEXT,PRIMARY KEY(source_id,sequence))")
+        db.execute("INSERT INTO collector_cursors VALUES('satellite-a',7)")
+        db.execute("INSERT INTO collector_changes VALUES('satellite-a',7,'event','7','{}')")
+    monkeypatch.setattr(activation, "require_stopped", lambda: None)
+    result = activation.activate(csms, warehouse, state, tmp_path / "watchtower-backup",
+                                 "uuid-old", "node-a", "node-a", role="watchtower")
+    assert result["converted"] == ("csms", "warehouse")
+    assert not state.exists()
+    with sqlite3.connect(warehouse) as db:
+        assert db.execute("SELECT source_id FROM sources").fetchone() == ("node-a",)
+        assert db.execute("SELECT source_id,sequence FROM collector_cursors").fetchone() == ("satellite-a", 7)
+        assert db.execute("SELECT source_id,sequence FROM collector_changes").fetchone() == ("satellite-a", 7)
+
+
+def test_running_collector_blocks_activation(monkeypatch):
+    class Result:
+        def __init__(self, returncode):
+            self.returncode = returncode
+
+    def is_active(command, check):
+        assert check is False
+        return Result(0 if command[-1] == "ocpp-reports-collector.service" else 3)
+
+    monkeypatch.setattr(activation.subprocess, "run", is_active)
+    with pytest.raises(ValueError, match="ocpp-reports-collector.service must be stopped"):
+        activation.require_stopped()
+
+
 def test_crash_recovery_restores_stopped_snapshot(tmp_path, monkeypatch):
     csms, warehouse, state = _inputs(tmp_path)
     monkeypatch.setattr(activation, "require_stopped", lambda: None)
