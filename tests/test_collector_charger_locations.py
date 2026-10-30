@@ -223,6 +223,9 @@ def test_refuse_ambiguous_and_missing_inference_without_writes(tmp_path):
     ):
         result = runner.invoke(app, ["locations", "set", *base, *args, "--location", "Should not write"])
         assert result.exit_code == 2, (args, result.output)
+        assert "Location assignment refused:" in result.output
+        if args in (["--charger", "same"], ["--source", "node-a"]):
+            assert "Ambiguous" in result.output and "specify it explicitly" in result.output
     assert manage(db, "list") == []
 
 
