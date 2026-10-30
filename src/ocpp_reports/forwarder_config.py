@@ -57,50 +57,95 @@ def config_command(check: bool = typer.Option(False, "--check"),
     typer.echo(f"Forwarder configuration valid: source={data['source_id']}; token hidden")
 
 
+def _transport_failure(exc: Exception) -> str:
+    """Classify verification failures without printing URLs or secrets."""
+    import ssl
+    import httpx
+
+    cause = exc
+    while cause is not None:
+        if isinstance(cause, (ssl.SSLError, ssl.CertificateError)):
+            return "collector_tls_failure"
+        cause = cause.__cause__ or cause.__context__
+    if isinstance(exc, httpx.ConnectError) and any(
+        term in str(exc).lower() for term in ("certificate verify", "ssl", "tls")
+    ):
+        return "collector_tls_failure"
+    return "collector_unreachable"
+
+
+def check_collector(config: dict) -> dict:
+    """Authenticated no-write readiness; return only a sanitized result."""
+    import httpx
+    from .forwarder import validate_endpoint
+
+    source = config["source_id"]
+    result = {"ready": False, "status": "blocked", "reason": "collector_unreachable",
+              "source_id": source}
+    try:
+        validate_endpoint(config["endpoint"])
+        with httpx.Client(timeout=10, follow_redirects=False) as client:
+            response = client.post(
+                config["endpoint"].rstrip("/") + "/ready",
+                json={"source_id": source},
+                headers={"Authorization": "Bearer " + config["token"]},
+            )
+    except httpx.HTTPError as exc:
+        result["reason"] = _transport_failure(exc)
+        return result
+    except ValueError:
+        result["reason"] = "invalid_configuration"
+        return result
+
+    if response.status_code != 200:
+        result["reason"] = {
+            401: "collector_unauthorized", 403: "collector_unauthorized",
+            404: "collector_unsupported", 405: "collector_unsupported",
+            503: "collector_not_ready",
+        }.get(response.status_code, "collector_http_error")
+        return result
+    try:
+        payload = response.json()
+    except ValueError:
+        result["reason"] = "collector_invalid_response"
+        return result
+    if not isinstance(payload, dict) or payload.get("schema") != "ocpp-reports/readiness/v1":
+        result["reason"] = "collector_unsupported"
+        return result
+    if (payload.get("source_id") != source or payload.get("ready") is not True
+            or payload.get("held") is not False
+            or type(payload.get("cursor")) is not int or payload["cursor"] < 0):
+        result["reason"] = "collector_invalid_response"
+        return result
+    return {"ready": True, "status": "ready", "reason": "ready",
+            "source_id": source, "collector_cursor": payload["cursor"],
+            "tls_verified": True}
+
+
 @app.command("check")
 def remote_check(
     remote: bool = typer.Option(False, "--remote", help="Check live collector credentials without forwarding"),
     path: Path = typer.Option(DEFAULT_FORWARDER_CONFIG, "--path", hidden=True),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Verify active collector authentication and source readiness without writes."""
+    """Verify running collector authentication without forwarding or writes."""
     import json
-    import httpx
-    from .forwarder import validate_endpoint
-    if not remote:
-        raise typer.BadParameter("Use --remote to check the live collector")
-    try:
-        config = load_forwarder_config(path)
-        endpoint = config["endpoint"].rstrip("/") + "/ready"
-        validate_endpoint(config["endpoint"])
-        with httpx.Client(timeout=10, follow_redirects=False) as client:
-            response = client.post(
-                endpoint, json={"source_id": config["source_id"]},
-                headers={"Authorization": "Bearer " + config["token"]},
-            )
-        if response.status_code != 200:
-            reasons = {401: "credentials_rejected", 403: "forbidden",
-                       404: "unsupported", 405: "unsupported", 503: "source_held"}
-            raise ValueError(reasons.get(response.status_code, "collector_http_error")
-                             + " (HTTP " + str(response.status_code) + ")")
-        body = response.json()
-        if (body.get("schema") != "ocpp-reports/readiness/v1"
-                or body.get("source_id") != config["source_id"]
-                or body.get("ready") is not True or body.get("held") is not False
-                or type(body.get("cursor")) is not int or body["cursor"] < 0):
-            raise ValueError("Invalid collector readiness response")
-        result = {"ready": True, "source_id": config["source_id"],
-                  "collector_cursor": body["cursor"], "tls_verified": True}
-        typer.echo(json.dumps(result, sort_keys=True) if json_output
-                   else f"Collector ready: {config['source_id']}; cursor={body['cursor']}")
-    except (OSError, ValueError, httpx.HTTPError) as exc:
-        # Do not render HTTP response bodies or credential/config values.
-        if isinstance(exc, httpx.HTTPError):
-            reason = "collector_transport_or_tls_failure"
-        elif isinstance(exc, OSError):
-            reason = "configuration_unreadable"
-        else:
-            reason = str(exc)
-        typer.echo(f"Collector readiness blocked: {reason}", err=True)
-        raise typer.Exit(2)
 
+    result = {"ready": False, "status": "blocked", "reason": "invalid_configuration"}
+    if not remote:
+        result["reason"] = "remote_required"
+    else:
+        try:
+            config = load_forwarder_config(path)
+        except (OSError, ValueError, tomllib.TOMLDecodeError):
+            result["reason"] = "invalid_configuration"
+        else:
+            result = check_collector(config)
+    if json_output:
+        typer.echo(json.dumps(result, sort_keys=True))
+    elif result["ready"]:
+        typer.echo(f"Collector ready: {result['source_id']}; cursor={result['collector_cursor']}")
+    else:
+        typer.echo(f"Collector readiness blocked: {result['reason']}", err=True)
+    if not result["ready"]:
+        raise typer.Exit(2)
