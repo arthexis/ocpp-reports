@@ -33,6 +33,23 @@ ocpp-reports locations set --source gway-002 --charger CHARGER_ID \
 ocpp-reports locations remove --source gway-002 --charger CHARGER_ID
 ```
 
+
+You may omit **either** `--source` or `--charger` for `locations set` and
+`locations remove` when exactly one matching charger identity exists in the
+collector's local/replicated charger inventory (or its persisted location
+assignments). For example:
+
+```sh
+ocpp-reports locations set --charger CHARGER_ID --location 'Audi San Pedro'
+ocpp-reports locations remove --source gway-002
+```
+
+At least one identifier must be provided. If an identifier is missing or
+ambiguous across sources or chargers, the command refuses the change and
+reports matching candidates. Inference only uses this collector's exact charger
+identities; a source cursor alone is insufficient to infer a charger. Explicit
+`--source` and `--charger` are still supported for new registrations.
+
 For nonstandard installations, add `--database /path/to/warehouse.sqlite`.
 Write operations require collector warehouse permissions, which may mean
 running as the configured `ocpp-reports` service account. The database must
