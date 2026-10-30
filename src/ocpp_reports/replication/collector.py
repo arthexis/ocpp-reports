@@ -7,6 +7,7 @@ from __future__ import annotations
 import hmac
 import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -84,6 +85,12 @@ def accept_batch(database: Path, batch: Batch) -> int:
                 WHERE excluded.sequence > collector_latest.sequence""",
                 (batch.source_id, change.kind, change.record_key, change.sequence, encoded))
         cursor = max(cursor, batch.next)
+        # Receipt freshness advances only when new contiguous evidence is stored.
+        if positions and any(position > (row[0] if row else 0) for position in positions):
+            db.execute("""INSERT INTO collector_receipts VALUES (?,?,?)
+                ON CONFLICT(source_id) DO UPDATE SET
+                    received_at=excluded.received_at, sequence=excluded.sequence""",
+                (batch.source_id, datetime.now(timezone.utc).isoformat(), cursor))
         db.execute("""INSERT INTO collector_cursors VALUES (?,?)
             ON CONFLICT(source_id) DO UPDATE SET sequence=excluded.sequence""",
             (batch.source_id, cursor))
