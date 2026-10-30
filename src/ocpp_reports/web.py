@@ -96,19 +96,43 @@ def _filter_dashboard(data: dict, *, term: str, status: str,
     return result
 
 
+def _event_group_key(event: dict) -> tuple | None:
+    """Collapse only routine repeats; faults and transaction events stay explicit.
+
+    The Reports export intentionally has less OCPP detail than the CSMS event
+    CLI, so do not claim request/response pairing or merge unrelated evidence.
+    """
+    source, charger = event.get("source_id"), event.get("charger_id")
+    if not source or not charger:
+        return None
+    action = event.get("action")
+    if action == "Heartbeat" and event.get("kind") == "ocpp":
+        return (source, charger, "Heartbeat")
+    if action == "StatusNotification" and event.get("kind") == "status":
+        state = event.get("status")
+        if (state in ("Available", "Preparing", "Charging", "SuspendedEV",
+                      "SuspendedEVSE", "Finishing", "Reserved")
+                and not event.get("error_code") and not event.get("info")
+                and event.get("connector_id") is not None):
+            return (source, charger, "StatusNotification",
+                    event.get("connector_id"), state)
+    return None
+
+
 def _group_events(events: list[dict]) -> list[dict]:
-    """Group adjacent repeat actions per charger; preserve all event details."""
+    """Collapse adjacent routine evidence only, retaining each original event."""
     groups: list[dict] = []
     for event in events:
-        identity = (event.get("source_id"), event.get("charger_id"), event.get("action"))
-        if groups and groups[-1]["identity"] == identity:
+        identity = _event_group_key(event)
+        if identity is not None and groups and groups[-1]["identity"] == identity:
             groups[-1]["items"].append(event)
         else:
             groups.append({"identity": identity, "items": [event],
                            "source_id": event.get("source_id"),
                            "charger_id": event.get("charger_id"),
                            "location": event.get("location"),
-                           "action": event.get("action")})
+                           "action": event.get("action"),
+                           "status": event.get("status")})
     return groups
 
 
