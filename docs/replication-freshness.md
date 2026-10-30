@@ -9,3 +9,31 @@ The new collector receipt table is additive and created by the existing collecto
 Deploy the additive CSMS export producer change before expecting a reliable status age on newly ingested connector snapshots. Deploy Reports to the satellite (ingestion), then to Watchtower (collector and dashboard), preserving normal role assignments and existing customer source allowlists. During production validation, compare the same source/connector at two naturally separated export intervals: last status receipt remains fixed while the snapshot time advances. A genuine StatusNotification must update the original receipt time. Check Porsche shows remote receipt freshness for GWay-005 and ABB local ingestion freshness; Audi must remain scoped to GWay-002.
 
 For rollback, restore the previous application release. Retain the additive `collector_receipts` table and payload metadata: older versions ignore them. Do not reset replication data, customer credentials, source mappings, or charger state. A fault, including EmergencyStop, is still the last known observation until superseded by actual newer evidence. Physical emergency-stop status requires an independent on-site check.
+
+
+## Collector-owned charger locations (optional)
+
+Location labels live in the **existing Watchtower collector warehouse** and are
+not part of CSMS exports, source credentials, replication batches or immutable
+evidence. Each assignment is keyed by `(source_id, charger_id)`; multiple
+chargers may share a label and the same charger ID in another source is distinct.
+
+Run these commands on the collector host with local database write permissions.
+The database must already exist (the CLI never creates a new warehouse):
+
+```sh
+ocpp-reports locations list --database /var/lib/ocpp-reports/reports.sqlite3
+ocpp-reports locations set --database /var/lib/ocpp-reports/reports.sqlite3 \
+  --source gway-002 --charger CHARGER_ID --location 'Audi San Pedro'
+ocpp-reports locations remove --database /var/lib/ocpp-reports/reports.sqlite3 \
+  --source gway-002 --charger CHARGER_ID
+```
+
+The dashboard/API adds `location` to charger-specific connectors,
+transactions and events and shows **Ubicación** in place of **Origen**.
+Unassigned chargers display their original `source_id`. Synchronization
+retains source identities. Customer source allowlists remain unchanged.
+Deleting an assignment restores the source fallback; collector source reset
+preserves assignments, while wiping/replacing the entire collector database
+requires a separate metadata backup. Only the collector owner can edit labels,
+and a viewer cannot edit them through the dashboard.
