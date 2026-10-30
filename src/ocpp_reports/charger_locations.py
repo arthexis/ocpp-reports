@@ -43,14 +43,60 @@ def validate(value: str, field: str) -> str:
     return value
 
 
+
+def _resolve_identity(db: sqlite3.Connection, source: str | None,
+                      charger: str | None, tables: set[str]) -> tuple[str, str]:
+    """Infer only from exact distinct (source, charger) identities in this warehouse.
+
+    Include persisted assignments so operators can remove labels after a source
+    reset; never infer from the source cursor alone (it identifies no charger).
+    Called under the same write transaction as the resulting mutation.
+    """
+    if source is not None and charger is not None:
+        return source, charger
+    if source is None and charger is None:
+        raise ValueError("Specify --source or --charger; neither may be inferred together")
+
+    identities: set[tuple[str, str]] = set()
+    if "connector_state" in tables:
+        identities.update((row[0], row[1]) for row in db.execute(
+            "SELECT DISTINCT source_id,charger_id FROM connector_state"
+        ) if row[0] and row[1])
+    if "collector_latest" in tables:
+        identities.update((row[0], row[1]) for row in db.execute(
+            """SELECT source_id,json_extract(payload, '$.charger_id')
+               FROM collector_latest
+               WHERE kind='connector' AND json_valid(payload)"""
+        ) if row[0] and row[1])
+    if TABLE in tables:
+        identities.update((row[0], row[1]) for row in db.execute(
+            f"SELECT source_id,charger_id FROM {TABLE}"
+        ) if row[0] and row[1])
+
+    candidates = sorted((s, c) for s, c in identities
+                        if (source is None or s == source)
+                        and (charger is None or c == charger))
+    missing = "--source" if source is None else "--charger"
+    if len(candidates) != 1:
+        examples = ", ".join(f"{s}/{c}" for s, c in candidates[:8])
+        if len(candidates) > 8:
+            examples += ", ..."
+        if not candidates:
+            raise ValueError(f"Cannot infer {missing}: no matching charger identity; specify it explicitly")
+        raise ValueError(f"Ambiguous {missing}: {len(candidates)} candidates ({examples}); specify it explicitly")
+    return candidates[0]
+
+
 def manage(database: Path, action: str, *, source: str | None = None,
            charger: str | None = None, location: str | None = None) -> list[dict] | dict:
     """CRUD, with an explicit existing database and no mutation on list."""
     if action not in {"list", "set", "remove"}:
         raise ValueError("Unsupported location operation")
     if action != "list":
-        source = validate(source, "source")
-        charger = validate(charger, "charger")
+        source = validate(source, "source") if source is not None else None
+        charger = validate(charger, "charger") if charger is not None else None
+        if source is None and charger is None:
+            raise ValueError("Specify at least one of --source or --charger")
         if action == "set":
             location = validate(location, "location")
         elif location is not None:
@@ -80,6 +126,10 @@ def manage(database: Path, action: str, *, source: str | None = None,
             return [dict(zip(("source_id", "charger_id", "location"), row))
                     for row in rows]
         db.execute("BEGIN IMMEDIATE")
+        source, charger = _resolve_identity(db, source, charger, {
+            row[0] for row in db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")
+        })
         db.execute(f"""CREATE TABLE IF NOT EXISTS {TABLE} (
             source_id TEXT NOT NULL, charger_id TEXT NOT NULL, location TEXT NOT NULL,
             PRIMARY KEY(source_id,charger_id)
