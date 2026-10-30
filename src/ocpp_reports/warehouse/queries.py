@@ -50,7 +50,8 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             clause = " WHERE " + " AND ".join(where) if where else ""
             connectors = [{**{k: v for k, v in dict(r).items() if k != "payload"},
                            "power_observed_at": json.loads(r["payload"]).get("power_observed_at"),
-                           "energy_observed_at": json.loads(r["payload"]).get("energy_observed_at")}
+                           "energy_observed_at": json.loads(r["payload"]).get("energy_observed_at"),
+                           "status_observed_at": json.loads(r["payload"]).get("status_observed_at")}
                           for r in db.execute(
                 "SELECT source_id,charger_id,connector_id,status,connected,transaction_id,"
                 "power_w,energy_wh,observed_at,synced_at,payload FROM connector_state" + clause +
@@ -77,6 +78,11 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                 + " ORDER BY source_id,kind,record_key",
                 scope_args,
             ).fetchall()
+            receipt_times = {}
+            if "collector_receipts" in tables:
+                receipt_times = {r["source_id"]: r["received_at"] for r in db.execute(
+                    "SELECT source_id,received_at FROM collector_receipts" + scope_clause, scope_args
+                )}
             if "collector_cursors" in tables:
                 cursor_rows = db.execute(
                     "SELECT source_id,sequence FROM collector_cursors"
@@ -86,7 +92,10 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                 for r in cursor_rows:
                     if r["source_id"] not in {s["source_id"] for s in sources}:
                         sources.append({"source_id": r["source_id"], "cursor": r["sequence"],
-                                        "last_ingested_at": None})
+                                        "last_ingested_at": None,
+                                        "last_replication_received_at": receipt_times.get(r["source_id"])})
+            for s in sources:
+                s.setdefault("last_replication_received_at", receipt_times.get(s["source_id"]))
             existing_connectors = {(r["source_id"], r["charger_id"], r["connector_id"]) for r in connectors}
             existing_transactions = {(r["source_id"], r.get("charger_id"), r.get("id")) for r in transactions}
             existing_events = {(r["source_id"], r.get("id")) for r in events}
@@ -100,7 +109,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                         continue
                     identity = (source, charger, connector)
                     if identity not in existing_connectors:
-                        connectors.append({"source_id": source, **{key: payload.get(key) for key in ("charger_id", "connector_id", "status", "connected", "transaction_id", "power_w", "energy_wh", "observed_at", "synced_at", "power_observed_at", "energy_observed_at")}})
+                        connectors.append({"source_id": source, **{key: payload.get(key) for key in ("charger_id", "connector_id", "status", "connected", "transaction_id", "power_w", "energy_wh", "observed_at", "synced_at", "power_observed_at", "energy_observed_at", "status_observed_at")}})
                         existing_connectors.add(identity)
                 elif item["kind"] == "transaction":
                     charger = payload.get("charger_id")
