@@ -76,3 +76,19 @@ def test_replication_scopes(tmp_path):
     assert all(data.values())
     for rows in data.values():
         assert all(r['source_id'] == 'gway-002' for r in rows)
+
+
+def test_cli_repeated_sources_reach_the_served_app(tmp_path, monkeypatch):
+    from typer.testing import CliRunner
+    from ocpp_reports.cli import app
+    database = tmp_path / 'reports.sqlite'
+    populate(database)
+    served = []
+    monkeypatch.setattr('uvicorn.run', lambda application, **kwargs: served.append(application))
+    result = CliRunner().invoke(app, ['serve', '--database', str(database),
+        '--source-id', 'gway-005', '--source-id', 'porsche-abb-1', '--title', 'Porsche'])
+    assert result.exit_code == 0, result.output
+    client = TestClient(served[0])
+    assert {row['source_id'] for row in client.get('/api/snapshot').json()['sources']} == {'gway-005', 'porsche-abb-1'}
+    assert client.get('/api/snapshot?source_id=gway-002').status_code == 403
+    assert '<h1>Porsche</h1>' in client.get('/').text

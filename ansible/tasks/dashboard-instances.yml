@@ -103,7 +103,9 @@
         name: "ocpp-reports-{{ item.name }}.service"
         daemon_reload: true
         enabled: true
-        state: "{{ 'restarted' if reports_dashboard_scopes.changed or reports_dashboard_bases.changed or (reports_release_changed | default(false) | bool) else 'started' }}"
+        state: >-
+          {{ 'restarted' if reports_dashboard_scopes.changed or reports_dashboard_bases.changed
+             or (reports_release_changed | default(false) | bool) else 'started' }}
       loop: "{{ reports_dashboard_instances }}"
       become: true
 
