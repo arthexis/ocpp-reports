@@ -8,9 +8,27 @@ from pathlib import Path
 
 
 def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | None = None,
-             limit: int = 100) -> dict:
+             limit: int = 100, allowed_source_ids: tuple[str, ...] | None = None) -> dict:
     if not 1 <= limit <= 500:
         raise ValueError("limit must be between 1 and 500")
+    if allowed_source_ids is not None and not allowed_source_ids:
+        raise ValueError("Source allowlist must not be empty")
+
+    def source_filter():
+        where, args = [], []
+        if allowed_source_ids is not None:
+            where.append("source_id IN (" + ",".join("?" for _ in allowed_source_ids) + ")")
+            args.extend(allowed_source_ids)
+        if source_id:
+            where.append("source_id=?")
+            args.append(source_id)
+        return where, args
+
+    def source_clause():
+        where, args = source_filter()
+        return (" WHERE " + " AND ".join(where) if where else ""), args
+
+    scope_clause, scope_args = source_clause()
     path = Path(database).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"Warehouse not found: {path}")
@@ -20,15 +38,12 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
         db.execute("BEGIN")
         tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         sources = [dict(r) for r in db.execute(
-            "SELECT source_id,cursor,last_ingested_at FROM sources" + (" WHERE source_id=?" if source_id else "") + " ORDER BY source_id",
-            (source_id,) if source_id else ()
+            "SELECT source_id,cursor,last_ingested_at FROM sources" + scope_clause + " ORDER BY source_id",
+            scope_args
         )] if "sources" in tables else []
         connectors = []
         if "connector_state" in tables:
-            where, args = [], []
-            if source_id:
-                where.append("source_id=?")
-                args.append(source_id)
+            where, args = source_filter()
             if charger_id:
                 where.append("charger_id=?")
                 args.append(charger_id)
@@ -43,17 +58,14 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
         def recent(table, ordering, column):
             if table not in tables:
                 return []
-            where, args = [], []
-            if source_id:
-                where.append("source_id=?")
-                args.append(source_id)
+            where, args = source_filter()
             if charger_id:
                 where.append("charger_id=?" if table == "current_transactions" else "json_extract(payload, '$.charger_id')=?")
                 args.append(charger_id)
             clause = " WHERE " + " AND ".join(where) if where else ""
             rows = db.execute(f"SELECT source_id,{column},payload FROM {table}" +
                               clause + f" ORDER BY {ordering} DESC LIMIT ?", (*args, limit))
-            return [{"source_id": r["source_id"], **json.loads(r["payload"])} for r in rows]
+            return [{**json.loads(r["payload"]), "source_id": r["source_id"]} for r in rows]
         transactions = recent("current_transactions", "COALESCE(json_extract(payload, '$.stopped_at'), json_extract(payload, '$.started_at'), imported_at)", "transaction_id")
         events = recent("events", "event_id", "event_id")
         # Replicated evidence is stored separately from local ingestion. Expose both
@@ -61,15 +73,15 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
         if "collector_latest" in tables:
             remote = db.execute(
                 "SELECT source_id,kind,record_key,payload FROM collector_latest"
-                + (" WHERE source_id=?" if source_id else "")
+                + scope_clause
                 + " ORDER BY source_id,kind,record_key",
-                (source_id,) if source_id else (),
+                scope_args,
             ).fetchall()
             if "collector_cursors" in tables:
                 cursor_rows = db.execute(
                     "SELECT source_id,sequence FROM collector_cursors"
-                    + (" WHERE source_id=?" if source_id else ""),
-                    (source_id,) if source_id else (),
+                    + scope_clause,
+                    scope_args,
                 )
                 for r in cursor_rows:
                     if r["source_id"] not in {s["source_id"] for s in sources}:
@@ -96,7 +108,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                         continue
                     identity = (source, charger, payload.get("id"))
                     if identity not in existing_transactions:
-                        transactions.append({"source_id": source, **payload})
+                        transactions.append({**payload, "source_id": source})
                         existing_transactions.add(identity)
                 elif item["kind"] == "event":
                     charger = payload.get("charger_id")
@@ -104,7 +116,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                         continue
                     identity = (source, payload.get("id"))
                     if identity not in existing_events:
-                        events.append({"source_id": source, **payload})
+                        events.append({**payload, "source_id": source})
                         existing_events.add(identity)
             sources.sort(key=lambda r: r["source_id"])
             connectors.sort(key=lambda r: (r["source_id"], str(r.get("charger_id")), str(r.get("connector_id"))))

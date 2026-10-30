@@ -1,0 +1,4 @@
+# Managed source restriction; survives regeneration of the base service unit.
+[Service]
+ExecStart=
+ExecStart={{ reports_cli_link }} serve --database /var/lib/ocpp-reports/warehouse.sqlite --host 127.0.0.1 --port {{ item.port }} --title "{{ item.title }}"{% for source in item.source_ids %} --source-id {{ source }}{% endfor %}

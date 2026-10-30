@@ -29,3 +29,6 @@
 - name: Import existing and new local CSMS diagnostic uploads
   ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/diagnostic-local-import.yml"
   when: reports_local_ingest_enabled | bool
+
+- name: Apply persistent customer dashboard source boundaries
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/dashboard-instances.yml"

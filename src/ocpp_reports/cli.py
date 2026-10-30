@@ -320,6 +320,8 @@ def serve(
     database: Path = typer.Option(..., "--database", help="Reports SQLite warehouse"),
     host: str = typer.Option("127.0.0.1", "--host", help="Local bind address"),
     port: int = typer.Option(8080, "--port", min=1, max=65535),
+    source_ids: list[str] | None = typer.Option(None, "--source-id", help="Allowed source; repeat for each source. Omit for all sources"),
+    title: str = typer.Option("OCPP Reports", "--title", help="Dashboard title"),
 ) -> None:
     """Serve the read-only dashboard; external exposure requires a secure proxy."""
     if host not in {"127.0.0.1", "::1", "localhost"}:
@@ -327,7 +329,8 @@ def serve(
         raise typer.Exit(2)
     import uvicorn
     from .web import create_app
-    uvicorn.run(create_app(database), host=host, port=port)
+    uvicorn.run(create_app(database, allowed_source_ids=tuple(source_ids) if source_ids is not None else None,
+                           title=title), host=host, port=port)
 
 
 @app.command("forward")

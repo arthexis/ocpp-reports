@@ -1,0 +1,150 @@
+---
+- name: Locate persistent dashboard inventory
+  ansible.builtin.stat:
+    path: /etc/ocpp-reports/dashboards.json
+  become: true
+  register: reports_dashboard_inventory
+
+- name: Configure explicitly provisioned customer dashboards
+  when: reports_dashboard_inventory.stat.exists
+  block:
+    - name: Read dashboard inventory
+      ansible.builtin.slurp:
+        src: /etc/ocpp-reports/dashboards.json
+      become: true
+      register: reports_dashboard_inventory_data
+
+    - name: Decode dashboard inventory
+      ansible.builtin.set_fact:
+        reports_dashboard_instances: "{{ reports_dashboard_inventory_data.content | b64decode | from_json }}"
+
+    - name: Validate nonempty and unique dashboard inventory
+      ansible.builtin.assert:
+        that:
+          - reports_dashboard_instances | length > 0
+          - reports_dashboard_instances | map(attribute='name') | unique | length == reports_dashboard_instances | length
+          - reports_dashboard_instances | map(attribute='hostname') | unique | length == reports_dashboard_instances | length
+          - reports_dashboard_instances | map(attribute='port') | unique | length == reports_dashboard_instances | length
+          - reports_dashboard_instances | map(attribute='htpasswd') | unique | length == reports_dashboard_instances | length
+
+    - name: Validate each dashboard boundary
+      ansible.builtin.assert:
+        that:
+          - item.name is match('^dashboard(-[a-z0-9]+)*$')
+          - item.hostname is match('^[a-z0-9]+([.-][a-z0-9]+)+$')
+          - item.port | int >= 1024 and item.port | int <= 65535
+          - item.port | int != 8081
+          - item.source_ids | length > 0
+          - item.source_ids is sequence and item.source_ids is not string
+          - item.source_ids | select('match', '^[A-Za-z0-9][A-Za-z0-9._-]*$') | list | length == item.source_ids | length
+          - item.title is match('^[A-Za-z0-9 ._-]+$')
+          - item.htpasswd is match('^/etc/ocpp-reports/[A-Za-z0-9._-]+[.]htpasswd$')
+      loop: "{{ reports_dashboard_instances }}"
+
+    - name: Require existing per-dashboard authentication and TLS files
+      ansible.builtin.stat:
+        path: "{{ item.0.htpasswd if item.1 == 'auth' else '/etc/letsencrypt/live/' ~ item.0.hostname ~ '/' ~ item.1 }}"
+        follow: true
+      loop: "{{ reports_dashboard_instances | product(['auth', 'fullchain.pem', 'privkey.pem']) | list }}"
+      become: true
+      register: reports_dashboard_prerequisites
+
+    - name: Refuse incomplete dashboard exposure
+      ansible.builtin.assert:
+        that:
+          - item.stat.isreg | default(false)
+          - item.stat.size | default(0) > 0
+      loop: "{{ reports_dashboard_prerequisites.results }}"
+      loop_control:
+        label: "{{ item.item.1 }}"
+
+    - name: Install additional dashboard service bases
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/ocpp-reports-{{ item.name }}.service"
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=OCPP Reports customer dashboard
+          After=network.target
+          [Service]
+          Type=simple
+          User=ocpp-reports
+          Group=ocpp
+          ExecStart=/bin/false
+          Restart=on-failure
+          RestartSec=5
+          NoNewPrivileges=true
+          [Install]
+          WantedBy=multi-user.target
+      loop: "{{ reports_dashboard_instances }}"
+      when: item.name != 'dashboard'
+      become: true
+      register: reports_dashboard_bases
+
+    - name: Create persistent dashboard service override directories
+      ansible.builtin.file:
+        path: "/etc/systemd/system/ocpp-reports-{{ item.name }}.service.d"
+        state: directory
+        mode: '0755'
+      loop: "{{ reports_dashboard_instances }}"
+      become: true
+
+    - name: Enforce source scope independently of the legacy service template
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/templates/ocpp-reports-dashboard-scope.conf.j2"
+        dest: "/etc/systemd/system/ocpp-reports-{{ item.name }}.service.d/scope.conf"
+        mode: '0644'
+      loop: "{{ reports_dashboard_instances }}"
+      become: true
+      register: reports_dashboard_scopes
+
+    - name: Activate configured dashboard services
+      ansible.builtin.systemd_service:
+        name: "ocpp-reports-{{ item.name }}.service"
+        daemon_reload: true
+        enabled: true
+        state: >-
+          {{ 'restarted' if reports_dashboard_scopes.changed or reports_dashboard_bases.changed
+             or (reports_release_changed | default(false) | bool) else 'started' }}
+      loop: "{{ reports_dashboard_instances }}"
+      become: true
+
+    - name: Verify each dashboard HTTP endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ item.port }}/"
+        status_code: 200
+      loop: "{{ reports_dashboard_instances }}"
+      register: reports_dashboard_http
+      until: reports_dashboard_http.status == 200
+      retries: 10
+      delay: 1
+
+    - name: Render per-dashboard authenticated HTTPS sites
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/templates/ocpp-reports-dashboard-instance.nginx.j2"
+        dest: "/etc/nginx/sites-available/ocpp-reports-{{ item.name }}"
+        mode: '0644'
+      loop: "{{ reports_dashboard_instances }}"
+      become: true
+      register: reports_dashboard_sites
+
+    - name: Enable customer dashboard sites
+      ansible.builtin.file:
+        src: "/etc/nginx/sites-available/ocpp-reports-{{ item.name }}"
+        dest: "/etc/nginx/sites-enabled/ocpp-reports-{{ item.name }}"
+        state: link
+      loop: "{{ reports_dashboard_instances }}"
+      become: true
+      register: reports_dashboard_links
+
+    - name: Validate dashboard Nginx configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
+      become: true
+
+    - name: Activate dashboard HTTPS routes
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded
+      when: reports_dashboard_sites.changed or reports_dashboard_links.changed
+      become: true

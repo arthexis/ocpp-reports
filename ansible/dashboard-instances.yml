@@ -1,0 +1,11 @@
+---
+- name: Configure customer dashboard instances using the installed Reports release
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    reports_cli_link: /usr/local/bin/ocpp-reports
+    reports_release_changed: false
+  tasks:
+    - name: Apply persistent dashboard inventory
+      ansible.builtin.include_tasks: tasks/dashboard-instances.yml
