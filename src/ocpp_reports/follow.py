@@ -46,7 +46,7 @@ def sync_page(database: Path, page: dict[str, Any]) -> int:
             definition = db.execute(
                 "SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?", (trigger,)
             ).fetchone()
-            if definition and "power_observed_at" not in definition[0]:
+            if definition and "status_observed_at" not in definition[0]:
                 db.execute('DROP TRIGGER "' + trigger + '"')
         db.executescript("""
         CREATE TRIGGER IF NOT EXISTS replicate_connector_insert
@@ -57,7 +57,7 @@ def sync_page(database: Path, page: dict[str, Any]) -> int:
                     json_object('charger_id',NEW.charger_id,'connector_id',NEW.connector_id,
                         'status',NEW.status,'connected',NEW.connected,
                         'transaction_id',NEW.transaction_id,'power_w',NEW.power_w,
-                        'energy_wh',NEW.energy_wh,'observed_at',NEW.observed_at, 'power_observed_at',json_extract(NEW.payload,'$.power_observed_at'), 'energy_observed_at',json_extract(NEW.payload,'$.energy_observed_at')));
+                        'energy_wh',NEW.energy_wh,'observed_at',NEW.observed_at, 'status_observed_at',json_extract(NEW.payload,'$.status_observed_at'), 'power_observed_at',json_extract(NEW.payload,'$.power_observed_at'), 'energy_observed_at',json_extract(NEW.payload,'$.energy_observed_at')));
         END;
         CREATE TRIGGER IF NOT EXISTS replicate_connector_update
         AFTER UPDATE ON connector_state
@@ -71,7 +71,7 @@ def sync_page(database: Path, page: dict[str, Any]) -> int:
                     json_object('charger_id',NEW.charger_id,'connector_id',NEW.connector_id,
                         'status',NEW.status,'connected',NEW.connected,
                         'transaction_id',NEW.transaction_id,'power_w',NEW.power_w,
-                        'energy_wh',NEW.energy_wh,'observed_at',NEW.observed_at, 'power_observed_at',json_extract(NEW.payload,'$.power_observed_at'), 'energy_observed_at',json_extract(NEW.payload,'$.energy_observed_at')));
+                        'energy_wh',NEW.energy_wh,'observed_at',NEW.observed_at, 'status_observed_at',json_extract(NEW.payload,'$.status_observed_at'), 'power_observed_at',json_extract(NEW.payload,'$.power_observed_at'), 'energy_observed_at',json_extract(NEW.payload,'$.energy_observed_at')));
         END;
         """)
     def project(db: sqlite3.Connection) -> None:
@@ -95,6 +95,14 @@ def sync_page(database: Path, page: dict[str, Any]) -> int:
                 measured_at = sample.get("at") or observed
                 power_at = measured_at if sample.get("power_w") is not None else previous_payload.get("power_observed_at")
                 energy_at = measured_at if sample.get("energy_wh") is not None else previous_payload.get("energy_observed_at")
+                status_at = connector.get("status_received_at")
+                if not isinstance(status_at, str):
+                    status_at = None
+                if status_at is None and previous:
+                    prior = previous_payload.get("connector") or {}
+                    if (prior.get("status") == connector.get("status")
+                            and prior.get("error_code") == connector.get("error_code")):
+                        status_at = previous_payload.get("status_observed_at")
                 transaction = connector.get("transaction") or {}
                 db.execute("""INSERT INTO connector_state VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(source_id,charger_id,connector_id) DO UPDATE SET
@@ -107,6 +115,7 @@ def sync_page(database: Path, page: dict[str, Any]) -> int:
                      int(bool(charger.get("connected"))), transaction.get("id"),
                      power, energy, observed, datetime.now(timezone.utc).isoformat(),
                      json.dumps({"charger": charger, "connector": connector,
+                                 "status_observed_at": status_at,
                                  "power_observed_at": power_at,
                                  "energy_observed_at": energy_at}, sort_keys=True)))
     return ingest_page(database, page, project=project)
@@ -149,6 +158,7 @@ def current_connectors(database: Path) -> list[dict[str, Any]]:
     with sqlite3.connect(f"file:{database.resolve()}?mode=ro", uri=True) as db:
         db.row_factory = sqlite3.Row
         return [{**{k: v for k, v in dict(row).items() if k != "payload"},
+                 "status_observed_at": json.loads(row["payload"]).get("status_observed_at"),
                  "power_observed_at": json.loads(row["payload"]).get("power_observed_at"),
                  "energy_observed_at": json.loads(row["payload"]).get("energy_observed_at")}
                 for row in db.execute(

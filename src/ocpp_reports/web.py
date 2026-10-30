@@ -11,6 +11,21 @@ from fastapi.templating import Jinja2Templates
 from .warehouse_queries import snapshot
 
 
+def minute_utc(value: str | None) -> str:
+    """Presentation only: minute precision, explicit UTC for aware timestamps."""
+    if not value:
+        return "—"
+    if not isinstance(value, str):
+        return "Fecha inválida"
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return "Fecha inválida"
+    if parsed.tzinfo is None:
+        return parsed.strftime("%Y-%m-%d %H:%M") + " (zona desconocida)"
+    return parsed.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
 def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | None = None,
                title: str = "OCPP Reports") -> FastAPI:
     if allowed_source_ids is not None and (not allowed_source_ids or
@@ -19,6 +34,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     app = FastAPI(title="OCPP Reports", docs_url=None, redoc_url=None, openapi_url=None)
     warehouse = Path(database)
     templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+    templates.env.filters["minute_utc"] = minute_utc
 
     def read(source_id: str | None, charger_id: str | None, limit: int):
         if allowed_source_ids is not None and source_id and source_id not in allowed_source_ids:

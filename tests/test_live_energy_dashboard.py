@@ -6,6 +6,7 @@ from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 
 from ocpp_reports.warehouse.queries import snapshot
+from ocpp_reports.web import minute_utc
 
 
 def test_forwarded_live_energy_and_finalization(tmp_path):
@@ -22,7 +23,9 @@ def test_forwarded_live_energy_and_finalization(tmp_path):
         db.execute("INSERT INTO collector_latest VALUES ('gway-005','transaction','8',?)", (json.dumps(item),))
     data = snapshot(dbpath)
     assert data["transactions"][0]["live_energy_stale"] is False
-    template = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parents[1] / "src/ocpp_reports/templates"))).get_template("dashboard.html.j2")
+    environment = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parents[1] / "src/ocpp_reports/templates")))
+    environment.filters["minute_utc"] = minute_utc
+    template = environment.get_template("dashboard.html.j2")
     html = template.render(data=data, source_id="", charger_id="")
     assert "34.75" in html and "en vivo" in html
     with sqlite3.connect(dbpath) as db:

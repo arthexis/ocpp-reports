@@ -15,6 +15,54 @@ app.add_typer(collector_app, name="collector")
 from .forwarder_config import app as forwarder_app
 app.add_typer(forwarder_app, name="forwarder")
 
+locations_app = typer.Typer(help="Collector-owned charger location labels.", no_args_is_help=True)
+app.add_typer(locations_app, name="locations")
+
+
+@locations_app.command("list")
+def locations_list(
+    database: Path = typer.Option(..., "--database", help="Existing collector warehouse"),
+    source: str | None = typer.Option(None, "--source"),
+) -> None:
+    from .charger_locations import manage
+    try:
+        typer.echo(json.dumps(manage(database, "list", source=source), ensure_ascii=False))
+    except (OSError, ValueError, __import__("sqlite3").Error) as exc:
+        typer.echo(f"Location lookup refused: {type(exc).__name__}", err=True)
+        raise typer.Exit(2)
+
+
+@locations_app.command("set")
+def locations_set(
+    database: Path = typer.Option(..., "--database"),
+    source: str = typer.Option(..., "--source"),
+    charger: str = typer.Option(..., "--charger"),
+    location: str = typer.Option(..., "--location"),
+) -> None:
+    from .charger_locations import manage
+    try:
+        typer.echo(json.dumps(manage(database, "set", source=source, charger=charger,
+                                     location=location), ensure_ascii=False))
+    except (OSError, ValueError, __import__("sqlite3").Error) as exc:
+        typer.echo(f"Location assignment refused: {type(exc).__name__}", err=True)
+        raise typer.Exit(2)
+
+
+@locations_app.command("remove")
+def locations_remove(
+    database: Path = typer.Option(..., "--database"),
+    source: str = typer.Option(..., "--source"),
+    charger: str = typer.Option(..., "--charger"),
+) -> None:
+    from .charger_locations import manage
+    try:
+        typer.echo(json.dumps(manage(database, "remove", source=source,
+                                     charger=charger), ensure_ascii=False))
+    except (OSError, ValueError, __import__("sqlite3").Error) as exc:
+        typer.echo(f"Location removal refused: {type(exc).__name__}", err=True)
+        raise typer.Exit(2)
+
+
 # Commands are explicit one-shot operations; invoking the root never ingests or sends.
 
 @app.command("config")
