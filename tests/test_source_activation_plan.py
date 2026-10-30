@@ -18,11 +18,20 @@ def test_fresh_satellite_plan_is_read_only(tmp_path):
     assert not state.exists()
 
 
-@pytest.mark.parametrize("role", ["watchtower", "terminal"])
+@pytest.mark.parametrize("role", ["terminal"])
 def test_non_producer_roles_refused(tmp_path, role):
     csms, warehouse, state = _inputs(tmp_path)
     with pytest.raises(ValueError, match="no local CSMS producer"):
         inventory(role, csms, warehouse, state, "uuid-old", "node-a", "node-a")
+
+
+def test_watchtower_local_producer_plan_and_missing_producer_refusal(tmp_path):
+    csms, warehouse, state = _inputs(tmp_path)
+    report = inventory("watchtower", csms, warehouse, state, "uuid-old", "node-a", "node-a")
+    assert report["apply_allowed"] is True
+    assert report["role"] == "watchtower"
+    with pytest.raises(ValueError, match="requires CSMS and warehouse"):
+        inventory("watchtower", None, warehouse, state, "uuid-old", "node-a", "node-a")
 
 
 def test_existing_forwarding_requires_collector_preflight(tmp_path):

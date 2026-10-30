@@ -10,7 +10,7 @@ from pathlib import Path
 ROLE_CAPABILITIES = {
     "satellite": {"local_producer": True, "forwarder": True, "collector": False},
     "control": {"local_producer": True, "forwarder": False, "collector": True},
-    "watchtower": {"local_producer": False, "forwarder": False, "collector": True},
+    "watchtower": {"local_producer": True, "forwarder": False, "collector": True},
     "terminal": {"local_producer": False, "forwarder": False, "collector": False},
 }
 
@@ -88,7 +88,7 @@ def inventory(role: str, csms: Path | None, warehouse: Path | None,
         "warehouse_user_version": versions[1], "source_cursor": sources[0][1],
         "feed_tip": tip, "forwarder_ack": ack, "forwarder_binding": binding[0] if binding else None,
         "active_transactions": active, "counts": counts,
-        "apply_allowed": active == 0 and mode == "fresh" and role in ("satellite", "control"),
+        "apply_allowed": active == 0 and mode == "fresh" and role in ("satellite", "control", "watchtower"),
         "requires_collector_preflight": mode == "existing-history",
         "requires_maintenance_authorization": True,
         "forwarding_release_authorized": False,

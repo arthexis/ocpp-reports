@@ -21,6 +21,7 @@ from .source_preflight import check_snapshots
 SERVICES = (
     "ocpp-csms.service", "ocpp-reports-ingest.service",
     "ocpp-reports-csms-reader.service", "ocpp-reports-forwarder.service",
+    "ocpp-reports-collector.service", "ocpp-reports-dashboard.service",
 )
 
 
@@ -172,10 +173,10 @@ def activate(csms: Path, warehouse: Path, forwarder: Path, backup_dir: Path,
         raise ValueError("Backup directory already exists")
     if not csms.is_file() or not warehouse.is_file():
         raise ValueError("Missing CSMS or warehouse")
-    if role not in ("satellite", "control"):
+    if role not in ("satellite", "control", "watchtower"):
         raise ValueError("This role has no locally activatable producer")
-    if role == "control" and forwarder.exists():
-        raise ValueError("Control producer activation cannot use a forwarder state")
+    if role in ("control", "watchtower") and forwarder.exists():
+        raise ValueError("Non-forwarding producer activation cannot use a forwarder state")
     if any(path.is_symlink() for path in (csms, warehouse, forwarder)):
         raise ValueError("Database symlinks are not supported")
     with sqlite3.connect(csms.resolve().as_uri() + "?mode=ro", uri=True) as db:
