@@ -81,11 +81,11 @@ header{align-items:start;gap:.65rem}
 @media(max-width:700px){.header-filters{flex-wrap:wrap}.header-filters label{flex:1 1 120px}.header-filters .unified-filter{width:100%}}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand"><h1>{{ title }}</h1>
-<p class="muted">Estado de cargadores · Solo lectura · Página actualizada cada 15 s ·
+<div class="muted">Estado de cargadores · Solo lectura · Página actualizada cada 15 s ·
 <details class="tz-picker"><summary id="timezone-display">{{ timezone }} ▾</summary>
 <label for="timezone-choice">Zona horaria</label>
 <select id="timezone-choice" aria-label="Zona horaria">{% for zone in timezones %}
-<option value="{{ zone }}" {{ 'selected' if timezone == zone else '' }}>{{ zone }}</option>{% endfor %}</select></details></p></div>
+<option value="{{ zone }}" {{ 'selected' if timezone == zone else '' }}>{{ zone }}</option>{% endfor %}</select></details></div></div>
 <form id="dashboard-filters" class="filters header-filters" method="get" action="/" role="search" aria-label="Filtrar datos del dashboard">
 <label>Filtrar <input class="unified-filter" name="filter" value="{{ filter }}" placeholder="Origen, cargador o nombre" autocomplete="off"></label>
 <label>Estado / acción <input name="status" value="{{ status_filter }}" placeholder="Todos" autocomplete="off"></label>
