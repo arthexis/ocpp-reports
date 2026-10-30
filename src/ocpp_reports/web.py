@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -26,15 +27,100 @@ def minute_utc(value: str | None) -> str:
     return parsed.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
+
+def dashboard_timezones(configured: tuple[str, ...]) -> tuple[str, ...]:
+    """Only administrator-configured IANA zones are selectable."""
+    choices = tuple(dict.fromkeys(("UTC", *configured)))
+    for zone in choices:
+        try:
+            ZoneInfo(zone)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(f"Invalid dashboard timezone: {zone}") from exc
+    return choices
+
+
+def display_date(value: str | None, zone: str) -> str:
+    if not value:
+        return "—"
+    if not isinstance(value, str):
+        return "Fecha inválida"
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return "Fecha inválida"
+    if parsed.tzinfo is None:
+        return parsed.strftime("%Y-%m-%d %H:%M") + " (zona desconocida)"
+    return parsed.astimezone(ZoneInfo(zone)).strftime("%Y-%m-%d %H:%M")
+
+
+def _filter_dashboard(data: dict, *, term: str, status: str,
+                      location: str, date_from: str, date_to: str) -> dict:
+    """Filter presentation data only; preserve the raw snapshot API."""
+    term, status, location = term.casefold().strip(), status.casefold().strip(), location.casefold().strip()
+    for day in (date_from, date_to):
+        if day:
+            datetime.strptime(day, "%Y-%m-%d")
+    if date_from and date_to and date_from > date_to:
+        raise ValueError("Date range start must not exceed end")
+    result = dict(data)
+    for key in ("connectors", "transactions", "events"):
+        matched = []
+        for row in data[key]:
+            terms = (row.get("source_id"), row.get("charger_id"), row.get("location"))
+            if term and not any(term in str(v or "").casefold() for v in terms):
+                continue
+            if location and location not in str(row.get("location") or "").casefold():
+                continue
+            state = row.get("status") if key == "connectors" else row.get("state") if key == "transactions" else row.get("action")
+            if status and status not in str(state or "").casefold():
+                continue
+            date = (row.get("status_observed_at") or row.get("observed_at")) if key == "connectors" else (
+                row.get("started_at") if key == "transactions" else row.get("at"))
+            if date_from or date_to:
+                if not isinstance(date, str):
+                    continue
+                try:
+                    parsed = datetime.fromisoformat(date.replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                day = parsed.date().isoformat()
+                if (date_from and day < date_from) or (date_to and day > date_to):
+                    continue
+            matched.append(row)
+        result[key] = matched
+    if term:
+        result["sources"] = [s for s in data["sources"]
+                             if term in str(s.get("source_id") or "").casefold()]
+    return result
+
+
+def _group_events(events: list[dict]) -> list[dict]:
+    """Group adjacent repeat actions per charger; preserve all event details."""
+    groups: list[dict] = []
+    for event in events:
+        identity = (event.get("source_id"), event.get("charger_id"), event.get("action"))
+        if groups and groups[-1]["identity"] == identity:
+            groups[-1]["items"].append(event)
+        else:
+            groups.append({"identity": identity, "items": [event],
+                           "source_id": event.get("source_id"),
+                           "charger_id": event.get("charger_id"),
+                           "location": event.get("location"),
+                           "action": event.get("action")})
+    return groups
+
+
 def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | None = None,
-               title: str = "OCPP Reports") -> FastAPI:
+               title: str = "OCPP Reports", timezones: tuple[str, ...] = ("UTC",)) -> FastAPI:
     if allowed_source_ids is not None and (not allowed_source_ids or
             any(not isinstance(source, str) or not source.strip() for source in allowed_source_ids)):
         raise ValueError("Source allowlist must contain nonempty source IDs")
+    zones = dashboard_timezones(timezones)
     app = FastAPI(title="OCPP Reports", docs_url=None, redoc_url=None, openapi_url=None)
     warehouse = Path(database)
     templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
     templates.env.filters["minute_utc"] = minute_utc
+    templates.env.filters["display_date"] = display_date
 
     def read(source_id: str | None, charger_id: str | None, limit: int):
         if allowed_source_ids is not None and source_id and source_id not in allowed_source_ids:
@@ -49,8 +135,17 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request, source_id: str | None = None,
-              charger_id: str | None = None):
+              charger_id: str | None = None, filter: str = "",
+              status: str = "", location: str = "",
+              date_from: str = "", date_to: str = "", tz: str = "UTC"):
+        if tz not in zones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
         data = read(source_id, charger_id, 100)
+        try:
+            data = _filter_dashboard(data, term=filter, status=status,
+                                     location=location, date_from=date_from, date_to=date_to)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
         now = datetime.now(timezone.utc)
         for connector in data["connectors"]:
             try:
@@ -59,8 +154,12 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             except (ValueError, AttributeError, TypeError):
                 connector["stale"] = True
         return templates.TemplateResponse(request, "dashboard.html.j2",
-                                          {"data": data, "title": title, "source_id": source_id or "",
-                                           "charger_id": charger_id or ""})
+                                          {"data": data, "event_groups": _group_events(data["events"]),
+                                           "title": title, "source_id": source_id or "",
+                                           "charger_id": charger_id or "", "filter": filter,
+                                           "status_filter": status, "location_filter": location,
+                                           "date_from": date_from, "date_to": date_to,
+                                           "timezone": tz, "timezones": zones})
 
     @app.get("/api/snapshot")
     def api_snapshot(source_id: str | None = None, charger_id: str | None = None,
