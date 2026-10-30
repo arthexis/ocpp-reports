@@ -30,6 +30,10 @@ class Batch(BaseModel):
     changes: list[Change] = Field(max_length=500)
 
 
+class ReadyRequest(BaseModel):
+    source_id: str = Field(min_length=1)
+
+
 def _canonical(value: dict) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
@@ -93,6 +97,40 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
     app = FastAPI(title="OCPP Reports Collector", docs_url=None, redoc_url=None,
                   openapi_url=None)
     warehouse = Path(database)
+
+
+    @app.post("/api/replication/ready")
+    def readiness(query: ReadyRequest, authorization: str | None = Header(default=None)):
+        expected = credentials.get(query.source_id)
+        if not expected or not authorization or not hmac.compare_digest(
+            authorization, "Bearer " + expected
+        ):
+            raise HTTPException(401, "Invalid source credentials",
+                                headers={"WWW-Authenticate": "Bearer"})
+        cursor = 0
+        held = False
+        # Never create the warehouse or run schema migration during readiness.
+        if warehouse.is_file():
+            with sqlite3.connect(warehouse.resolve().as_uri() + "?mode=ro", uri=True) as db:
+                tables = {row[0] for row in db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )}
+                if "collector_source_holds" in tables:
+                    held = db.execute(
+                        "SELECT 1 FROM collector_source_holds WHERE source_id=?",
+                        (query.source_id,),
+                    ).fetchone() is not None
+                if "collector_cursors" in tables:
+                    row = db.execute(
+                        "SELECT sequence FROM collector_cursors WHERE source_id=?",
+                        (query.source_id,),
+                    ).fetchone()
+                    cursor = int(row[0]) if row else 0
+        if held:
+            raise HTTPException(503, "Source forwarding held",
+                                headers={"Retry-After": "60"})
+        return {"schema": "ocpp-reports/readiness/v1", "source_id": query.source_id,
+                "ready": True, "held": False, "cursor": cursor}
 
     @app.post("/api/replication")
     def receive(batch: Batch, authorization: str | None = Header(default=None)):
