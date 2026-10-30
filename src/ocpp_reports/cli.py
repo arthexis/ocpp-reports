@@ -35,7 +35,7 @@ def _location_output(rows: list[dict]) -> str:
     for index in range(len(rows)):
         lines.append("  ".join(str(values[index]).ljust(width)
                                for (_, values), width in zip(columns, widths)))
-    return "\\n".join(lines)
+    return "\n".join(lines)
 
 
 def _location_sqlite_error(operation: str, exc: Exception) -> None:
