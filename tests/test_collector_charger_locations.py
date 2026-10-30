@@ -132,7 +132,10 @@ def test_cli_infers_collector_database_from_installed_setting(tmp_path, monkeypa
     runner = CliRunner()
     result = runner.invoke(app, ["locations", "list", "--json"])
     assert result.exit_code == 0, result.output
-    assert json.loads(result.output) == []
+    assert json.loads(result.output) == [
+        {"source_id": "node-a", "charger_id": "charger-1",
+         "location": None, "assigned": False}
+    ]
     result = runner.invoke(app, ["locations", "set", "--json", "--source", "node-a",
                                  "--charger", "charger-1", "--name", "Site A"])
     assert result.exit_code == 0, result.output
@@ -141,7 +144,10 @@ def test_cli_infers_collector_database_from_installed_setting(tmp_path, monkeypa
     result = runner.invoke(app, ["locations", "remove", "--json", "--source", "node-a",
                                  "--charger", "charger-1"])
     assert result.exit_code == 0, result.output
-    assert json.loads(runner.invoke(app, ["locations", "list", "--json"]).output) == []
+    assert json.loads(runner.invoke(app, ["locations", "list", "--json"]).output) == [
+        {"source_id": "node-a", "charger_id": "charger-1",
+         "location": None, "assigned": False}
+    ]
     assert collector_database() == database.resolve()
 
 
