@@ -21,6 +21,7 @@ from .warehouse.collector_schema import ensure_collector_schema
 DATA_TABLES = ("collector_changes", "collector_latest", "collector_cursors")
 HOLD_TABLE = "collector_source_holds"
 RECEIPT_TABLE = "collector_receipts"
+LOCATION_TABLE = "collector_charger_locations"
 LOCAL_COLUMNS = {
     "sources": ["source_id", "cursor", "last_ingested_at"],
     "events": ["source_id", "event_id", "payload"],
@@ -62,7 +63,7 @@ def _check_schema(db: sqlite3.Connection, *, legacy_status: bool = False) -> Non
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
               if not r[0].startswith("sqlite_")}
     required = set(DATA_TABLES) | (set() if legacy_status else {HOLD_TABLE})
-    allowed = {*DATA_TABLES, HOLD_TABLE, RECEIPT_TABLE, *LOCAL_COLUMNS}
+    allowed = {*DATA_TABLES, HOLD_TABLE, RECEIPT_TABLE, LOCATION_TABLE, *LOCAL_COLUMNS}
     if not required.issubset(tables) or tables - allowed:
         raise ValueError("Unrecognized collector tables; reset requires schema review")
     local_tables = tables.intersection(LOCAL_COLUMNS)
@@ -79,6 +80,7 @@ def _check_schema(db: sqlite3.Connection, *, legacy_status: bool = False) -> Non
         "collector_cursors": ["source_id", "sequence"],
         HOLD_TABLE: ["source_id", "held_at"],
         **({RECEIPT_TABLE: ["source_id", "received_at", "sequence"]} if RECEIPT_TABLE in tables else {}),
+        **({LOCATION_TABLE: ["source_id", "charger_id", "location"]} if LOCATION_TABLE in tables else {}),
         **{table: LOCAL_COLUMNS[table] for table in local_tables},
     }
     for table, columns in expected.items():
