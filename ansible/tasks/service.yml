@@ -89,6 +89,43 @@
   become: true
   when: reports_service == 'forwarder' and (reports_forwarder_state.stat.exists | default(false))
 
+# A new satellite must be recognized by the *running* collector before
+# first enable. Existing durable forwarders are intentionally exempt: a WAN
+# outage must never prevent their normal restart/retry behavior.
+- name: Check active collector before first Forwarder enable
+  ansible.builtin.command:
+    argv:
+      - "{{ reports_release }}/venv/bin/ocpp-reports"
+      - forwarder
+      - check
+      - --remote
+      - --json
+  become: true
+  become_user: ocpp-reports
+  register: reports_first_forwarder_readiness
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when:
+    - reports_service == 'forwarder'
+    - reports_service_ready | bool
+    - not (reports_forwarder_state.stat.exists | default(false))
+
+- name: Block unrecognized new Forwarder before enabling service
+  ansible.builtin.assert:
+    that:
+      - reports_first_forwarder_readiness.rc == 0
+      - "(reports_first_forwarder_readiness.stdout | default('{}', true) | from_json).ready | default(false) | bool"
+    fail_msg: >-
+      The running collector has not authenticated this new source.
+      Check 'ocpp-reports forwarder check --remote --json' as the ocpp-reports
+      service user after updating collector config and its running service.
+      The existing forwarder, if any, has not been stopped.
+  when:
+    - reports_service == 'forwarder'
+    - reports_service_ready | bool
+    - not (reports_forwarder_state.stat.exists | default(false))
+
 - name: Enable and start configured service
   ansible.builtin.systemd_service:
     name: "ocpp-reports-{{ reports_service }}.service"
