@@ -63,3 +63,30 @@ Deleting an assignment restores the source fallback; collector source reset
 preserves assignments, while wiping/replacing the entire collector database
 requires a separate metadata backup. Only the collector owner can edit labels,
 and a viewer cannot edit them through the dashboard.
+
+
+### Operator output and inventory filters
+
+`ocpp-reports locations list` prints readable columns **Source**, **Charger**
+and **Name**. It includes all known charger identities, whether or not a name
+has been assigned, plus sources with replication/local-ingestion evidence but
+no known charger. The latter display `(not observed)` for the charger and
+cannot be used to infer a charger ID. A source with multiple chargers appears
+on multiple rows.
+
+```sh
+ocpp-reports locations list
+ocpp-reports locations list --set          # assigned names only
+ocpp-reports locations list --unset        # missing names, including source-only
+ocpp-reports locations list --source gway-002
+ocpp-reports locations list --json         # array of {source_id, charger_id, location, assigned}
+ocpp-reports locations set --source gway-002 --name "Audi Calzada"
+ocpp-reports locations set --source gway-002 --name "Audi Calzada" --json
+ocpp-reports locations remove --source gway-002 --json
+```
+
+`--set` and `--unset` are mutually exclusive. The machine-readable
+`--json` switch applies to all three `locations` commands; plain
+`set` and `remove` acknowledge the resolved source/charger and operation in
+human-readable text. The SQLite column and dashboard/API field remain named
+`location` for compatibility; only the operator CLI uses `--name`.
