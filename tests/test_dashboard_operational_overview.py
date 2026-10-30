@@ -34,7 +34,7 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
     assert 'setTimeout(apply, 650)' in html
     assert html.index('id="connectors"') < html.index('id="synchronization"')
     assert 'href="#connectors"' in html
-    assert 'data-label="Observado"' in html
+    assert 'data-label="Snapshot recibido"' in html
     assert "cp-fault" in html and "Faulted" in html
     assert "Falla / no disponible (último estado)" in html
     assert "Una falla antigua también puede contarse como dato antiguo" in html
