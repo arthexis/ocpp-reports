@@ -1,0 +1,46 @@
+{
+  "captures": [
+    {
+      "site": "audi",
+      "mode": "android",
+      "origin": "https://audi.gelectriic.com",
+      "captured_at": "2026-10-30T17:13:39.551439+00:00",
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "audi-android-20261030T171332Z.png",
+      "sha256": "a746dc1d2b0305bee501971e95069d75e29d3a65e18b4a4d7fc3f958180eb95d"
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "origin": "https://porsche.gelectriic.com",
+      "captured_at": "2026-10-30T17:13:43.215553+00:00",
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "porsche-android-20261030T171332Z.png",
+      "sha256": "0c8a9a554f786da63fd339e87a31f817d35a9f26717fe743de07b4a9c6a91e14"
+    }
+  ],
+  "device": {
+    "model": "SM-G950F",
+    "android_version": "9",
+    "chrome_version": "101.0.4951.61",
+    "physical_display": "Physical size: 1440x2960\nOverride size: 1080x2220"
+  },
+  "acceptance": {
+    "authorized_usb_device": true,
+    "both_dashboard_titles_and_source_scopes_verified": true,
+    "native_screenshots_visually_reviewed": true,
+    "temporary_adb_port_forwards_removed": true
+  }
+}
