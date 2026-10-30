@@ -29,7 +29,7 @@ warehouse:
 ```sh
 ocpp-reports locations list
 ocpp-reports locations set --source gway-002 --charger CHARGER_ID \
-  --location 'Audi San Pedro'
+  --name 'Audi San Pedro'
 ocpp-reports locations remove --source gway-002 --charger CHARGER_ID
 ```
 
@@ -40,7 +40,7 @@ collector's local/replicated charger inventory (or its persisted location
 assignments). For example:
 
 ```sh
-ocpp-reports locations set --charger CHARGER_ID --location 'Audi San Pedro'
+ocpp-reports locations set --charger CHARGER_ID --name 'Audi San Pedro'
 ocpp-reports locations remove --source gway-002
 ```
 
