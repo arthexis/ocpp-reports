@@ -177,3 +177,78 @@ def test_explicit_override_wins_over_inferred_path(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert manage(first, "list") == []
     assert manage(second, "list")[0]["location"] == "Second"
+
+
+def test_infer_source_from_charger_and_charger_from_source(tmp_path):
+    db = tmp_path / "warehouse.sqlite"
+    accept_batch(db, batch("node-a", "charger-a"))
+    accept_batch(db, batch("node-b", "charger-b"))
+    runner = CliRunner()
+    base = ["--database", str(db)]
+    inferred_source = runner.invoke(app, ["locations", "set", *base,
+                                         "--charger", "charger-a", "--location", "A"])
+    assert inferred_source.exit_code == 0, inferred_source.output
+    assert json.loads(inferred_source.output)["source_id"] == "node-a"
+    inferred_charger = runner.invoke(app, ["locations", "set", *base,
+                                          "--source", "node-b", "--location", "B"])
+    assert inferred_charger.exit_code == 0, inferred_charger.output
+    assert json.loads(inferred_charger.output)["charger_id"] == "charger-b"
+    assert [row["location"] for row in manage(db, "list")] == ["A", "B"]
+    removed = runner.invoke(app, ["locations", "remove", *base, "--source", "node-b"])
+    assert removed.exit_code == 0, removed.output
+    assert json.loads(removed.output)["charger_id"] == "charger-b"
+    removed = runner.invoke(app, ["locations", "remove", *base, "--charger", "charger-a"])
+    assert removed.exit_code == 0, removed.output
+    assert manage(db, "list") == []
+
+
+def test_refuse_ambiguous_and_missing_inference_without_writes(tmp_path):
+    db = tmp_path / "warehouse.sqlite"
+    accept_batch(db, batch("node-a", "same"))
+    accept_batch(db, batch("node-b", "same"))
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            """INSERT INTO collector_latest(source_id,kind,record_key,sequence,payload)
+               VALUES ('node-a','connector','other:1',2,?)""",
+            (json.dumps({"charger_id": "other", "connector_id": 1}),),
+        )
+    runner = CliRunner()
+    base = ["--database", str(db)]
+    for args in (
+        ["--charger", "same"],  # multiple source IDs
+        ["--source", "node-a"],  # multiple charger IDs
+        ["--charger", "missing"],  # no matches
+        ["--source", "missing"],  # no matches
+        [],  # never infer both
+    ):
+        result = runner.invoke(app, ["locations", "set", *base, *args, "--location", "Should not write"])
+        assert result.exit_code == 2, (args, result.output)
+    assert manage(db, "list") == []
+
+
+def test_inference_from_local_connector_and_persisted_label_after_reset(tmp_path):
+    db = tmp_path / "warehouse.sqlite"
+    from ocpp_reports.follow import sync_page
+    page = {"schema": "ocpp-csms/export/v1", "data": {
+        "source_id": "local-1", "exported_at": "2026-10-30T00:00:00Z",
+        "cursor": {"after": 0, "next": 0, "more": False},
+        "events": [], "energy": [], "transactions": [],
+        "status": {"chargers": [{"id": "local-cp", "connected": True,
+                                "connectors": [{"id": 1, "status": "Available",
+                                                "transaction": None}]}]}}}
+    sync_page(db, page)
+    result = CliRunner().invoke(app, ["locations", "set", "--database", str(db),
+                                      "--charger", "local-cp", "--location", "Local Garage"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["source_id"] == "local-1"
+
+    remote = tmp_path / "remote.sqlite"
+    accept_batch(remote, batch("node-a", "remote-cp"))
+    manage(remote, "set", source="node-a", charger="remote-cp", location="Remote Garage")
+    maintain(remote, "node-a", "hold")
+    maintain(remote, "node-a", "reset", tmp_path / "backup.sqlite")
+    # No connector evidence remains, but the existing label is still removable.
+    removed = CliRunner().invoke(app, ["locations", "remove", "--database", str(remote),
+                                       "--charger", "remote-cp"])
+    assert removed.exit_code == 0, removed.output
+    assert manage(remote, "list") == []
