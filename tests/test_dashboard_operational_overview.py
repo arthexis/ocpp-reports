@@ -28,7 +28,10 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
     response = client.get("/")
     assert response.status_code == 200
     html = response.text
-    assert html.index("Estado de los cargadores") < html.index("Filtrar resultados")
+    assert html.index('id="dashboard-filters"') < html.index('id="content"')
+    assert html.index('id="operations-heading"') < html.index('id="connectors"')
+    assert 'type="submit"' not in html
+    assert 'setTimeout(apply, 650)' in html
     assert html.index('id="connectors"') < html.index('id="synchronization"')
     assert 'href="#connectors"' in html
     assert 'data-label="Observado"' in html
