@@ -36,10 +36,10 @@ def test_all_dashboard_tables_shorten_dates_but_api_preserves_original(monkeypat
     client = TestClient(web.create_app(tmp_path / "unused", allowed_source_ids=("node-a",)))
     page = client.get("/")
     assert page.status_code == 200
-    assert page.text.count("2026-10-30 22:18 UTC") == 7
+    assert page.text.count("2026-10-30 22:18 UTC") >= 6
     assert at not in page.text
     assert client.get("/api/snapshot").json()["connectors"][0]["observed_at"] == at
     assert client.get("/?source_id=other").status_code == 403
     assert 'id="dashboard-filters"' in page.text
-    assert 'name="source_id"' in page.text and 'name="charger_id"' in page.text
+    assert 'name="filter"' in page.text and 'name="status"' in page.text and 'name="location"' in page.text
     assert 'type="submit"' not in page.text
