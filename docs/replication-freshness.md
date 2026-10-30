@@ -90,3 +90,50 @@ ocpp-reports locations remove --source gway-002 --json
 `set` and `remove` acknowledge the resolved source/charger and operation in
 human-readable text. The SQLite column and dashboard/API field remain named
 `location` for compatibility; only the operator CLI uses `--name`.
+
+
+## Dashboard layout, filtering and instance timezones (#114)
+
+The dashboard uses one **Filtrar** field to search source ID, charger ID and
+collector-owned location label. Additional **Estado / acción**, **Ubicación**,
+**Desde** and **Hasta** fields filter the rendered connector, transaction and
+event sections. Dates are inclusive calendar days in the **selected display
+timezone**, not the server's timezone. Source allowlists remain enforced by
+the warehouse query before these presentation-only filters. The
+`/api/snapshot` endpoint keeps its unchanged raw UTC/source-scoped evidence
+and original query parameters; older `source_id` and `charger_id` links
+continue working on the dashboard.
+
+Transaction history spans the full page and shows start and stop, measured
+SoC start/end when available, and final or clearly identified live estimated
+energy. SoC fields `soc_start` and `soc_end` require the additive CSMS
+export change in ocpp-csms PR #310; older transaction snapshots correctly
+display `—` until the producer sends measured values during normal
+synchronization. Do **not** infer battery SoC or reset replication cursors to
+backfill. Unanswered/abnormal event records are never grouped with unrelated
+events: the compact **Eventos recientes** section only collapses repeated
+routine evidence while keeping each event expandable. The removed empty
+connector status timestamp column is still available in the raw API.
+
+Instance operators can configure allowed IANA zones with repeated
+`ocpp-reports serve --timezone` arguments; the **first** is the default,
+and UTC remains available. For example:
+
+```sh
+ocpp-reports serve --database /var/lib/ocpp-reports/warehouse.sqlite \
+  --timezone America/Monterrey --timezone UTC
+```
+
+For Ansible-managed dashboard instances use
+`reports_dashboard_timezones: ['America/Monterrey', 'UTC']`; individual
+customer dashboard entries may override this with `timezones`. Leaving the
+list unset preserves the prior UTC default. Invalid IANA names fail before
+the dashboard starts. The selected zone is shown after "Página actualizada";
+the browser remembers it locally, and the selected zone is kept in the URL
+through filter submissions. Timestamps keep minute precision, and the
+original timestamps remain unchanged in SQLite and API output.
+
+Deployment is dashboard-only and reversible through the previous immutable
+release. Roll out CSMS SoC export independently and validate on a known
+transaction with actual SoC samples; missing SoC is expected for chargers
+which do not report it.
