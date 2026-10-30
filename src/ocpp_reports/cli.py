@@ -19,6 +19,26 @@ locations_app = typer.Typer(help="Collector-owned charger location labels.", no_
 app.add_typer(locations_app, name="locations")
 
 
+def _location_sqlite_error(operation: str, exc: Exception) -> None:
+    """Explain common collector SQLite access failures without relaxing permissions."""
+    import sqlite3
+
+    if isinstance(exc, sqlite3.OperationalError):
+        detail = str(exc).lower()
+        if any(s in detail for s in ("readonly", "read-only", "unable to open database file", "permission denied")):
+            reason = ("Collector warehouse is not writable by this user. "
+                      "Run the command as the ocpp-reports service account "
+                      "or ask an administrator to grant the correct access.")
+        elif "locked" in detail or "busy" in detail:
+            reason = "Collector warehouse is busy/locked; retry after the active writer finishes."
+        else:
+            reason = f"Collector SQLite operational error: {exc}"
+    else:
+        reason = f"{type(exc).__name__}"
+    typer.echo(f"Location {operation} refused: {reason}", err=True)
+    raise typer.Exit(2)
+
+
 @locations_app.command("list")
 def locations_list(
     database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
@@ -28,8 +48,7 @@ def locations_list(
     try:
         typer.echo(json.dumps(manage(collector_database(database), "list", source=source), ensure_ascii=False))
     except (OSError, ValueError, __import__("sqlite3").Error) as exc:
-        typer.echo(f"Location lookup refused: {type(exc).__name__}", err=True)
-        raise typer.Exit(2)
+        _location_sqlite_error("lookup", exc)
 
 
 @locations_app.command("set")
@@ -37,18 +56,17 @@ def locations_set(
     database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
     source: str | None = typer.Option(None, "--source", help="Infer if charger is unambiguous"),
     charger: str | None = typer.Option(None, "--charger", help="Infer if source has one charger"),
-    location: str = typer.Option(..., "--location"),
+    name: str = typer.Option(..., "--name", help="Human-readable location name"),
 ) -> None:
     from .charger_locations import collector_database, manage
     try:
         typer.echo(json.dumps(manage(collector_database(database), "set", source=source, charger=charger,
-                                     location=location), ensure_ascii=False))
+                                     location=name), ensure_ascii=False))
     except ValueError as exc:
         typer.echo(f"Location assignment refused: {exc}", err=True)
         raise typer.Exit(2)
     except (OSError, __import__("sqlite3").Error) as exc:
-        typer.echo(f"Location assignment refused: {type(exc).__name__}", err=True)
-        raise typer.Exit(2)
+        _location_sqlite_error("assignment", exc)
 
 
 @locations_app.command("remove")
@@ -65,8 +83,7 @@ def locations_remove(
         typer.echo(f"Location removal refused: {exc}", err=True)
         raise typer.Exit(2)
     except (OSError, __import__("sqlite3").Error) as exc:
-        typer.echo(f"Location removal refused: {type(exc).__name__}", err=True)
-        raise typer.Exit(2)
+        _location_sqlite_error("removal", exc)
 
 
 # Commands are explicit one-shot operations; invoking the root never ingests or sends.
