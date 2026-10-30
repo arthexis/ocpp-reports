@@ -69,13 +69,13 @@ def test_cli_and_missing_warehouse_no_create(tmp_path):
     args = ["--database", str(db)]
     assert runner.invoke(app, ["locations", "list", *args]).exit_code == 2
     assert runner.invoke(app, ["locations", "set", *args, "--source", "node-a",
-                               "--charger", "cp", "--location", "Site A"]).exit_code == 2
+                               "--charger", "cp", "--name", "Site A"]).exit_code == 2
     assert not db.exists()
     with sqlite3.connect(db) as conn:
         conn.execute("CREATE TABLE sentinel (id INTEGER)")
     assert json.loads(runner.invoke(app, ["locations", "list", *args]).output) == []
     set_result = runner.invoke(app, ["locations", "set", *args, "--source", "node-a",
-                                    "--charger", "cp", "--location", "Site A"])
+                                    "--charger", "cp", "--name", "Site A"])
     assert set_result.exit_code == 0, set_result.output
     assert json.loads(runner.invoke(app, ["locations", "list", *args]).output)[0]["location"] == "Site A"
     assert runner.invoke(app, ["locations", "remove", *args,
@@ -134,7 +134,7 @@ def test_cli_infers_collector_database_from_installed_setting(tmp_path, monkeypa
     assert result.exit_code == 0, result.output
     assert json.loads(result.output) == []
     result = runner.invoke(app, ["locations", "set", "--source", "node-a",
-                                 "--charger", "charger-1", "--location", "Site A"])
+                                 "--charger", "charger-1", "--name", "Site A"])
     assert result.exit_code == 0, result.output
     result = runner.invoke(app, ["locations", "list"])
     assert json.loads(result.output)[0]["location"] == "Site A"
@@ -156,7 +156,7 @@ def test_missing_or_unrelated_inferred_database_fails_closed(tmp_path, monkeypat
         db.execute("CREATE TABLE other (id INTEGER)")
     monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(unrelated))
     result = CliRunner().invoke(app, ["locations", "set", "--source", "node-a",
-                                     "--charger", "cp", "--location", "Site A"])
+                                     "--charger", "cp", "--name", "Site A"])
     assert result.exit_code == 2
     with sqlite3.connect(unrelated) as db:
         assert db.execute(
@@ -173,7 +173,7 @@ def test_explicit_override_wins_over_inferred_path(tmp_path, monkeypatch):
     args = ["--database", str(second)]
     result = CliRunner().invoke(app, ["locations", "set", *args,
                                       "--source", "node-b", "--charger", "charger-2",
-                                      "--location", "Second"])
+                                      "--name", "Second"])
     assert result.exit_code == 0, result.output
     assert manage(first, "list") == []
     assert manage(second, "list")[0]["location"] == "Second"
@@ -186,11 +186,11 @@ def test_infer_source_from_charger_and_charger_from_source(tmp_path):
     runner = CliRunner()
     base = ["--database", str(db)]
     inferred_source = runner.invoke(app, ["locations", "set", *base,
-                                         "--charger", "charger-a", "--location", "A"])
+                                         "--charger", "charger-a", "--name", "A"])
     assert inferred_source.exit_code == 0, inferred_source.output
     assert json.loads(inferred_source.output)["source_id"] == "node-a"
     inferred_charger = runner.invoke(app, ["locations", "set", *base,
-                                          "--source", "node-b", "--location", "B"])
+                                          "--source", "node-b", "--name", "B"])
     assert inferred_charger.exit_code == 0, inferred_charger.output
     assert json.loads(inferred_charger.output)["charger_id"] == "charger-b"
     assert [row["location"] for row in manage(db, "list")] == ["A", "B"]
@@ -221,7 +221,7 @@ def test_refuse_ambiguous_and_missing_inference_without_writes(tmp_path):
         ["--source", "missing"],  # no matches
         [],  # never infer both
     ):
-        result = runner.invoke(app, ["locations", "set", *base, *args, "--location", "Should not write"])
+        result = runner.invoke(app, ["locations", "set", *base, *args, "--name", "Should not write"])
         assert result.exit_code == 2, (args, result.output)
         assert "Location assignment refused:" in result.output
         if args in (["--charger", "same"], ["--source", "node-a"]):
@@ -241,7 +241,7 @@ def test_inference_from_local_connector_and_persisted_label_after_reset(tmp_path
                                                 "transaction": None}]}]}}}
     sync_page(db, page)
     result = CliRunner().invoke(app, ["locations", "set", "--database", str(db),
-                                      "--charger", "local-cp", "--location", "Local Garage"])
+                                      "--charger", "local-cp", "--name", "Local Garage"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["source_id"] == "local-1"
 
