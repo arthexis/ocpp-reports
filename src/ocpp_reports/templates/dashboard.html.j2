@@ -28,21 +28,21 @@ table{border-collapse:collapse;width:100%;font-size:.87rem}th,td{text-align:left
 <a class="skip-link" href="#content">Ir al contenido</a><header><div><h1>{{ title }}</h1><p class="muted">Warehouse local · Solo lectura · Actualización automática cada 15 s · filtros conservados</p></div>
 </header><main id="content"><section class="filter-panel"><form class="filters" method="get" role="search" aria-label="Filtrar datos del dashboard"><label>Origen <input name="source_id" value="{{ source_id }}" placeholder="Todos"></label>
 <label>Cargador <input name="charger_id" value="{{ charger_id }}" placeholder="Todos"></label><button type="submit">Filtrar</button><a class="clear-filters" href="/">Limpiar filtros</a></form></section>
-<section class="summary"><h2>Resumen</h2><p class="muted note">La última ingestión de cada origen se muestra en Sincronización. La actualización de esta página no implica que el satélite haya enviado datos nuevos.</p><div class="cards">
+<section class="summary"><h2>Resumen</h2><p class="muted note">La sincronización distingue ingestión local de recepción de réplica. La actualización de esta página no implica que el satélite haya enviado datos nuevos.</p><div class="cards">
 <article><strong>{{ data.sources|length }}</strong><div>Orígenes</div></article>
 <article><strong>{{ data.connectors|length }}</strong><div>Conectores</div></article>
 <article><strong>{{ data.transactions|length }}</strong><div>Transacciones recientes</div></article>
 <article><strong>{{ data.events|length }}</strong><div>Eventos recientes</div></article></div></section>
-<div class="dashboard-grid"><section><h2>Sincronización</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Última ingestión</th></tr></thead><tbody>
-{% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at or "Sin datos" }}</td></tr>{% else %}<tr><td class="empty" colspan="3">Sin orígenes</td></tr>{% endfor %}
+<div class="dashboard-grid"><section><h2>Sincronización</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
+{% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at or "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at or "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
-<section><h2>Conectores</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores"><table><thead><tr><th>Origen</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Observado</th></tr></thead><tbody>
+<section><h2>Conectores</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores"><table><thead><tr><th>Origen</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Estado reportado</th><th>Snapshot recibido</th></tr></thead><tbody>
 {% for c in data.connectors %}<tr><td>{{ c.source_id }}</td><td>{{ c.charger_id }}</td><td>{{ c.connector_id }}</td>
 <td>{% set state = (c.status or "")|lower %}<span class="status {% if state == 'charging' %}status--active{% elif state in ['available', 'finishing'] %}status--ok{% elif state in ['preparing', 'suspendedev', 'suspendedevse'] %}status--warn{% elif state in ['faulted', 'unavailable'] %}status--off{% endif %}">{{ c.status or "Desconocido" }}</span>{% if c.stale %} <span class="status status--warn">Antiguo</span>{% endif %}</td>
 <td><span class="status {{ 'status--ok' if c.connected else 'status--off' }}">{{ "Sí" if c.connected else "No" }} (observado)</span></td>
 <td class="numeric">{{ "%.2f"|format(c.power_w / 1000) ~ " kW" if c.power_w is not none else "—" }}</td>
-<td class="numeric">{{ "%.2f"|format(c.energy_wh / 1000) ~ " kWh" if c.energy_wh is not none else "—" }}</td><td>{{ c.observed_at }}</td></tr>
-{% else %}<tr><td class="empty" colspan="8">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
+<td class="numeric">{{ "%.2f"|format(c.energy_wh / 1000) ~ " kWh" if c.energy_wh is not none else "—" }}</td><td>{{ c.status_observed_at or "Desconocido" }}</td><td>{{ c.observed_at or "Desconocido" }}</td></tr>
+{% else %}<tr><td class="empty" colspan="9">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
 <p class="muted note">* Última observación del productor, no una conexión en tiempo real. Energía registrada: lectura de medidor, no consumo de la sesión.</p></section>
 <section><h2>Transacciones recientes</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de transacciones recientes"><table><thead><tr><th>Cargador</th><th>ID</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Energía de sesión</th></tr></thead><tbody>
 {% for t in data.transactions %}<tr><td>{{ t.charger_id }}</td><td>{{ t.id }}</td><td><span class="status {{ 'status--active' if (t.state or '')|lower in ['open', 'active', 'charging'] else 'status--ok' if (t.state or '')|lower in ['closed', 'stopped', 'completed'] else '' }}">{{ t.state or "Desconocido" }}</span></td><td>{{ t.started_at or "—" }}</td><td>{{ t.stopped_at or "Activa / sin cierre" }}</td>
