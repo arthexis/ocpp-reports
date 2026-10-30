@@ -30,6 +30,10 @@ class Batch(BaseModel):
     changes: list[Change] = Field(max_length=500)
 
 
+class ReadyRequest(BaseModel):
+    source_id: str = Field(min_length=1)
+
+
 def _canonical(value: dict) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
@@ -94,9 +98,6 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
                   openapi_url=None)
     warehouse = Path(database)
 
-
-    class ReadyRequest(BaseModel):
-        source_id: str = Field(min_length=1)
 
     @app.post("/api/replication/ready")
     def readiness(query: ReadyRequest, authorization: str | None = Header(default=None)):
