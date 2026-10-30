@@ -87,6 +87,69 @@ def _resolve_identity(db: sqlite3.Connection, source: str | None,
     return candidates[0]
 
 
+
+def list_inventory(database: Path, *, source: str | None = None,
+                   assigned: bool | None = None) -> list[dict]:
+    """Read-only inventory with exact charger mappings and source-only entries.
+
+    A source cursor is evidence of a source, not of a particular charger.
+    Source-only entries therefore never fabricate charger IDs.
+    """
+    if source is not None:
+        source = validate(source, "source")
+    path = Path(database).resolve()
+    if not path.is_file():
+        raise FileNotFoundError("Existing collector warehouse required")
+    with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as db:
+        db.execute("PRAGMA query_only=ON")
+        db.execute("BEGIN")
+        tables = {row[0] for row in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        sources: set[str] = set()
+        for table in ("sources", "collector_cursors", "collector_receipts"):
+            if table in tables:
+                sources.update(row[0] for row in db.execute(
+                    f"SELECT source_id FROM {table}"
+                ) if row[0])
+        identity_pairs: set[tuple[str, str]] = set()
+        if "connector_state" in tables:
+            identity_pairs.update((row[0], row[1]) for row in db.execute(
+                "SELECT DISTINCT source_id, charger_id FROM connector_state"
+            ) if row[0] and row[1])
+        if "collector_latest" in tables:
+            identity_pairs.update((row[0], row[1]) for row in db.execute(
+                """SELECT source_id,json_extract(payload, '$.charger_id')
+                   FROM collector_latest
+                   WHERE kind='connector' AND json_valid(payload)"""
+            ) if row[0] and row[1])
+        labels: dict[tuple[str, str], str] = {}
+        if TABLE in tables:
+            labels = {(s, c): name for s, c, name in db.execute(
+                f"SELECT source_id,charger_id,location FROM {TABLE}"
+            )}
+            identity_pairs.update(labels)
+        sources.update(s for s, _ in identity_pairs)
+
+        rows: list[dict] = []
+        for s, c in sorted(identity_pairs):
+            if source is not None and s != source:
+                continue
+            name = labels.get((s, c))
+            if assigned is not None and (name is not None) != assigned:
+                continue
+            rows.append({"source_id": s, "charger_id": c, "location": name,
+                         "assigned": name is not None})
+        known = {s for s, _ in identity_pairs}
+        if assigned is not True:
+            for s in sorted(sources - known):
+                if source is None or s == source:
+                    rows.append({"source_id": s, "charger_id": None,
+                                 "location": None, "assigned": False})
+        return sorted(rows, key=lambda row: (
+            row["source_id"], row["charger_id"] or ""
+        ))
+
+
 def manage(database: Path, action: str, *, source: str | None = None,
            charger: str | None = None, location: str | None = None) -> list[dict] | dict:
     """CRUD, with an explicit existing database and no mutation on list."""
