@@ -105,17 +105,20 @@ def test_serve_infers_collector_database_and_keeps_override(tmp_path, monkeypatc
     assert len(calls) == 2
 
 
-def test_serve_inference_fails_without_collector_and_does_not_create_db(tmp_path, monkeypatch):
+def test_serve_missing_collector_starts_degraded_and_rejects_unrelated_db(tmp_path, monkeypatch):
     import sqlite3
     import uvicorn
 
     calls = []
-    monkeypatch.setattr(uvicorn, "run", lambda application, **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(uvicorn, "run", lambda application, **kwargs: calls.append((application, kwargs)))
     missing = tmp_path / "missing.sqlite"
     monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(missing))
-    failure = runner.invoke(app, ["serve"])
-    assert failure.exit_code == 2
-    assert "Collector warehouse not found" in failure.output
+    started = runner.invoke(app, ["serve"])
+    assert started.exit_code == 0, started.output
+    assert len(calls) == 1
+    assert not missing.exists()
+    from fastapi.testclient import TestClient
+    assert TestClient(calls[0][0]).get("/").status_code == 503
     assert not missing.exists()
     unrelated = tmp_path / "unrelated.sqlite"
     with sqlite3.connect(unrelated) as db:
@@ -124,4 +127,4 @@ def test_serve_inference_fails_without_collector_and_does_not_create_db(tmp_path
     failure = runner.invoke(app, ["serve"])
     assert failure.exit_code == 2
     assert "not a collector warehouse" in failure.output
-    assert not calls
+    assert len(calls) == 1
