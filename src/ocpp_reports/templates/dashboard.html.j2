@@ -133,11 +133,11 @@ header{align-items:start;gap:.65rem}
 <p class="muted note">* Última observación del productor, no una conexión en tiempo real. Energía registrada: lectura de medidor, no consumo de la sesión. Las fechas originales de estado permanecen en la API.</p></section>
 <section class="transactions-panel" id="transactions"><div class="transactions-heading"><h2>Transacciones recientes</h2>
 <div class="transaction-filters" role="group" aria-label="Filtrar transacciones por energía final">
-<button type="button" data-tx-view="success" aria-pressed="{{ 'true' if tx_view == 'success' else 'false' }}" class="{{ 'selected' if tx_view == 'success' else '' }}">Exitosas</button>
+<button type="button" data-tx-view="success" aria-pressed="{{ 'true' if tx_view == 'success' else 'false' }}" class="{{ 'selected' if tx_view == 'success' else '' }}">Exitosas ({{ transaction_counts["success"] }})</button>
 <span aria-hidden="true">|</span>
-<button type="button" data-tx-view="failed" aria-pressed="{{ 'true' if tx_view == 'failed' else 'false' }}" class="{{ 'selected' if tx_view == 'failed' else '' }}">Fallidas</button>
+<button type="button" data-tx-view="failed" aria-pressed="{{ 'true' if tx_view == 'failed' else 'false' }}" class="{{ 'selected' if tx_view == 'failed' else '' }}">Fallidas ({{ transaction_counts["failed"] }})</button>
 <span aria-hidden="true">|</span>
-<button type="button" data-tx-view="all" aria-pressed="{{ 'true' if tx_view == 'all' else 'false' }}" class="{{ 'selected' if tx_view == 'all' else '' }}">Todas</button>
+<button type="button" data-tx-view="all" aria-pressed="{{ 'true' if tx_view == 'all' else 'false' }}" class="{{ 'selected' if tx_view == 'all' else '' }}">Todas ({{ transaction_counts["all"] }})</button>
 </div></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de transacciones recientes"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>ID</th><th>Estado</th><th>Inicio</th><th>Fin</th><th title="Primera lectura SoC recibida">SoC inicial</th><th title="Última lectura SoC recibida; no necesariamente al detener">SoC último</th><th>Energía de sesión</th></tr></thead><tbody>
 {% for t in data.transactions %}<tr><td>{{ t.location }}</td><td>{{ t.charger_id }}</td><td>{{ t.id }}</td><td><span class="status {{ 'status--active' if (t.state or '')|lower in ['open', 'active', 'charging'] else 'status--ok' if (t.state or '')|lower in ['closed', 'stopped', 'completed'] else '' }}">{{ t.state or "Desconocido" }}</span></td><td>{{ t.started_at|display_date(timezone) }}</td><td>{{ t.stopped_at|display_date(timezone) if t.stopped_at else "Activa / sin cierre" }}</td>
 <td class="numeric">{{ (t.soc_start|string ~ '%') if t.soc_start is defined and t.soc_start is not none else '—' }}</td>
