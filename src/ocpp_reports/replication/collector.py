@@ -46,7 +46,7 @@ class SourceHeldError(ValueError):
 def accept_batch(database: Path, batch: Batch) -> int:
     if batch.schema_ != "ocpp-reports/replication/v1":
         raise ValueError("Unsupported replication schema")
-    if any(change.kind not in {"event", "transaction", "connector"} for change in batch.changes):
+    if any(change.kind not in {"event", "transaction", "connector", "rating"} for change in batch.changes):
         raise ValueError("Unsupported change kind")
     positions = [change.sequence for change in batch.changes]
     if positions != sorted(set(positions)) or any(n <= batch.after for n in positions):

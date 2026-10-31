@@ -31,6 +31,7 @@ LOCAL_COLUMNS = {
     "transaction_observations": ["source_id", "charger_id", "transaction_id", "page_after",
                                  "page_next", "fingerprint", "payload", "imported_at"],
     "replication_changes": ["sequence", "source_id", "kind", "record_key", "payload"],
+    "connector_ratings": ["source_id", "charger_id", "connector_id", "rated_power_w", "rating_scope"],
     "connector_state": ["source_id", "charger_id", "connector_id", "status", "connected",
                         "transaction_id", "power_w", "energy_wh", "observed_at",
                         "synced_at", "payload"],
@@ -39,6 +40,8 @@ LOCAL_TRIGGERS = {
     "replicate_event_insert": "events",
     "replicate_transaction_insert": "current_transactions",
     "replicate_transaction_update": "current_transactions",
+    "replicate_rating_insert": "connector_ratings",
+    "replicate_rating_update": "connector_ratings",
     "replicate_connector_insert": "connector_state",
     "replicate_connector_update": "connector_state",
 }
@@ -67,7 +70,7 @@ def _check_schema(db: sqlite3.Connection, *, legacy_status: bool = False) -> Non
     if not required.issubset(tables) or tables - allowed:
         raise ValueError("Unrecognized collector tables; reset requires schema review")
     local_tables = tables.intersection(LOCAL_COLUMNS)
-    if local_tables and not (set(LOCAL_COLUMNS) - {"connector_state"}).issubset(local_tables):
+    if local_tables and not (set(LOCAL_COLUMNS) - {"connector_state", "connector_ratings"}).issubset(local_tables):
         raise ValueError("Incomplete local ingestion schema; reset requires schema review")
     for name, table in db.execute("SELECT name,tbl_name FROM sqlite_master WHERE type='trigger'"):
         # Local ingestion triggers cannot fire on collector-only deletions.
