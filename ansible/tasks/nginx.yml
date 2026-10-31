@@ -281,6 +281,7 @@
     path: "/etc/nginx/sites-enabled/{{ reports_diagnostics_hostname }}"
     state: absent
   become: true
+  register: reports_legacy_diagnostics_link
   when:
     - reports_diagnostics_nginx_enabled | bool
     - reports_old_diagnostics_host.stat.exists | default(false)
@@ -290,6 +291,7 @@
     path: "/etc/nginx/sites-available/{{ reports_diagnostics_hostname }}"
     state: absent
   become: true
+  register: reports_legacy_diagnostics_site
   when:
     - reports_diagnostics_nginx_enabled | bool
     - reports_old_diagnostics_host.stat.exists | default(false)
@@ -303,6 +305,7 @@
     mode: '0644'
   loop: "{{ (['dashboard', 'collector'] if reports_nginx_enabled | bool else []) + (['diagnostics'] if reports_diagnostics_nginx_enabled | bool else []) }}"
   become: true
+  register: reports_nginx_sites
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Enable independent Reports virtual hosts
@@ -312,6 +315,7 @@
     state: link
   loop: "{{ (['dashboard', 'collector'] if reports_nginx_enabled | bool else []) + (['diagnostics'] if reports_diagnostics_nginx_enabled | bool else []) }}"
   become: true
+  register: reports_nginx_links
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
 - name: Validate complete Nginx configuration
@@ -320,10 +324,33 @@
   changed_when: false
   when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
 
-- name: Reload shared Nginx only after successful validation
+# An unchanged deployment must not disrupt shared CSMS/Reports ingress.
+# Configuration changes still require a validated, graceful reload.
+- name: Reload shared Nginx when Reports ingress changed
   ansible.builtin.systemd_service:
     name: nginx
     enabled: true
     state: reloaded
   become: true
-  when: (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+  when:
+    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - >-
+      (reports_nginx_sites.changed | default(false))
+      or (reports_nginx_links.changed | default(false))
+      or (reports_legacy_diagnostics_link.changed | default(false))
+      or (reports_legacy_diagnostics_site.changed | default(false))
+
+- name: Ensure unchanged shared Nginx ingress is running
+  ansible.builtin.systemd_service:
+    name: nginx
+    enabled: true
+    state: started
+  become: true
+  when:
+    - (reports_nginx_enabled | bool) or (reports_diagnostics_nginx_enabled | bool)
+    - not (
+        (reports_nginx_sites.changed | default(false))
+        or (reports_nginx_links.changed | default(false))
+        or (reports_legacy_diagnostics_link.changed | default(false))
+        or (reports_legacy_diagnostics_site.changed | default(false))
+      )
