@@ -104,6 +104,15 @@ the warehouse query before these presentation-only filters. The
 and original query parameters; older `source_id` and `charger_id` links
 continue working on the dashboard.
 
+The Transactions title includes **Exitosas | Fallidas | Todas**. The default
+**Exitosas** view shows transactions with explicitly positive finalized
+`energy_wh`. **Fallidas** shows exactly zero finalized Wh; **Todas**
+retains the full unfiltered transaction history, including ongoing sessions
+and missing final meter evidence. Zero energy alone is only a display
+classification, not proof of a charger failure. The selection is preserved
+in the query string when using the other dashboard filters; none of these
+views modify the raw snapshot API or the stored evidence.
+
 Transaction history spans the full page and shows start and stop, measured
 SoC start/end when available, and final or clearly identified live estimated
 energy. SoC fields `soc_start` and `soc_end` require the additive CSMS
