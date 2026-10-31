@@ -51,6 +51,25 @@ def validate_export(page: Any, *, require_page_consistency: bool = True) -> dict
             raise ValueError(f"{name} must be a list")
     if not isinstance(data.get("status"), dict):
         raise ValueError("status must be an object")
+    # Optional additive CSMS operator metadata: capacity is never measured
+    # power, and connector zero is a charger-wide aggregate.
+    for charger in data["status"].get("chargers", []):
+        if not isinstance(charger, dict):
+            raise ValueError("status.chargers items must be objects")
+        value = charger.get("rated_power_w")
+        if value is not None and (type(value) is not int or not 0 < value <= 10_000_000):
+            raise ValueError("Invalid charger nominal power")
+        for connector in charger.get("connectors", []):
+            if not isinstance(connector, dict):
+                raise ValueError("status.connector items must be objects")
+            value = connector.get("rated_power_w")
+            scope = connector.get("rating_scope")
+            if value is not None and (type(value) is not int or not 0 < value <= 10_000_000):
+                raise ValueError("Invalid connector nominal power")
+            if scope not in (None, "charger", "connector"):
+                raise ValueError("Invalid connector rating scope")
+            if (value is None) != (scope is None):
+                raise ValueError("Connector rating and scope must be supplied together")
     previous = after
     for event in data["events"]:
         if not isinstance(event, dict):
