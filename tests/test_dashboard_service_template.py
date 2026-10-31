@@ -31,3 +31,29 @@ def test_dashboard_service_execstart_stays_separate_from_restart(zones):
         "--port", "8080",
     ]
     assert argv[8:] == [item for zone in zones for item in ("--timezone", zone)]
+
+
+@pytest.mark.parametrize("zones", [[], ["America/Monterrey", "UTC"]])
+def test_rendered_dashboard_systemd_unit_verifies(zones, tmp_path):
+    """Validate the rendered unit, not just its source template."""
+    import shutil
+    import subprocess
+
+    if shutil.which("systemd-analyze") is None:
+        pytest.skip("systemd-analyze unavailable (non-systemd platform)")
+    environment = Environment(loader=FileSystemLoader(TEMPLATES), trim_blocks=True)
+    environment.filters["quote"] = shlex.quote
+    rendered = environment.get_template("ocpp-reports-dashboard.service.j2").render(
+        reports_cli_link="/usr/bin/true",
+        reports_dashboard_timezones=zones,
+    )
+    unit = tmp_path / "ocpp-reports-dashboard-preflight.service"
+    unit.write_text(rendered, encoding="utf-8")
+    result = subprocess.run(
+        ["systemd-analyze", "verify", str(unit)],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, (
+        f"Rendered systemd unit invalid:\n{rendered}\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )

@@ -4,6 +4,27 @@ Independent, offline-first, read-only reporting for OCPP CSMS.
 
 Development tracked in [issue #1](https://github.com/arthexis/ocpp-reports/issues/1). All implementation changes are proposed through pull requests.
 
+## Local preflight before opening a PR
+
+Use one non-deploying command from a working checkout to catch template, syntax,
+and Python regressions before using GitHub Actions as the first test environment:
+
+```sh
+python3 -m pip install -e '.[test]' ansible-core ansible-lint
+bash scripts/preflight.sh              # full: unit tests + shell + Ansible + rendered service units
+bash scripts/preflight.sh --quick      # fast static/artifact checks, no full test suite
+```
+
+Both modes render the dashboard systemd unit using Ansible's Jinja
+`trim_blocks` setting, assert the `ExecStart` and `Restart` directives remain
+separate, and invoke `systemd-analyze verify` when available. Neither mode
+installs services, contacts running collectors, or modifies evidence databases.
+CI runs the quick preflight first; Python tests and the four isolated deployment
+roles only start after it passes. Isolated deployment failures automatically
+print the generated dashboard unit, service state, and recent journal.
+The full cross-repository contract test in CI additionally installs the
+`ocpp-csms` producer from `main`; operators can do the same locally if needed.
+
 ## Operator CLI
 
 The single executable is `ocpp-reports`; there is no singular `ocpp-report` alias. Invoking it without a subcommand displays help. The operations have distinct responsibilities:
