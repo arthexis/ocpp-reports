@@ -430,8 +430,25 @@ def serve(
     source_ids: list[str] | None = typer.Option(None, "--source-id", help="Allowed source; repeat for each source. Omit for all sources"),
     title: str = typer.Option("OCPP Reports", "--title", help="Dashboard title"),
     timezone: list[str] | None = typer.Option(None, "--timezone", help="Allowed IANA timezone; repeat to offer choices"),
+    update: bool = typer.Option(False, "--update", help="Save timezone choices and restart an installed dashboard"),
+    instance: str = typer.Option("dashboard", "--instance", help="Installed dashboard name (for --update)"),
+    timezone_config: Path | None = typer.Option(None, "--timezone-file", help="Installed per-instance timezone configuration"),
 ) -> None:
-    """Serve the read-only dashboard; external exposure requires a secure proxy."""
+    """Serve dashboard, or update timezones on an existing installed instance."""
+    if update:
+        from .dashboard_timezones import update_timezones
+        if timezone_config is not None or database is not None or source_ids is not None or title != "OCPP Reports" or host != "127.0.0.1" or port != 8080:
+            typer.echo("--update accepts only --timezone and optional --instance", err=True)
+            raise typer.Exit(2)
+        try:
+            typer.echo(update_timezones(instance, tuple(timezone or ())))
+        except (OSError, ValueError, PermissionError, RuntimeError) as exc:
+            typer.echo(f"Dashboard update failed: {exc}", err=True)
+            raise typer.Exit(2) from exc
+        return
+    if instance != "dashboard":
+        typer.echo("--instance is only valid with --update", err=True)
+        raise typer.Exit(2)
     if host not in {"127.0.0.1", "::1", "localhost"}:
         typer.echo("Refusing non-loopback bind; use an authenticated HTTPS reverse proxy", err=True)
         raise typer.Exit(2)
@@ -451,8 +468,15 @@ def serve(
         raise typer.Exit(2) from exc
     import uvicorn
     from .web import create_app
+    from .dashboard_timezones import configured_timezones
+    try:
+        zones = (configured_timezones(timezone_config, tuple(timezone or ("UTC",)))
+                 if timezone_config is not None else tuple(timezone or ("UTC",)))
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Dashboard timezone configuration invalid: {exc}", err=True)
+        raise typer.Exit(2) from exc
     uvicorn.run(create_app(warehouse, allowed_source_ids=tuple(source_ids) if source_ids is not None else None,
-                           title=title, timezones=tuple(timezone or ("UTC",))), host=host, port=port)
+                           title=title, timezones=zones), host=host, port=port)
 
 
 @app.command("forward")
