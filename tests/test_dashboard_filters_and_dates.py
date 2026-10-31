@@ -41,7 +41,11 @@ def test_all_dashboard_tables_shorten_dates_but_api_preserves_original(monkeypat
     assert client.get("/api/snapshot").json()["connectors"][0]["observed_at"] == at
     assert client.get("/?source_id=other").status_code == 403
     assert 'id="dashboard-filters"' in page.text
-    assert 'name="filter"' in page.text and 'name="status"' in page.text and 'name="location"' in page.text
+    assert 'name="filter"' in page.text and 'type="search"' in page.text
+    assert 'name="status"' not in page.text and 'name="location"' not in page.text
+    assert 'name="date_from"' not in page.text and 'name="date_to"' not in page.text
+    assert 'id="reset-filters"' not in page.text and "Limpiar" not in page.text
+    assert 'name="tz"' in page.text and 'name="tx_view"' in page.text
     assert 'type="submit"' not in page.text
 
 
@@ -100,6 +104,12 @@ def test_dashboard_text_status_location_and_date_filters(monkeypatch, tmp_path):
                           "&date_from=2026-10-30&date_to=2026-10-30&tz=America/Monterrey")
     assert filtered.status_code == 200
     assert "cp-a" in filtered.text and "cp-b" not in filtered.text
+    by_location = client.get("/?filter=calzada")
+    assert "cp-a" in by_location.text and "cp-b" not in by_location.text
+    by_status = client.get("/?filter=faulted")
+    assert "cp-b" in by_status.text and "cp-a" not in by_status.text
+    by_source = client.get("/?filter=node-b")
+    assert "cp-b" in by_source.text and "cp-a" not in by_source.text
     not_matching = client.get("/?filter=audi&status=faulted")
     assert "Sin conectores registrados" in not_matching.text
     assert client.get("/?date_from=2026-10-31&date_to=2026-10-30").status_code == 422
