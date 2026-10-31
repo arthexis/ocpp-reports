@@ -64,10 +64,8 @@ header{align-items:start;gap:.65rem}
 .dashboard-grid .events-panel{grid-column:2;grid-row:auto}
 .dashboard-grid .sync-panel{grid-column:1;grid-row:auto}
 .dashboard-grid section{margin:0;min-width:0}
-.header-filters input{width:125px}
-.header-filters input[type=date]{width:136px}
-.header-filters .unified-filter{width:190px}
-.header-filters .clear-filters{align-self:center}
+.header-filters .unified-filter{width:min(390px,38vw);min-width:245px}
+.header-filters{margin-left:auto}
 .tz-picker{position:relative;display:inline-block}
 .tz-picker summary{cursor:pointer;text-decoration:underline;text-underline-offset:2px;list-style:none;color:#d8e8fa}
 .tz-picker summary::-webkit-details-marker{display:none}
@@ -78,7 +76,7 @@ header{align-items:start;gap:.65rem}
 .events-panel .scroll{max-height:340px;overflow:auto}
 .transactions-panel .scroll{max-width:100%}
 @media(max-width:1100px){.header-filters{width:100%;justify-content:start}.dashboard-grid{grid-template-columns:1fr}.dashboard-grid section,.dashboard-grid .connectors-panel,.dashboard-grid .transactions-panel,.dashboard-grid .events-panel,.dashboard-grid .sync-panel{grid-column:1}}
-@media(max-width:700px){.header-filters{flex-wrap:wrap}.header-filters label{flex:1 1 120px}.header-filters .unified-filter{width:100%}}
+@media(max-width:700px){.header-filters{flex-wrap:wrap}.header-filters label{flex:1 1 100%}.header-filters .unified-filter{width:100%;min-width:0}}
 
 .transactions-heading{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem}
 .transactions-heading h2{margin:0}
@@ -95,14 +93,10 @@ header{align-items:start;gap:.65rem}
 <select id="timezone-choice" aria-label="Zona horaria">{% for zone in timezones %}
 <option value="{{ zone }}" {{ 'selected' if timezone == zone else '' }}>{{ zone }}</option>{% endfor %}</select></details></div></div>
 <form id="dashboard-filters" class="filters header-filters" method="get" action="/" role="search" aria-label="Filtrar datos del dashboard">
-<label>Filtrar <input class="unified-filter" name="filter" value="{{ filter }}" placeholder="Origen, cargador o nombre" autocomplete="off"></label>
-<label>Estado / acción <input name="status" value="{{ status_filter }}" placeholder="Todos" autocomplete="off"></label>
-<label>Ubicación <input name="location" value="{{ location_filter }}" placeholder="Todas" autocomplete="off"></label>
-<label>Desde <input type="date" name="date_from" value="{{ date_from }}"></label>
-<label>Hasta <input type="date" name="date_to" value="{{ date_to }}"></label>
+<label for="dashboard-search">Filtrar <input id="dashboard-search" class="unified-filter" type="search" name="filter" value="{{ filter }}" placeholder="Origen, cargador, ubicación o estado" autocomplete="off"></label>
 <input type="hidden" name="tz" id="timezone-value" value="{{ timezone }}">
 <input type="hidden" name="tx_view" value="{{ tx_view }}">
-<a class="clear-filters" id="reset-filters" href="/?tz={{ timezone|urlencode }}">Limpiar</a></form>
+</form>
 </header><main id="content">
 {% set counts = namespace(faults=0, charging=0, available=0, uncertain=0) %}
 {% for c in data.connectors %}
@@ -195,7 +189,7 @@ header{align-items:start;gap:.65rem}
     });
   }
   let timer;
-  const apply = () => { clearTimeout(timer); form.submit(); };
+  const apply = () => { clearTimeout(timer); form.requestSubmit(); };
   for (const input of form.querySelectorAll('input:not([type="hidden"])')) {
     input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(apply, 650); });
     input.addEventListener("change", apply);
