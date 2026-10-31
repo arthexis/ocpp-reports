@@ -66,12 +66,13 @@ def _filter_dashboard(data: dict, *, term: str, status: str,
     for key in ("connectors", "transactions", "events"):
         matched = []
         for row in data[key]:
-            terms = (row.get("source_id"), row.get("charger_id"), row.get("location"))
+            state = row.get("status") if key == "connectors" else row.get("state") if key == "transactions" else row.get("action")
+            terms = (row.get("source_id"), row.get("charger_id"), row.get("location"),
+                     state, row.get("status") if key == "events" else None)
             if term and not any(term in str(v or "").casefold() for v in terms):
                 continue
             if location and location not in str(row.get("location") or "").casefold():
                 continue
-            state = row.get("status") if key == "connectors" else row.get("state") if key == "transactions" else row.get("action")
             if status and status not in str(state or "").casefold():
                 continue
             if date_from or date_to:
