@@ -120,11 +120,10 @@ Instance operators can configure allowed IANA zones with repeated
 and UTC remains available. For example:
 
 ```sh
-ocpp-reports serve --database /var/lib/ocpp-reports/warehouse.sqlite \
-  --timezone America/Monterrey --timezone UTC
+ocpp-reports serve --timezone America/Monterrey --timezone UTC
 ```
 
-For Ansible-managed dashboard instances use
+The installed collector warehouse is inferred from `/var/lib/ocpp-reports/warehouse.sqlite` (or `OCPP_REPORTS_DATABASE` if set); pass `--database /path/to/warehouse.sqlite` only for a nonstandard existing warehouse. Inference refuses missing or unrelated files without creating a database.\n\nFor Ansible-managed dashboard instances use
 `reports_dashboard_timezones: ['America/Monterrey', 'UTC']`; individual
 customer dashboard entries may override this with `timezones`. Leaving the
 list unset preserves the prior UTC default. Invalid IANA names fail before
