@@ -32,9 +32,18 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
     assert html.index('id="operations-heading"') < html.index('id="connectors"')
     assert 'type="submit"' not in html
     assert 'setTimeout(apply, 650)' in html
+    assert 'name="filter"' in html and 'name="location"' in html
     assert html.index('id="connectors"') < html.index('id="synchronization"')
+    card_classes = ["operational-card--available", "operational-card--charging",
+                    "operational-card--fault", "operational-card--uncertain"]
+    card_positions = [html.index('class="operational-card ' + name + '"') for name in card_classes]
+    assert card_positions == sorted(card_positions)
+    for name, border in zip(card_classes, ("#19975b", "#dba520", "#b94d4d", "#8994a3")):
+        assert "." + name + "{border-left:4px solid " + border + "}" in html
     assert 'href="#connectors"' in html
     assert 'data-label="Snapshot recibido"' in html
+    assert 'Estado reportado' not in html
+    assert html.index('class="transactions-panel"') < html.index('id="synchronization"')
     assert "cp-fault" in html and "Faulted" in html
     assert "Falla / no disponible (último estado)" in html
     assert "Una falla antigua también puede contarse como dato antiguo" in html

@@ -424,20 +424,35 @@ def run(
 
 @app.command("serve")
 def serve(
-    database: Path = typer.Option(..., "--database", help="Reports SQLite warehouse"),
+    database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
     host: str = typer.Option("127.0.0.1", "--host", help="Local bind address"),
     port: int = typer.Option(8080, "--port", min=1, max=65535),
     source_ids: list[str] | None = typer.Option(None, "--source-id", help="Allowed source; repeat for each source. Omit for all sources"),
     title: str = typer.Option("OCPP Reports", "--title", help="Dashboard title"),
+    timezone: list[str] | None = typer.Option(None, "--timezone", help="Allowed IANA timezone; repeat to offer choices"),
 ) -> None:
     """Serve the read-only dashboard; external exposure requires a secure proxy."""
     if host not in {"127.0.0.1", "::1", "localhost"}:
         typer.echo("Refusing non-loopback bind; use an authenticated HTTPS reverse proxy", err=True)
         raise typer.Exit(2)
+    import os
+    from .charger_locations import collector_database, DEFAULT_COLLECTOR_DATABASE
+    path = Path(database) if database is not None else Path(
+        os.environ.get("OCPP_REPORTS_DATABASE", str(DEFAULT_COLLECTOR_DATABASE))
+    )
+    try:
+        path = path.expanduser().resolve()
+        # Dashboard availability is independent of the collector's readiness.
+        # Missing storage is served as HTTP 503, never created or migrated here.
+        # A present inferred DB must still be verified to be collector-owned.
+        warehouse = collector_database(database) if path.exists() else path
+    except (OSError, ValueError, __import__("sqlite3").Error) as exc:
+        typer.echo(f"Dashboard warehouse unavailable: {exc}", err=True)
+        raise typer.Exit(2) from exc
     import uvicorn
     from .web import create_app
-    uvicorn.run(create_app(database, allowed_source_ids=tuple(source_ids) if source_ids is not None else None,
-                           title=title), host=host, port=port)
+    uvicorn.run(create_app(warehouse, allowed_source_ids=tuple(source_ids) if source_ids is not None else None,
+                           title=title, timezones=tuple(timezone or ("UTC",))), host=host, port=port)
 
 
 @app.command("forward")

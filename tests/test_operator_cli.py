@@ -78,3 +78,53 @@ def test_ingest_validation_failure_is_nonzero_and_read_only(tmp_path):
                                   "--database", str(destination), "--json"])
     assert result.exit_code == 2, result.output
     assert not destination.exists()
+
+
+def test_serve_infers_collector_database_and_keeps_override(tmp_path, monkeypatch):
+    import sqlite3
+    import uvicorn
+
+    first = tmp_path / "warehouse.sqlite"
+    second = tmp_path / "other.sqlite"
+    for path in (first, second):
+        with sqlite3.connect(path) as db:
+            db.execute("CREATE TABLE collector_cursors (source_id TEXT)")
+            db.execute("CREATE TABLE collector_latest (source_id TEXT)")
+    monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(first))
+    calls = []
+    monkeypatch.setattr(uvicorn, "run", lambda application, **kwargs: calls.append((application, kwargs)))
+    result = runner.invoke(app, ["serve", "--timezone", "America/Monterrey"])
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    assert calls[0][0].title == "OCPP Reports"
+    assert calls[0][1]["host"] == "127.0.0.1"
+    assert calls[0][0].routes
+    monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(tmp_path / "missing.sqlite"))
+    override = runner.invoke(app, ["serve", "--database", str(second)])
+    assert override.exit_code == 0, override.output
+    assert len(calls) == 2
+
+
+def test_serve_missing_collector_starts_degraded_and_rejects_unrelated_db(tmp_path, monkeypatch):
+    import sqlite3
+    import uvicorn
+
+    calls = []
+    monkeypatch.setattr(uvicorn, "run", lambda application, **kwargs: calls.append((application, kwargs)))
+    missing = tmp_path / "missing.sqlite"
+    monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(missing))
+    started = runner.invoke(app, ["serve"])
+    assert started.exit_code == 0, started.output
+    assert len(calls) == 1
+    assert not missing.exists()
+    from fastapi.testclient import TestClient
+    assert TestClient(calls[0][0]).get("/").status_code == 503
+    assert not missing.exists()
+    unrelated = tmp_path / "unrelated.sqlite"
+    with sqlite3.connect(unrelated) as db:
+        db.execute("CREATE TABLE unrelated (id INTEGER)")
+    monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(unrelated))
+    failure = runner.invoke(app, ["serve"])
+    assert failure.exit_code == 2
+    assert "not a collector warehouse" in failure.output
+    assert len(calls) == 1

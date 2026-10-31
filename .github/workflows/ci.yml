@@ -90,7 +90,28 @@ jobs:
           test -L "$OCPP_REPORTS_INSTALL_ROOT/current"
           test "$(readlink "$OCPP_REPORTS_CLI_LINK")" = "$OCPP_REPORTS_INSTALL_ROOT/current/venv/bin/ocpp-reports"
           test "$(readlink "$OCPP_REPORTS_INSTALL_ROOT/current")" = "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg"
-          sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json
+          # Fresh collector/dashboard installs have valid configuration but no
+          # collected warehouse yet. Validate JSON rather than assuming that
+          # the CLI's exit code represents installation success.
+          verify_installed_status() {
+            local result code=0
+            result="$(sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json)" || code=$?
+            printf '%s\n' "$result"
+            printf 'Reports CLI status exit code: %s (role: %s)\n' "$code" "${{ matrix.role }}"
+            if [ "${{ matrix.role }}" = watchtower ] || [ "${{ matrix.role }}" = control ]; then
+              # Both zero and 'unconfigured' (3) are legitimate status exit
+              # codes across supported installations, but the JSON must prove
+              # this is *only* a missing, not corrupt, collector warehouse.
+              if [ "$code" -ne 0 ] && [ "$code" -ne 3 ]; then
+                echo "::error::Unexpected Reports status exit code $code" >&2
+                return 1
+              fi
+              printf '%s\n' "$result" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["state"] == "unconfigured"; assert d["config"]["state"] == "valid"; assert d["warehouse"]["state"] == "missing"'
+            else
+              test "$code" -eq 0
+            fi
+          }
+          verify_installed_status
           test -x "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg/venv/bin/ocpp-reports"
           bash deploy.sh
           # Explicit role must always re-enter Ansible, even for an installed SHA.
@@ -99,11 +120,7 @@ jobs:
           grep -q 'PLAY RECAP' /tmp/ocpp-reports-explicit-redeploy.log
           test -L "$OCPP_REPORTS_INSTALL_ROOT/current"
           test ! -e "$OCPP_REPORTS_INSTALL_ROOT/previous"
-          if [ "${{ matrix.role }}" = watchtower ] || [ "${{ matrix.role }}" = control ]; then
-            sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json
-          else
-            sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json
-          fi
+          verify_installed_status
           test "$(cat "$OCPP_REPORTS_INSTALL_ROOT/role")" = "${{ matrix.role }}"
           case "${{ matrix.role }}" in
             terminal) ;;
@@ -115,7 +132,12 @@ jobs:
               test -f /etc/systemd/system/ocpp-reports-collector.service
               test -f /etc/systemd/system/ocpp-reports-dashboard.service
               ! systemctl is-active --quiet ocpp-reports-collector.service
-              systemctl is-active --quiet ocpp-reports-dashboard.service
+              if ! systemctl is-active --quiet ocpp-reports-dashboard.service; then
+                echo "::error::Dashboard service failed to remain active after deploy"
+                systemctl status ocpp-reports-dashboard.service --no-pager -l || true
+                journalctl -u ocpp-reports-dashboard.service -n 80 --no-pager || true
+                exit 1
+              fi
               ;;
             control)
               test -f /etc/systemd/system/ocpp-reports-forwarder.service
@@ -123,7 +145,12 @@ jobs:
               test -f /etc/systemd/system/ocpp-reports-dashboard.service
               ! systemctl is-active --quiet ocpp-reports-forwarder.service
               ! systemctl is-active --quiet ocpp-reports-collector.service
-              systemctl is-active --quiet ocpp-reports-dashboard.service
+              if ! systemctl is-active --quiet ocpp-reports-dashboard.service; then
+                echo "::error::Dashboard service failed to remain active after deploy"
+                systemctl status ocpp-reports-dashboard.service --no-pager -l || true
+                journalctl -u ocpp-reports-dashboard.service -n 80 --no-pager || true
+                exit 1
+              fi
               ;;
           esac
 

@@ -29,7 +29,7 @@ table{border-collapse:collapse;width:100%;font-size:.87rem}th,td{text-align:left
 .operations{margin-bottom:.8rem}.operations h2{margin-bottom:.3rem}.operations .note{margin:.2rem 0 .7rem}
 .operations-cards{gap:.65rem}.operational-card{display:flex;flex-direction:column;gap:.25rem;min-width:0;padding:.85rem 1rem;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);text-decoration:none}
 .operational-card strong{font-size:1.65rem;line-height:1.1;font-variant-numeric:tabular-nums}.operational-card span{font-size:.82rem;color:var(--muted)}
-.operational-card--fault{border-left:4px solid #b94d4d}.operational-card:hover,.operational-card:focus-visible{border-color:var(--accent);text-decoration:underline}
+.operational-card--available{border-left:4px solid #19975b}.operational-card--charging{border-left:4px solid #dba520}.operational-card--fault{border-left:4px solid #b94d4d}.operational-card--uncertain{border-left:4px solid #8994a3}.operational-card:hover,.operational-card:focus-visible{border-color:var(--accent);text-decoration:underline}
 .filter-panel h2{margin-bottom:.6rem}.filter-panel{padding:.85rem 1.25rem}
 .dashboard-grid .connectors-panel{grid-column:1/-1}.charger-identity{overflow-wrap:anywhere}
 @media(max-width:520px){
@@ -57,12 +57,52 @@ header{align-items:start;gap:.65rem}
 .header-filters input{width:100%}
 .header-filters .clear-filters{align-self:end}
 }
+
+/* Full-width transaction evidence; compact supporting operations below. */
+.dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;align-items:start}
+.dashboard-grid .connectors-panel,.dashboard-grid .transactions-panel{grid-column:1/-1}
+.dashboard-grid .events-panel{grid-column:2;grid-row:auto}
+.dashboard-grid .sync-panel{grid-column:1;grid-row:auto}
+.dashboard-grid section{margin:0;min-width:0}
+.header-filters input{width:125px}
+.header-filters input[type=date]{width:136px}
+.header-filters .unified-filter{width:190px}
+.header-filters .clear-filters{align-self:center}
+.tz-picker{position:relative;display:inline-block}
+.tz-picker summary{cursor:pointer;text-decoration:underline;text-underline-offset:2px;list-style:none;color:#d8e8fa}
+.tz-picker summary::-webkit-details-marker{display:none}
+.tz-picker select{min-width:150px;max-width:235px;background:#fff;color:#172437;border:1px solid #a4b0bd;border-radius:6px}
+.events-panel details{padding:.5rem .2rem;border-bottom:1px solid var(--line)}
+.events-panel details summary{cursor:pointer;font-weight:600}
+.events-panel details[open] summary{padding-bottom:.5rem}
+.events-panel .scroll{max-height:340px;overflow:auto}
+.transactions-panel .scroll{max-width:100%}
+@media(max-width:1100px){.header-filters{width:100%;justify-content:start}.dashboard-grid{grid-template-columns:1fr}.dashboard-grid section,.dashboard-grid .connectors-panel,.dashboard-grid .transactions-panel,.dashboard-grid .events-panel,.dashboard-grid .sync-panel{grid-column:1}}
+@media(max-width:700px){.header-filters{flex-wrap:wrap}.header-filters label{flex:1 1 120px}.header-filters .unified-filter{width:100%}}
+
+.transactions-heading{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem}
+.transactions-heading h2{margin:0}
+.transaction-filters{display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;font-size:.85rem}
+.transaction-filters button{border:0;background:transparent;color:var(--muted);font-size:inherit;font-weight:500;padding:.2rem .3rem;min-height:32px}
+.transaction-filters button.selected{color:var(--accent);font-weight:750;text-decoration:underline;text-underline-offset:4px}
+.transaction-filters button:hover{color:var(--accent)}
+.transaction-filters span{color:var(--muted)}
 </style></head><body>
-<a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand"><h1>{{ title }}</h1><p class="muted">Estado de cargadores · Solo lectura · Página actualizada cada 15 s</p></div>
+<a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand"><h1>{{ title }}</h1>
+<div class="muted">Estado de cargadores · Solo lectura · Página actualizada cada 15 s ·
+<details class="tz-picker"><summary id="timezone-display">{{ timezone }} ▾</summary>
+<label for="timezone-choice">Zona horaria</label>
+<select id="timezone-choice" aria-label="Zona horaria">{% for zone in timezones %}
+<option value="{{ zone }}" {{ 'selected' if timezone == zone else '' }}>{{ zone }}</option>{% endfor %}</select></details></div></div>
 <form id="dashboard-filters" class="filters header-filters" method="get" action="/" role="search" aria-label="Filtrar datos del dashboard">
-<label>Origen <input name="source_id" value="{{ source_id }}" placeholder="Todos" autocomplete="off"></label>
-<label>Cargador <input name="charger_id" value="{{ charger_id }}" placeholder="Todos" autocomplete="off"></label>
-<a class="clear-filters" href="/">Limpiar</a></form>
+<label>Filtrar <input class="unified-filter" name="filter" value="{{ filter }}" placeholder="Origen, cargador o nombre" autocomplete="off"></label>
+<label>Estado / acción <input name="status" value="{{ status_filter }}" placeholder="Todos" autocomplete="off"></label>
+<label>Ubicación <input name="location" value="{{ location_filter }}" placeholder="Todas" autocomplete="off"></label>
+<label>Desde <input type="date" name="date_from" value="{{ date_from }}"></label>
+<label>Hasta <input type="date" name="date_to" value="{{ date_to }}"></label>
+<input type="hidden" name="tz" id="timezone-value" value="{{ timezone }}">
+<input type="hidden" name="tx_view" value="{{ tx_view }}">
+<a class="clear-filters" id="reset-filters" href="/?tz={{ timezone|urlencode }}">Limpiar</a></form>
 </header><main id="content">
 {% set counts = namespace(faults=0, charging=0, available=0, uncertain=0) %}
 {% for c in data.connectors %}
@@ -77,46 +117,87 @@ header{align-items:start;gap:.65rem}
 <h2 id="operations-heading">Estado de los cargadores</h2>
 <p class="muted note">Último estado informado, no conectividad en tiempo real. Una falla antigua también puede contarse como dato antiguo.</p>
 <div class="cards operations-cards">
+<a class="operational-card operational-card--available" href="#connectors"><strong>{{ counts.available }}</strong><span>Disponibles</span></a>
+<a class="operational-card operational-card--charging" href="#connectors"><strong>{{ counts.charging }}</strong><span>Cargando</span></a>
 <a class="operational-card operational-card--fault" href="#connectors"><strong>{{ counts.faults }}</strong><span>Falla / no disponible (último estado)</span></a>
-<a class="operational-card" href="#connectors"><strong>{{ counts.charging }}</strong><span>Cargando</span></a>
-<a class="operational-card" href="#connectors"><strong>{{ counts.available }}</strong><span>Disponibles</span></a>
-<a class="operational-card" href="#connectors"><strong>{{ counts.uncertain }}</strong><span>Datos antiguos / otros</span></a>
+<a class="operational-card operational-card--uncertain" href="#connectors"><strong>{{ counts.uncertain }}</strong><span>Datos antiguos / otros</span></a>
 </div></section>
 
-<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><h2>Conectores</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Estado reportado</th><th>Snapshot recibido</th></tr></thead><tbody>
+<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><h2>Conectores</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Snapshot recibido</th></tr></thead><tbody>
 {% for c in data.connectors %}<tr><td data-label="Ubicación">{{ c.location }}</td><td data-label="Cargador" class="charger-identity">{{ c.charger_id }}</td><td data-label="Conector">{{ c.connector_id }}</td>
 <td data-label="Estado">{% set state = (c.status or "")|lower %}<span class="status {% if state == 'charging' %}status--active{% elif state in ['available', 'finishing'] %}status--ok{% elif state in ['preparing', 'suspendedev', 'suspendedevse'] %}status--warn{% elif state in ['faulted', 'unavailable'] %}status--off{% endif %}">{{ c.status or "Desconocido" }}</span>{% if c.stale %} <span class="status status--warn">Antiguo</span>{% endif %}</td>
 <td data-label="Conectado"><span class="status {{ 'status--ok' if c.connected else 'status--off' }}">{{ "Sí" if c.connected else "No" }} (observado)</span></td>
 <td data-label="Potencia" class="numeric">{{ "%.2f"|format(c.power_w / 1000) ~ " kW" if c.power_w is not none else "—" }}</td>
-<td data-label="Medidor" class="numeric">{{ "%.2f"|format(c.energy_wh / 1000) ~ " kWh" if c.energy_wh is not none else "—" }}</td><td data-label="Estado reportado">{{ c.status_observed_at|minute_utc }}</td><td data-label="Snapshot recibido">{{ c.observed_at|minute_utc }}</td></tr>
-{% else %}<tr><td class="empty" colspan="9">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
-<p class="muted note">* Última observación del productor, no una conexión en tiempo real. Energía registrada: lectura de medidor, no consumo de la sesión.</p></section>
-<section id="synchronization"><h2>Sincronización</h2><p class="muted note">Ingestión local y recepción de réplica son distintas. La recarga de la página no confirma datos nuevos del cargador.</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
-{% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at|minute_utc if s.last_ingested_at else "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at|minute_utc if s.last_replication_received_at else "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
+<td data-label="Medidor" class="numeric">{{ "%.2f"|format(c.energy_wh / 1000) ~ " kWh" if c.energy_wh is not none else "—" }}</td><td data-label="Snapshot recibido">{{ c.observed_at|display_date(timezone) }}</td></tr>
+{% else %}<tr><td class="empty" colspan="8">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted note">* Última observación del productor, no una conexión en tiempo real. Energía registrada: lectura de medidor, no consumo de la sesión. Las fechas originales de estado permanecen en la API.</p></section>
+<section class="transactions-panel" id="transactions"><div class="transactions-heading"><h2>Transacciones recientes</h2>
+<div class="transaction-filters" role="group" aria-label="Filtrar transacciones por energía final">
+<button type="button" data-tx-view="success" aria-pressed="{{ 'true' if tx_view == 'success' else 'false' }}" class="{{ 'selected' if tx_view == 'success' else '' }}">Exitosas ({{ transaction_counts["success"] }})</button>
+<span aria-hidden="true">|</span>
+<button type="button" data-tx-view="failed" aria-pressed="{{ 'true' if tx_view == 'failed' else 'false' }}" class="{{ 'selected' if tx_view == 'failed' else '' }}">Fallidas ({{ transaction_counts["failed"] }})</button>
+<span aria-hidden="true">|</span>
+<button type="button" data-tx-view="all" aria-pressed="{{ 'true' if tx_view == 'all' else 'false' }}" class="{{ 'selected' if tx_view == 'all' else '' }}">Todas ({{ transaction_counts["all"] }})</button>
+</div></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de transacciones recientes"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>ID</th><th>Estado</th><th>Inicio</th><th>Fin</th><th title="Primera lectura SoC recibida">SoC inicial</th><th title="Última lectura SoC recibida; no necesariamente al detener">SoC último</th><th>Energía de sesión</th></tr></thead><tbody>
+{% for t in data.transactions %}<tr><td>{{ t.location }}</td><td>{{ t.charger_id }}</td><td>{{ t.id }}</td><td><span class="status {{ 'status--active' if (t.state or '')|lower in ['open', 'active', 'charging'] else 'status--ok' if (t.state or '')|lower in ['closed', 'stopped', 'completed'] else '' }}">{{ t.state or "Desconocido" }}</span></td><td>{{ t.started_at|display_date(timezone) }}</td><td>{{ t.stopped_at|display_date(timezone) if t.stopped_at else "Activa / sin cierre" }}</td>
+<td class="numeric">{{ (t.soc_start|string ~ '%') if t.soc_start is defined and t.soc_start is not none else '—' }}</td>
+<td class="numeric">{{ (t.soc_end|string ~ '%') if t.soc_end is defined and t.soc_end is not none else '—' }}</td>
+<td class="numeric">{% if t.energy_wh is defined and t.energy_wh is not none %}{{ "%.2f"|format(t.energy_wh / 1000) }} kWh (final){% elif t.live_energy_wh is defined and t.live_energy_wh is not none and t.active %}{{ "%.2f"|format(t.live_energy_wh / 1000) }} kWh <span class="{{ 'stale' if t.live_energy_stale else 'muted' }}">(estimada{% if t.live_energy_stale %}, antigua{% else %}, en vivo{% endif %})</span><div class="note muted">Medición: {{ t.live_energy_observed_at|display_date(timezone) if t.live_energy_observed_at else "Sin fecha" }}</div>{% elif t.active %}Final pendiente · estimación no disponible{% else %}—{% endif %}</td></tr>
+{% else %}<tr><td class="empty" colspan="9">Sin transacciones</td></tr>{% endfor %}</tbody></table></div><p class="muted note">SoC: primera y última medición reportada; no se estiman valores ni se presupone una medición al cierre.</p></section>
+<section class="sync-panel" id="synchronization"><h2>Sincronización</h2><p class="muted note">Ingestión local y recepción de réplica son distintas. La recarga de la página no confirma datos nuevos del cargador.</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
+{% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at|display_date(timezone) if s.last_ingested_at else "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at|display_date(timezone) if s.last_replication_received_at else "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
-<section><h2>Transacciones recientes</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de transacciones recientes"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>ID</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Energía de sesión</th></tr></thead><tbody>
-{% for t in data.transactions %}<tr><td>{{ t.location }}</td><td>{{ t.charger_id }}</td><td>{{ t.id }}</td><td><span class="status {{ 'status--active' if (t.state or '')|lower in ['open', 'active', 'charging'] else 'status--ok' if (t.state or '')|lower in ['closed', 'stopped', 'completed'] else '' }}">{{ t.state or "Desconocido" }}</span></td><td>{{ t.started_at|minute_utc }}</td><td>{{ t.stopped_at|minute_utc if t.stopped_at else "Activa / sin cierre" }}</td>
-<td class="numeric">{% if t.energy_wh is defined and t.energy_wh is not none %}{{ "%.2f"|format(t.energy_wh / 1000) }} kWh (final){% elif t.live_energy_wh is defined and t.live_energy_wh is not none and t.active %}{{ "%.2f"|format(t.live_energy_wh / 1000) }} kWh <span class="{{ 'stale' if t.live_energy_stale else 'muted' }}">(estimada{% if t.live_energy_stale %}, antigua{% else %}, en vivo{% endif %})</span><div class="note muted">Medición: {{ t.live_energy_observed_at|minute_utc if t.live_energy_observed_at else "Sin fecha" }}</div>{% elif t.active %}Final pendiente · estimación no disponible{% else %}—{% endif %}</td></tr>
-{% else %}<tr><td class="empty" colspan="7">Sin transacciones</td></tr>{% endfor %}</tbody></table></div></section>
-<section><h2>Eventos recientes</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de eventos recientes"><table><thead><tr><th>ID</th><th>Ubicación</th><th>Cargador</th><th>Acción</th><th>Fecha</th></tr></thead><tbody>
-{% for e in data.events %}<tr><td>{{ e.id }}</td><td>{{ e.location }}</td><td>{{ e.charger_id }}</td><td>{{ e.action }}</td><td>{{ e.at|minute_utc }}</td></tr>
-{% else %}<tr><td class="empty" colspan="5">Sin eventos</td></tr>{% endfor %}</tbody></table></div></section></div></main>
+<section class="events-panel" id="events"><h2>Eventos recientes</h2>
+<p class="muted note">Eventos consecutivos de la misma acción y cargador se agrupan; abre un grupo para ver el detalle.</p>
+{% for group in event_groups %}
+<details><summary>{{ group.location or group.source_id }} · {{ group.action or 'Sin acción' }}
+{% if group["items"]|length > 1 %}× {{ group["items"]|length }}{% endif %}
+<span class="muted note"> · {{ group["items"][0].at|display_date(timezone) }}</span></summary>
+<div class="scroll"><table><thead><tr><th>ID</th><th>Ubicación</th><th>Cargador</th><th>Acción</th><th>Fecha</th></tr></thead><tbody>
+{% for e in group["items"] %}<tr><td>{{ e.id }}</td><td>{{ e.location }}</td><td>{{ e.charger_id }}</td>
+<td>{{ e.action }}</td><td>{{ e.at|display_date(timezone) }}</td></tr>{% endfor %}
+</tbody></table></div></details>
+{% else %}<p class="muted">Sin eventos</p>{% endfor %}
+</section></div></main>
 
 <script>
 (() => {
   const form = document.getElementById("dashboard-filters");
+  const zoneChoice = document.getElementById("timezone-choice");
+  const zoneHidden = document.getElementById("timezone-value");
   if (!form) return;
-  let timer;
-  const apply = () => {
-    clearTimeout(timer);
-    // GET preserves both active filters in one navigation, with no submit button.
-    form.submit();
-  };
-  for (const input of form.querySelectorAll("input")) {
-    input.addEventListener("input", () => {
-      clearTimeout(timer);
-      timer = setTimeout(apply, 650);
+  const permitted = Array.from(zoneChoice.options, o => o.value);
+  const query = new URLSearchParams(window.location.search);
+  const stored = localStorage.getItem("ocpp-reports-dashboard-tz");
+  // Explicit URL selection takes precedence, then saved preference, then instance default.
+  const selection = query.has("tz") ? query.get("tz") : stored;
+  if (selection && permitted.includes(selection) && selection !== zoneHidden.value) {
+    const next = new URL(window.location.href);
+    next.searchParams.set("tz", selection);
+    window.location.replace(next.toString());
+    return;
+  }
+  if (permitted.includes(zoneHidden.value)) localStorage.setItem("ocpp-reports-dashboard-tz", zoneHidden.value);
+  zoneChoice.addEventListener("change", () => {
+    if (!permitted.includes(zoneChoice.value)) return;
+    localStorage.setItem("ocpp-reports-dashboard-tz", zoneChoice.value);
+    zoneHidden.value = zoneChoice.value;
+    const next = new URL(window.location.href);
+    next.searchParams.set("tz", zoneChoice.value);
+    window.location.assign(next.toString());
+  });
+  for (const button of document.querySelectorAll("[data-tx-view]")) {
+    button.addEventListener("click", () => {
+      const next = new URL(window.location.href);
+      next.searchParams.set("tx_view", button.dataset.txView);
+      next.hash = "transactions";
+      window.location.assign(next.toString());
     });
+  }
+  let timer;
+  const apply = () => { clearTimeout(timer); form.submit(); };
+  for (const input of form.querySelectorAll('input:not([type="hidden"])')) {
+    input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(apply, 650); });
     input.addEventListener("change", apply);
   }
 })();

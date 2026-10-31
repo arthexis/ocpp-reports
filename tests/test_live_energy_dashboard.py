@@ -6,7 +6,7 @@ from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 
 from ocpp_reports.warehouse.queries import snapshot
-from ocpp_reports.web import minute_utc
+from ocpp_reports.web import minute_utc, display_date
 
 
 def test_forwarded_live_energy_and_finalization(tmp_path):
@@ -25,8 +25,9 @@ def test_forwarded_live_energy_and_finalization(tmp_path):
     assert data["transactions"][0]["live_energy_stale"] is False
     environment = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parents[1] / "src/ocpp_reports/templates")))
     environment.filters["minute_utc"] = minute_utc
+    environment.filters["display_date"] = display_date
     template = environment.get_template("dashboard.html.j2")
-    html = template.render(data=data, source_id="", charger_id="")
+    html = template.render(data=data, source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1})
     assert "34.75" in html and "en vivo" in html
     with sqlite3.connect(dbpath) as db:
         item["live_energy_observed_at"] = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
@@ -36,5 +37,5 @@ def test_forwarded_live_energy_and_finalization(tmp_path):
         item.update(state="stopped", active=False, energy_wh=35000)
         db.execute("UPDATE collector_latest SET payload=?", (json.dumps(item),))
     finalized = snapshot(dbpath)
-    html = template.render(data=finalized, source_id="", charger_id="")
+    html = template.render(data=finalized, source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1})
     assert "35.00" in html and "(final)" in html

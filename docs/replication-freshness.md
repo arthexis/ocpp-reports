@@ -90,3 +90,58 @@ ocpp-reports locations remove --source gway-002 --json
 `set` and `remove` acknowledge the resolved source/charger and operation in
 human-readable text. The SQLite column and dashboard/API field remain named
 `location` for compatibility; only the operator CLI uses `--name`.
+
+
+## Dashboard layout, filtering and instance timezones (#114)
+
+The dashboard uses one **Filtrar** field to search source ID, charger ID and
+collector-owned location label. Additional **Estado / acción**, **Ubicación**,
+**Desde** and **Hasta** fields filter the rendered connector, transaction and
+event sections. Dates are inclusive calendar days in the **selected display
+timezone**, not the server's timezone. Source allowlists remain enforced by
+the warehouse query before these presentation-only filters. The
+`/api/snapshot` endpoint keeps its unchanged raw UTC/source-scoped evidence
+and original query parameters; older `source_id` and `charger_id` links
+continue working on the dashboard.
+
+The Transactions title includes **Exitosas | Fallidas | Todas**. The default
+**Exitosas** view shows transactions with explicitly positive finalized
+`energy_wh`. **Fallidas** shows exactly zero finalized Wh; each tab displays its count from the current source/site/date-filtered snapshot before the transaction-category filter; **Todas**
+retains the full unfiltered transaction history, including ongoing sessions
+and missing final meter evidence. Zero energy alone is only a display
+classification, not proof of a charger failure. The selection is preserved
+in the query string when using the other dashboard filters; none of these
+views modify the raw snapshot API or the stored evidence.
+
+Transaction history spans the full page and shows start and stop, measured
+SoC start/end when available, and final or clearly identified live estimated
+energy. SoC fields `soc_start` and `soc_end` require the additive CSMS
+export change in ocpp-csms PR #310; older transaction snapshots correctly
+display `—` until the producer sends measured values during normal
+synchronization. Do **not** infer battery SoC or reset replication cursors to
+backfill. Unanswered/abnormal event records are never grouped with unrelated
+events: the compact **Eventos recientes** section only collapses repeated
+routine evidence while keeping each event expandable. The removed empty
+connector status timestamp column is still available in the raw API.
+
+Instance operators can configure allowed IANA zones with repeated
+`ocpp-reports serve --timezone` arguments; the **first** is the default,
+and UTC remains available. For example:
+
+```sh
+ocpp-reports serve --timezone America/Monterrey --timezone UTC
+```
+
+The installed collector warehouse is inferred from `/var/lib/ocpp-reports/warehouse.sqlite` (or `OCPP_REPORTS_DATABASE` if set); pass `--database /path/to/warehouse.sqlite` only for a nonstandard existing warehouse. If the warehouse has not yet been created, the dashboard service starts without creating it and returns HTTP 503 until collector data exists. A present unrelated inferred SQLite file is refused; explicit `--database` continues to support nonstandard deployments.\n\nFor Ansible-managed dashboard instances use
+`reports_dashboard_timezones: ['America/Monterrey', 'UTC']`; individual
+customer dashboard entries may override this with `timezones`. Leaving the
+list unset preserves the prior UTC default. Invalid IANA names fail before
+the dashboard starts. The selected zone is shown after "Página actualizada";
+the browser remembers it locally, and the selected zone is kept in the URL
+through filter submissions. Timestamps keep minute precision, and the
+original timestamps remain unchanged in SQLite and API output.
+
+Deployment is dashboard-only and reversible through the previous immutable
+release. Roll out CSMS SoC export independently and validate on a known
+transaction with actual SoC samples; missing SoC is expected for chargers
+which do not report it.
