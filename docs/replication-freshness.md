@@ -204,3 +204,49 @@ Deployment is dashboard-only and reversible through the previous immutable
 release. Roll out CSMS SoC export independently and validate on a known
 transaction with actual SoC samples; missing SoC is expected for chargers
 which do not report it.
+
+
+## Historical transaction SoC refresh (issue #124)
+
+After upgrading CSMS, an old Reports transaction projection may still have
+`soc_start` or `soc_end` null even when the historical MeterValues contain
+genuine SoC measurements: event-cursor export pages include transaction
+snapshots only for events within that page.
+
+For an explicitly selected **completed** transaction, from the local CSMS /
+Reports host with the active producer and existing local warehouse:
+
+```sh
+ocpp-reports metadata refresh --cp T175-IT1-0620-055 --transaction 247 \
+  --database /var/lib/ocpp-reports/warehouse.sqlite --dry-run
+# Inspect the preview and approve this exact transaction separately.
+ocpp-reports metadata refresh --cp T175-IT1-0620-055 --transaction 247 \
+  --database /var/lib/ocpp-reports/warehouse.sqlite --apply
+```
+
+Dry-run is the **default**. `--apply` updates only missing SoC fields in an
+existing local `current_transactions` projection after verifying the
+producer's persisted source identity, exact charge-point and transaction ID,
+evidence contract and `ocpp-meter-values` provenance. Conflicting existing
+SoC evidence is refused. No rows are created for unknown transactions.
+A transaction with no genuine SoC samples remains unchanged.
+
+The update runs in one Reports SQLite transaction and uses the existing
+`replicate_transaction_update` trigger. The normal forwarder sends the
+updated projection to the authorized Watchtower collector; a dashboard source
+allowlist remains enforced. Retried identical refreshes do nothing.
+`events`, `transaction_observations`, CSMS data and durable event/forwarder/
+collector cursors are never reset, rewound or replayed. The normal forwarder
+ACK *may* advance when it delivers the resulting new changefeed entry.
+
+The command uses the **running CSMS service's installed Python interpreter**
+through `active_csms` discovery, not a source path from the user. It must be
+run with an operator identity that can read the active CSMS schema-8 database
+and write the Reports warehouse (normally via an authorized Reports runtime
+operator; do not loosen file permissions). It is not a Watchtower-side
+reload command and does not restart or configure the charger.
+
+Production validation is **not** part of deployment: run a preview, approve
+one historical transaction, apply once, then verify its local projection and
+source-scoped dashboard and confirm normal forwarder delivery without
+resetting any cursor. See issue #124 for the bounded operational checklist.
