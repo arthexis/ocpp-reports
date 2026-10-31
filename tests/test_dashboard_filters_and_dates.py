@@ -179,15 +179,21 @@ def test_transaction_energy_filter_defaults_to_positive_final_energy(monkeypatch
     assert 'data-tx-view="success" aria-pressed="true"' in success.text
     assert 'data-tx-view="failed" aria-pressed="false"' in success.text
     assert 'name="tx_view" value="success"' in success.text
+    for label in ("Exitosas (1)", "Fallidas (1)", "Todas (4)"):
+        assert label in success.text
     failed = client.get("/?tx_view=failed")
     assert failed.status_code == 200
     assert ">22</td>" in failed.text
     assert ">21</td>" not in failed.text
     assert ">23</td>" not in failed.text
     assert 'data-tx-view="failed" aria-pressed="true"' in failed.text
+    assert "Exitosas (1)" in failed.text and "Fallidas (1)" in failed.text
+    assert "Todas (4)" in failed.text
     all_rows = client.get("/?tx_view=all")
     assert all_rows.status_code == 200
     assert all(f">{id}</td>" in all_rows.text for id in (21, 22, 23, 24))
+    assert "Exitosas (1)" in all_rows.text and "Fallidas (1)" in all_rows.text
+    assert "Todas (4)" in all_rows.text
     assert client.get("/?tx_view=other").status_code == 422
     api = client.get("/api/snapshot")
     assert api.status_code == 200
