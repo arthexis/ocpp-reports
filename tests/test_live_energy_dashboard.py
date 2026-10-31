@@ -27,7 +27,7 @@ def test_forwarded_live_energy_and_finalization(tmp_path):
     environment.filters["minute_utc"] = minute_utc
     environment.filters["display_date"] = display_date
     template = environment.get_template("dashboard.html.j2")
-    html = template.render(data=data, source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[])
+    html = template.render(data=data, source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1})
     assert "34.75" in html and "en vivo" in html
     with sqlite3.connect(dbpath) as db:
         item["live_energy_observed_at"] = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
@@ -37,5 +37,5 @@ def test_forwarded_live_energy_and_finalization(tmp_path):
         item.update(state="stopped", active=False, energy_wh=35000)
         db.execute("UPDATE collector_latest SET payload=?", (json.dumps(item),))
     finalized = snapshot(dbpath)
-    html = template.render(data=finalized, source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[])
+    html = template.render(data=finalized, source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1})
     assert "35.00" in html and "(final)" in html
