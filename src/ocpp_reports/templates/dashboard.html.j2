@@ -29,7 +29,7 @@ table{border-collapse:collapse;width:100%;font-size:.87rem}th,td{text-align:left
 .operations{margin-bottom:.8rem}.operations h2{margin-bottom:.3rem}.operations .note{margin:.2rem 0 .7rem}
 .operations-cards{gap:.65rem}.operational-card{display:flex;flex-direction:column;gap:.25rem;min-width:0;padding:.85rem 1rem;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);text-decoration:none}
 .operational-card strong{font-size:1.65rem;line-height:1.1;font-variant-numeric:tabular-nums}.operational-card span{font-size:.82rem;color:var(--muted)}
-.operational-card--fault{border-left:4px solid #b94d4d}.operational-card:hover,.operational-card:focus-visible{border-color:var(--accent);text-decoration:underline}
+.operational-card--available{border-left:4px solid #19975b}.operational-card--charging{border-left:4px solid #dba520}.operational-card--fault{border-left:4px solid #b94d4d}.operational-card--uncertain{border-left:4px solid #8994a3}.operational-card:hover,.operational-card:focus-visible{border-color:var(--accent);text-decoration:underline}
 .filter-panel h2{margin-bottom:.6rem}.filter-panel{padding:.85rem 1.25rem}
 .dashboard-grid .connectors-panel{grid-column:1/-1}.charger-identity{overflow-wrap:anywhere}
 @media(max-width:520px){
@@ -108,10 +108,10 @@ header{align-items:start;gap:.65rem}
 <h2 id="operations-heading">Estado de los cargadores</h2>
 <p class="muted note">Último estado informado, no conectividad en tiempo real. Una falla antigua también puede contarse como dato antiguo.</p>
 <div class="cards operations-cards">
+<a class="operational-card operational-card--available" href="#connectors"><strong>{{ counts.available }}</strong><span>Disponibles</span></a>
+<a class="operational-card operational-card--charging" href="#connectors"><strong>{{ counts.charging }}</strong><span>Cargando</span></a>
 <a class="operational-card operational-card--fault" href="#connectors"><strong>{{ counts.faults }}</strong><span>Falla / no disponible (último estado)</span></a>
-<a class="operational-card" href="#connectors"><strong>{{ counts.charging }}</strong><span>Cargando</span></a>
-<a class="operational-card" href="#connectors"><strong>{{ counts.available }}</strong><span>Disponibles</span></a>
-<a class="operational-card" href="#connectors"><strong>{{ counts.uncertain }}</strong><span>Datos antiguos / otros</span></a>
+<a class="operational-card operational-card--uncertain" href="#connectors"><strong>{{ counts.uncertain }}</strong><span>Datos antiguos / otros</span></a>
 </div></section>
 
 <div class="dashboard-grid"><section id="connectors" class="connectors-panel"><h2>Conectores</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Snapshot recibido</th></tr></thead><tbody>
