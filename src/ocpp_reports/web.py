@@ -208,6 +208,11 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         try:
+            transaction_counts = {
+                "success": len(_filter_transaction_energy(data["transactions"], "success")),
+                "failed": len(_filter_transaction_energy(data["transactions"], "failed")),
+                "all": len(data["transactions"]),
+            }
             data["transactions"] = _filter_transaction_energy(data["transactions"], tx_view)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
@@ -224,7 +229,8 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                                            "charger_id": charger_id or "", "filter": filter,
                                            "status_filter": status, "location_filter": location,
                                            "date_from": date_from, "date_to": date_to,
-                                           "timezone": tz, "timezones": zones, "tx_view": tx_view})
+                                           "timezone": tz, "timezones": zones, "tx_view": tx_view,
+                                           "transaction_counts": transaction_counts})
 
     @app.get("/api/snapshot")
     def api_snapshot(source_id: str | None = None, charger_id: str | None = None,
