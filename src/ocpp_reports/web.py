@@ -109,6 +109,26 @@ def _filter_dashboard(data: dict, *, term: str, status: str,
     return result
 
 
+
+def _filter_transaction_energy(transactions: list[dict], view: str) -> list[dict]:
+    """Classify measured final energy; unknown isn't a failed or successful charge."""
+    if view not in ("success", "failed", "all"):
+        raise ValueError("Invalid transaction view")
+    if view == "all":
+        return transactions
+
+    def energy(row: dict) -> float | None:
+        value = row.get("energy_wh")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        from math import isfinite
+        return float(value) if isfinite(value) and value >= 0 else None
+
+    return [row for row in transactions
+            if (value := energy(row)) is not None
+            and (value > 0 if view == "success" else value == 0)]
+
+
 def _event_group_key(event: dict) -> tuple | None:
     """Collapse only routine repeats; faults and transaction events stay explicit.
 
@@ -176,7 +196,8 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     def index(request: Request, source_id: str | None = None,
               charger_id: str | None = None, filter: str = "",
               status: str = "", location: str = "",
-              date_from: str = "", date_to: str = "", tz: str | None = None):
+              date_from: str = "", date_to: str = "", tz: str | None = None,
+              tx_view: str = "success"):
         tz = tz or zones[0]
         if tz not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
@@ -184,6 +205,10 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         try:
             data = _filter_dashboard(data, term=filter, status=status,
                                      location=location, date_from=date_from, date_to=date_to, zone=tz)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        try:
+            data["transactions"] = _filter_transaction_energy(data["transactions"], tx_view)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         now = datetime.now(timezone.utc)
@@ -199,7 +224,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                                            "charger_id": charger_id or "", "filter": filter,
                                            "status_filter": status, "location_filter": location,
                                            "date_from": date_from, "date_to": date_to,
-                                           "timezone": tz, "timezones": zones})
+                                           "timezone": tz, "timezones": zones, "tx_view": tx_view})
 
     @app.get("/api/snapshot")
     def api_snapshot(source_id: str | None = None, charger_id: str | None = None,
