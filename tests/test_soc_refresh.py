@@ -20,6 +20,10 @@ FIXTURE = Path(__file__).parent / "fixtures" / "csms_export_v1" / "active.json"
 def seed(tmp_path, source="fixture-source-a"):
     data = json.loads(FIXTURE.read_text())
     data["data"]["source_id"] = source
+    # Historical completed projection with pre-feature missing SoC fields.
+    data["data"]["transactions"][0]["state"] = "closed"
+    data["data"]["transactions"][0]["active"] = False
+    data["data"]["transactions"][0]["quality"]["active"] = False
     database = tmp_path / "local.sqlite"
     sync_page(database, data)
     return database
@@ -129,3 +133,12 @@ def test_cli_requires_explicit_apply_and_identifiers(monkeypatch, tmp_path):
     result = CliRunner().invoke(app, [*cmd, "--apply"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["status"] == "updated"
+
+
+def test_refuses_refresh_of_live_transaction(tmp_path):
+    data = json.loads(FIXTURE.read_text())
+    db = tmp_path / "live.sqlite"
+    sync_page(db, data)
+    with pytest.raises(ValueError, match="completed transaction"):
+        refresh(db, cp="cp-a", transaction=42, dry_run=False,
+                producer=lambda **_: evidence())
