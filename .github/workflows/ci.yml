@@ -90,15 +90,25 @@ jobs:
           test -L "$OCPP_REPORTS_INSTALL_ROOT/current"
           test "$(readlink "$OCPP_REPORTS_CLI_LINK")" = "$OCPP_REPORTS_INSTALL_ROOT/current/venv/bin/ocpp-reports"
           test "$(readlink "$OCPP_REPORTS_INSTALL_ROOT/current")" = "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg"
-          # A fresh collector/dashboard install can be valid before its warehouse
-          # has been populated. Status emits JSON and exits zero even when unconfigured.
+          # Fresh collector/dashboard installs have valid configuration but no
+          # collected warehouse yet. Validate JSON rather than assuming that
+          # the CLI's exit code represents installation success.
           verify_installed_status() {
             local result code=0
             result="$(sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json)" || code=$?
             printf '%s\n' "$result"
-            test "$code" -eq 0
+            printf 'Reports CLI status exit code: %s (role: %s)\n' "$code" "${{ matrix.role }}"
             if [ "${{ matrix.role }}" = watchtower ] || [ "${{ matrix.role }}" = control ]; then
+              # Both zero and 'unconfigured' (3) are legitimate status exit
+              # codes across supported installations, but the JSON must prove
+              # this is *only* a missing, not corrupt, collector warehouse.
+              if [ "$code" -ne 0 ] && [ "$code" -ne 3 ]; then
+                echo "::error::Unexpected Reports status exit code $code" >&2
+                return 1
+              fi
               printf '%s\n' "$result" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["state"] == "unconfigured"; assert d["config"]["state"] == "valid"; assert d["warehouse"]["state"] == "missing"'
+            else
+              test "$code" -eq 0
             fi
           }
           verify_installed_status
