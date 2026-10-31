@@ -24,6 +24,13 @@ def _schema(db: sqlite3.Connection) -> None:
         payload TEXT NOT NULL, imported_at TEXT NOT NULL,
         PRIMARY KEY(source_id, charger_id, transaction_id)
     );
+    -- Derived operator metadata, not OCPP evidence or a charging limit.
+    CREATE TABLE IF NOT EXISTS connector_ratings (
+        source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
+        connector_id INTEGER NOT NULL, rated_power_w INTEGER,
+        rating_scope TEXT,
+        PRIMARY KEY (source_id,charger_id,connector_id)
+    );
     CREATE TABLE IF NOT EXISTS transaction_observations (
         source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
         transaction_id INTEGER NOT NULL, page_after INTEGER NOT NULL,
@@ -42,6 +49,27 @@ def _schema(db: sqlite3.Connection) -> None:
     );
     CREATE INDEX IF NOT EXISTS idx_replication_source_sequence
         ON replication_changes(source_id, sequence);
+    CREATE TRIGGER IF NOT EXISTS replicate_rating_insert
+    AFTER INSERT ON connector_ratings BEGIN
+        INSERT INTO replication_changes(source_id,kind,record_key,payload)
+        VALUES (NEW.source_id, 'rating',
+                NEW.charger_id || ':' || NEW.connector_id,
+                json_object('charger_id', NEW.charger_id,
+                            'connector_id', NEW.connector_id,
+                            'rated_power_w', NEW.rated_power_w,
+                            'rating_scope', NEW.rating_scope));
+    END;
+    CREATE TRIGGER IF NOT EXISTS replicate_rating_update
+    AFTER UPDATE OF rated_power_w,rating_scope ON connector_ratings
+    WHEN OLD.rated_power_w IS NOT NEW.rated_power_w OR OLD.rating_scope IS NOT NEW.rating_scope BEGIN
+        INSERT INTO replication_changes(source_id,kind,record_key,payload)
+        VALUES (NEW.source_id, 'rating',
+                NEW.charger_id || ':' || NEW.connector_id,
+                json_object('charger_id', NEW.charger_id,
+                            'connector_id', NEW.connector_id,
+                            'rated_power_w', NEW.rated_power_w,
+                            'rating_scope', NEW.rating_scope));
+    END;
     CREATE TRIGGER IF NOT EXISTS replicate_event_insert
     AFTER INSERT ON events BEGIN
         INSERT INTO replication_changes(source_id,kind,record_key,payload)
