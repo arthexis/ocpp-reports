@@ -435,9 +435,17 @@ def serve(
     if host not in {"127.0.0.1", "::1", "localhost"}:
         typer.echo("Refusing non-loopback bind; use an authenticated HTTPS reverse proxy", err=True)
         raise typer.Exit(2)
-    from .charger_locations import collector_database
+    import os
+    from .charger_locations import collector_database, DEFAULT_COLLECTOR_DATABASE
+    path = Path(database) if database is not None else Path(
+        os.environ.get("OCPP_REPORTS_DATABASE", str(DEFAULT_COLLECTOR_DATABASE))
+    )
     try:
-        warehouse = collector_database(database)
+        path = path.expanduser().resolve()
+        # Dashboard availability is independent of the collector's readiness.
+        # Missing storage is served as HTTP 503, never created or migrated here.
+        # A present inferred DB must still be verified to be collector-owned.
+        warehouse = collector_database(database) if path.exists() else path
     except (OSError, ValueError, __import__("sqlite3").Error) as exc:
         typer.echo(f"Dashboard warehouse unavailable: {exc}", err=True)
         raise typer.Exit(2) from exc
