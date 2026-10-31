@@ -42,6 +42,14 @@ def _sync_connector_ratings(db: sqlite3.Connection, source: str, status: dict) -
                 continue
             watts = connector["rated_power_w"]
             scope = connector.get("rating_scope")
+            # Avoid replication noise for chargers with no configured rating.
+            # When a previously rated outlet is cleared, preserve a null
+            # tombstone so the remote collector drops its old nominal value.
+            if watts is None and not db.execute(
+                "SELECT 1 FROM connector_ratings WHERE source_id=? AND charger_id=? AND connector_id=?",
+                (source, cp, connector_id)
+            ).fetchone():
+                continue
             db.execute("""
                 INSERT INTO connector_ratings
                     (source_id,charger_id,connector_id,rated_power_w,rating_scope)
