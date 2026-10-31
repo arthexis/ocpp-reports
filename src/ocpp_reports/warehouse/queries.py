@@ -41,6 +41,17 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             "SELECT source_id,cursor,last_ingested_at FROM sources" + scope_clause + " ORDER BY source_id",
             scope_args
         )] if "sources" in tables else []
+        # Nominal power is configured CSMS metadata, never a meter sample.
+        ratings: dict[tuple[str, str, int], tuple[int | None, str | None]] = {}
+        if "connector_ratings" in tables:
+            clause, args = source_clause()
+            for row in db.execute(
+                "SELECT source_id,charger_id,connector_id,rated_power_w,rating_scope "
+                "FROM connector_ratings" + clause, args
+            ):
+                ratings[(row["source_id"], row["charger_id"], int(row["connector_id"]))] = (
+                    row["rated_power_w"], row["rating_scope"]
+                )
         connectors = []
         if "connector_state" in tables:
             where, args = source_filter()
@@ -102,7 +113,14 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             for item in remote:
                 source = item["source_id"]
                 payload = json.loads(item["payload"])
-                if item["kind"] == "connector":
+                if item["kind"] == "rating":
+                    charger = payload.get("charger_id")
+                    connector = payload.get("connector_id")
+                    if type(connector) is int and connector >= 0 and isinstance(charger, str):
+                        ratings[(source, charger, connector)] = (
+                            payload.get("rated_power_w"), payload.get("rating_scope")
+                        )
+                elif item["kind"] == "connector":
                     charger = payload.get("charger_id")
                     connector = payload.get("connector_id")
                     if charger_id and charger != charger_id:
@@ -143,11 +161,33 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                 + scope, arguments
             ):
                 locations[(row["source_id"], row["charger_id"])] = row["location"]
+        # Overlay ratings by source+charger+connector, preserving independent
+        # customer scopes and never substituting nominal values for power_w.
+        for connector in connectors:
+            key = (connector["source_id"], connector["charger_id"], connector["connector_id"])
+            rated, scope = ratings.get(key, (None, None))
+            connector["rated_power_w"] = rated
+            connector["rating_scope"] = scope
         for rows in (connectors, transactions, events):
             for row in rows:
                 source = row.get("source_id")
                 charger = row.get("charger_id")
                 row["location"] = locations.get((source, charger), source)
+    # Only a recent, timestamped observation can be shown as live measured
+    # power. Old meter readings are retained in raw evidence, not current UI.
+    reference = datetime.now(timezone.utc)
+    for connector in connectors:
+        at = connector.get("power_observed_at")
+        watts = connector.get("power_w")
+        connector["power_fresh"] = False
+        if isinstance(at, str) and isinstance(watts, (int, float)) and not isinstance(watts, bool):
+            try:
+                moment = datetime.fromisoformat(at.replace("Z", "+00:00"))
+                if moment.tzinfo is not None:
+                    age = reference - moment.astimezone(timezone.utc)
+                    connector["power_fresh"] = timedelta(0) <= age <= timedelta(seconds=120)
+            except ValueError:
+                pass
     # Estimates are never finalized consumption and must carry actual meter age.
     now = datetime.now(timezone.utc)
     for transaction in transactions:
