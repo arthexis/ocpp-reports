@@ -24,6 +24,36 @@ def _canonical(value: Any) -> str:
 from .schema import _schema
 
 
+def _sync_connector_ratings(db: sqlite3.Connection, source: str, status: dict) -> None:
+    """Refresh operator ratings from status even when the export cursor is unchanged.
+
+    An absent rating key means an older producer; a present null explicitly
+    clears the rating. This is metadata, not an inferred meter reading.
+    """
+    for charger in status.get("chargers", []):
+        cp = charger.get("id")
+        if not isinstance(cp, str) or not cp:
+            continue
+        for connector in charger.get("connectors", []):
+            if "rated_power_w" not in connector:
+                continue
+            connector_id = connector.get("id")
+            if type(connector_id) is not int or connector_id < 0:
+                continue
+            watts = connector["rated_power_w"]
+            scope = connector.get("rating_scope")
+            db.execute("""
+                INSERT INTO connector_ratings
+                    (source_id,charger_id,connector_id,rated_power_w,rating_scope)
+                VALUES (?,?,?,?,?)
+                ON CONFLICT(source_id,charger_id,connector_id) DO UPDATE SET
+                    rated_power_w=excluded.rated_power_w,
+                    rating_scope=excluded.rating_scope
+                WHERE connector_ratings.rated_power_w IS NOT excluded.rated_power_w
+                   OR connector_ratings.rating_scope IS NOT excluded.rating_scope
+            """, (source, cp, connector_id, watts, scope))
+
+
 def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str | None = None,
                 project: Callable[[sqlite3.Connection], None] | None = None) -> int:
     """Persist one validated sequential page atomically; return current cursor.
@@ -108,5 +138,6 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
             db.execute("UPDATE sources SET cursor=? WHERE source_id=?", (cursor["next"], source))
         if project is not None:
             project(db)
+        _sync_connector_ratings(db, source, data["status"])
         db.execute("UPDATE sources SET last_ingested_at=? WHERE source_id=?", (timestamp, source))
         return db.execute("SELECT cursor FROM sources WHERE source_id=?", (source,)).fetchone()[0]
