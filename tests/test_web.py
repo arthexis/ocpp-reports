@@ -75,7 +75,12 @@ def test_d3_filters_sources_and_orders_by_activity(tmp_path):
     assert "cp-1" in page.text and "cp-2" not in page.text
     assert 'name="filter"' in page.text
     assert 'id="dashboard-filters"' in page.text
-    assert "Limpiar" in page.text
+    assert 'id="dashboard-search"' in page.text
+    assert 'name="status"' not in page.text
+    assert 'name="location"' not in page.text
+    assert 'name="date_from"' not in page.text
+    assert 'name="date_to"' not in page.text
+    assert 'id="reset-filters"' not in page.text
     assert 'type="submit"' not in page.text
     assert "cp-2" not in page.text
 

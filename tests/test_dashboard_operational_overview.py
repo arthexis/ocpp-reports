@@ -32,7 +32,9 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
     assert html.index('id="operations-heading"') < html.index('id="connectors"')
     assert 'type="submit"' not in html
     assert 'setTimeout(apply, 650)' in html
-    assert 'name="filter"' in html and 'name="location"' in html
+    assert 'name="filter"' in html and 'name="location"' not in html
+    assert 'name="status"' not in html and 'name="date_from"' not in html
+    assert 'name="date_to"' not in html and 'id="reset-filters"' not in html
     assert html.index('id="connectors"') < html.index('id="synchronization"')
     card_classes = ["operational-card--available", "operational-card--charging",
                     "operational-card--fault", "operational-card--uncertain"]
