@@ -28,3 +28,31 @@ def test_both_hosts_redirect_http_to_https():
         conf = (TEMPLATES / f"ocpp-reports-{name}.nginx.j2").read_text()
         assert "return 301 https://$host$request_uri;" in conf
         assert "ssl_certificate_key " in conf
+
+
+def test_shared_nginx_reload_only_on_ingress_changes():
+    tasks = (TEMPLATES.parent / "tasks/nginx.yml").read_text()
+    assert "register: reports_nginx_sites" in tasks
+    assert "register: reports_nginx_links" in tasks
+    assert "register: reports_legacy_diagnostics_link" in tasks
+    assert "register: reports_legacy_diagnostics_site" in tasks
+    reload_block = tasks.split("- name: Reload shared Nginx when Reports ingress changed", 1)[1].split(
+        "- name: Ensure unchanged shared Nginx ingress is running", 1
+    )[0]
+    assert "state: reloaded" in reload_block
+    for name in (
+        "reports_nginx_sites",
+        "reports_nginx_links",
+        "reports_legacy_diagnostics_link",
+        "reports_legacy_diagnostics_site",
+    ):
+        assert f"{name}.changed | default(false)" in reload_block
+    assert "nginx -t" in tasks.split("- name: Reload shared Nginx when Reports ingress changed", 1)[0]
+
+
+def test_unchanged_ingress_keeps_nginx_running_without_reload():
+    tasks = (TEMPLATES.parent / "tasks/nginx.yml").read_text()
+    unchanged_block = tasks.split("- name: Ensure unchanged shared Nginx ingress is running", 1)[1]
+    assert "state: started" in unchanged_block
+    assert "state: reloaded" not in unchanged_block
+    assert "not (" in unchanged_block
