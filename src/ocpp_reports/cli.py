@@ -15,6 +15,30 @@ app.add_typer(collector_app, name="collector")
 from .forwarder_config import app as forwarder_app
 app.add_typer(forwarder_app, name="forwarder")
 
+metadata_app = typer.Typer(help="Explicit, bounded producer metadata reconciliation.", no_args_is_help=True)
+app.add_typer(metadata_app, name="metadata")
+
+
+@metadata_app.command("refresh")
+def metadata_refresh(
+    transaction: int = typer.Option(..., "--transaction", min=1, help="Exact historical transaction ID"),
+    cp: str = typer.Option(..., "--cp", help="Exact OCPP charge point ID"),
+    database: Path = typer.Option(..., "--database", help="Existing local Reports warehouse SQLite"),
+    source_id: str | None = typer.Option(None, "--source-id", help="Require this CSMS source identity"),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply", help="Preview by default; --apply commits only derived SoC"),
+) -> None:
+    """Refresh only SoC metadata on an existing projected transaction; no cursor reset."""
+    import sqlite3
+    from .soc_refresh import refresh
+    try:
+        result = refresh(database, cp=cp, transaction=transaction,
+                         dry_run=dry_run, expected_source=source_id)
+    except (ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
+        typer.echo(f"SoC refresh refused: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    typer.echo(json.dumps(result, sort_keys=True))
+
+
 locations_app = typer.Typer(help="Collector-owned charger location labels.", no_args_is_help=True)
 app.add_typer(locations_app, name="locations")
 
