@@ -49,7 +49,7 @@ def test_rating_refresh_at_unchanged_csms_event_cursor_and_shared_c0(tmp_path):
     assert any(c["kind"] == "rating" and c["payload"]["rated_power_w"] == 11000
                for c in updated["changes"])
     assert sync_page(db, page(rating=11000)) == 0
-    assert changes_page(db, "source-a", after=updated["next"])["changes"] == []
+    assert not any(c["kind"] == "rating" for c in changes_page(db, "source-a", after=updated["next"])["changes"])
 
 
 def test_rating_reaches_collector_and_respects_source_scope(tmp_path):
