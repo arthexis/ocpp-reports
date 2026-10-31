@@ -30,7 +30,8 @@ def test_dashboard_service_execstart_stays_separate_from_restart(zones):
         "/var/lib/ocpp-reports/warehouse.sqlite", "--host", "127.0.0.1",
         "--port", "8080",
     ]
-    assert argv[8:] == [item for zone in zones for item in ("--timezone", zone)]
+    assert argv[8:10] == ["--timezone-file", "/etc/ocpp-reports/dashboard.timezones.json"]
+    assert argv[10:] == [item for zone in zones for item in ("--timezone", zone)]
 
 
 @pytest.mark.parametrize("zones", [[], ["America/Monterrey", "UTC"]])
