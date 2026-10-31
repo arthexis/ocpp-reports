@@ -79,6 +79,10 @@ def refresh(
         if (not isinstance(existing, dict) or existing.get("charger_id") != cp
                 or existing.get("id") != transaction):
             raise ValueError("Stored transaction identity mismatch")
+        # Historical-only: an active session can still receive new evidence.
+        # Avoid racing the continuously ingested live transaction projection.
+        if existing.get("active") is True or existing.get("state") in ("open", "active", "charging"):
+            raise ValueError("SoC metadata refresh requires a completed transaction")
         changed = {}
         for field, value in new.items():
             prior = existing.get(field)
