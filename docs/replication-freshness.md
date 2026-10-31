@@ -94,15 +94,16 @@ human-readable text. The SQLite column and dashboard/API field remain named
 
 ## Dashboard layout, filtering and instance timezones (#114)
 
-The dashboard uses one **Filtrar** field to search source ID, charger ID and
-collector-owned location label. Additional **Estado / acción**, **Ubicación**,
-**Desde** and **Hasta** fields filter the rendered connector, transaction and
-event sections. Dates are inclusive calendar days in the **selected display
-timezone**, not the server's timezone. Source allowlists remain enforced by
-the warehouse query before these presentation-only filters. The
-`/api/snapshot` endpoint keeps its unchanged raw UTC/source-scoped evidence
-and original query parameters; older `source_id` and `charger_id` links
-continue working on the dashboard.
+The dashboard exposes a single **Filtrar** search field for source ID,
+charger ID, collector-owned location label and connector status / transaction
+state / event action. The previously visible **Estado / acción**,
+**Ubicación**, **Desde**, **Hasta**, and **Limpiar** controls are hidden for
+the December feature freeze. Existing explicit query parameters for those
+filters remain supported for compatibility, but there are no visible controls
+for them; period-filter UI work is deferred. Source allowlists remain
+enforced by the warehouse query before these presentation-only filters.
+The `/api/snapshot` endpoint keeps its unchanged raw UTC/source-scoped
+evidence; existing `source_id` and `charger_id` links continue working.
 
 The Transactions title includes **Exitosas | Fallidas | Todas**. The default
 **Exitosas** view shows transactions with explicitly positive finalized
