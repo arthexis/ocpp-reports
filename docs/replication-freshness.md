@@ -106,7 +106,7 @@ continue working on the dashboard.
 
 The Transactions title includes **Exitosas | Fallidas | Todas**. The default
 **Exitosas** view shows transactions with explicitly positive finalized
-`energy_wh`. **Fallidas** shows exactly zero finalized Wh; **Todas**
+`energy_wh`. **Fallidas** shows exactly zero finalized Wh; each tab displays its count from the current source/site/date-filtered snapshot before the transaction-category filter; **Todas**
 retains the full unfiltered transaction history, including ongoing sessions
 and missing final meter evidence. Zero energy alone is only a display
 classification, not proof of a charger failure. The selection is preserved
