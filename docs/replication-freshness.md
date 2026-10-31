@@ -132,7 +132,7 @@ and UTC remains available. For example:
 ocpp-reports serve --timezone America/Monterrey --timezone UTC
 ```
 
-The installed collector warehouse is inferred from `/var/lib/ocpp-reports/warehouse.sqlite` (or `OCPP_REPORTS_DATABASE` if set); pass `--database /path/to/warehouse.sqlite` only for a nonstandard existing warehouse. Inference refuses missing or unrelated files without creating a database.\n\nFor Ansible-managed dashboard instances use
+The installed collector warehouse is inferred from `/var/lib/ocpp-reports/warehouse.sqlite` (or `OCPP_REPORTS_DATABASE` if set); pass `--database /path/to/warehouse.sqlite` only for a nonstandard existing warehouse. If the warehouse has not yet been created, the dashboard service starts without creating it and returns HTTP 503 until collector data exists. A present unrelated inferred SQLite file is refused; explicit `--database` continues to support nonstandard deployments.\n\nFor Ansible-managed dashboard instances use
 `reports_dashboard_timezones: ['America/Monterrey', 'UTC']`; individual
 customer dashboard entries may override this with `timezones`. Leaving the
 list unset preserves the prior UTC default. Invalid IANA names fail before
