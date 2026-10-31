@@ -71,3 +71,24 @@ def active_csms_export(data_dir: Path, *, after: int, limit: int) -> dict:
             f"{details[-6000:]}"
         )
     return json.loads(result.stdout)
+
+
+
+def active_csms_transaction_soc(*, cp: str, transaction: int) -> dict:
+    """Read one source-scoped SoC metadata record through active CSMS Python."""
+    data_dir, interpreter = discover_active_csms()
+    code = (
+        "import json,sys;"
+        "from ocpp_csms.transaction_soc import transaction_soc;"
+        "print(json.dumps(transaction_soc(sys.argv[1],cp=sys.argv[2],transaction=int(sys.argv[3]))))"
+    )
+    result = subprocess.run(
+        [interpreter, "-c", code, str(data_dir), cp, str(transaction)],
+        capture_output=True, text=True, check=False, timeout=45,
+    )
+    if result.returncode:
+        raise RuntimeError(
+            "Active CSMS SoC query failed (exit %s): %s" %
+            (result.returncode, (result.stderr.strip() or "no diagnostic output")[-3000:])
+        )
+    return json.loads(result.stdout)
