@@ -132,7 +132,12 @@ jobs:
               test -f /etc/systemd/system/ocpp-reports-collector.service
               test -f /etc/systemd/system/ocpp-reports-dashboard.service
               ! systemctl is-active --quiet ocpp-reports-collector.service
-              systemctl is-active --quiet ocpp-reports-dashboard.service
+              if ! systemctl is-active --quiet ocpp-reports-dashboard.service; then
+                echo "::error::Dashboard service failed to remain active after deploy"
+                systemctl status ocpp-reports-dashboard.service --no-pager -l || true
+                journalctl -u ocpp-reports-dashboard.service -n 80 --no-pager || true
+                exit 1
+              fi
               ;;
             control)
               test -f /etc/systemd/system/ocpp-reports-forwarder.service
@@ -140,7 +145,12 @@ jobs:
               test -f /etc/systemd/system/ocpp-reports-dashboard.service
               ! systemctl is-active --quiet ocpp-reports-forwarder.service
               ! systemctl is-active --quiet ocpp-reports-collector.service
-              systemctl is-active --quiet ocpp-reports-dashboard.service
+              if ! systemctl is-active --quiet ocpp-reports-dashboard.service; then
+                echo "::error::Dashboard service failed to remain active after deploy"
+                systemctl status ocpp-reports-dashboard.service --no-pager -l || true
+                journalctl -u ocpp-reports-dashboard.service -n 80 --no-pager || true
+                exit 1
+              fi
               ;;
           esac
 
