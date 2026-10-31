@@ -25,9 +25,9 @@ def test_dashboard_service_execstart_stays_separate_from_restart(zones):
     assert "RestartSec=5" in lines
     assert "Restart=" not in exec_lines[0]
     argv = shlex.split(exec_lines[0].removeprefix("ExecStart="))
-    assert argv[:9] == [
+    assert argv[:8] == [
         "/usr/local/bin/ocpp-reports-ci", "serve", "--database",
         "/var/lib/ocpp-reports/warehouse.sqlite", "--host", "127.0.0.1",
         "--port", "8080",
-    ][:9]
+    ]
     assert argv[8:] == [item for zone in zones for item in ("--timezone", zone)]
