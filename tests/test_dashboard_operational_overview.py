@@ -34,6 +34,12 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
     assert 'setTimeout(apply, 650)' in html
     assert 'name="filter"' in html and 'name="location"' in html
     assert html.index('id="connectors"') < html.index('id="synchronization"')
+    card_classes = ["operational-card--available", "operational-card--charging",
+                    "operational-card--fault", "operational-card--uncertain"]
+    card_positions = [html.index('class="operational-card ' + name + '"') for name in card_classes]
+    assert card_positions == sorted(card_positions)
+    for name, border in zip(card_classes, ("#19975b", "#dba520", "#b94d4d", "#8994a3")):
+        assert "." + name + "{border-left:4px solid " + border + "}" in html
     assert 'href="#connectors"' in html
     assert 'data-label="Snapshot recibido"' in html
     assert 'Estado reportado' not in html
