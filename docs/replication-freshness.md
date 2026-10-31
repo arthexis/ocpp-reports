@@ -133,7 +133,39 @@ and UTC remains available. For example:
 ocpp-reports serve --timezone America/Monterrey --timezone UTC
 ```
 
-The installed collector warehouse is inferred from `/var/lib/ocpp-reports/warehouse.sqlite` (or `OCPP_REPORTS_DATABASE` if set); pass `--database /path/to/warehouse.sqlite` only for a nonstandard existing warehouse. If the warehouse has not yet been created, the dashboard service starts without creating it and returns HTTP 503 until collector data exists. A present unrelated inferred SQLite file is refused; explicit `--database` continues to support nonstandard deployments.\n\nFor Ansible-managed dashboard instances use
+### Update timezones on a running dashboard
+
+`serve` normally starts a **new** HTTP server. On an existing installation,
+use `--update` with administrator privileges instead; it saves the choices
+and restarts only the selected dashboard systemd service:
+
+```sh
+sudo ocpp-reports serve --update --timezone America/Monterrey --timezone UTC
+# If the customer dashboard's inventory name is dashboard-audi:
+sudo ocpp-reports serve --update --instance dashboard-audi --timezone America/Monterrey --timezone UTC
+```
+
+The default instance is `dashboard` (`ocpp-reports-dashboard.service`).
+Other instance names correspond to `dashboards.json` entries, e.g.
+`dashboard-audi`, and **must be selected explicitly**; the command does not
+modify every customer dashboard. Deploy the updated service templates once
+before the first `--update`: the command refuses a service that does not
+already reference its persistent timezone file. No collector/CSMS service,
+warehouse, or charging session is modified. The update preserves the
+source-scoped `ExecStart` options. It is idempotent; failed restarts restore
+the previous config and attempt service recovery.
+
+Timezone choices are stored in
+`/etc/ocpp-reports/<instance>.timezones.json`, with the first zone as default
+and UTC automatically offered. Operator overrides take precedence over
+Ansible's configured defaults and persist across deployments; remove that
+override file to return to Ansible defaults. A plain `serve --timezone`
+continues to start a separate server and may encounter port 8080 already in
+use.
+
+The installed collector warehouse is inferred from `/var/lib/ocpp-reports/warehouse.sqlite` (or `OCPP_REPORTS_DATABASE` if set); pass `--database /path/to/warehouse.sqlite` only for a nonstandard existing warehouse. If the warehouse has not yet been created, the dashboard service starts without creating it and returns HTTP 503 until collector data exists. A present unrelated inferred SQLite file is refused; explicit `--database` continues to support nonstandard deployments.
+
+For Ansible-managed dashboard instances use
 `reports_dashboard_timezones: ['America/Monterrey', 'UTC']`; individual
 customer dashboard entries may override this with `timezones`. Leaving the
 list unset preserves the prior UTC default. Invalid IANA names fail before
