@@ -151,3 +151,56 @@ def test_transaction_date_filter_includes_session_overlapping_local_day():
                                     date_from="2026-10-31", date_to="2026-10-31",
                                     zone="America/Monterrey")
     assert outside["transactions"] == []
+
+
+def test_transaction_energy_filter_defaults_to_positive_final_energy(monkeypatch, tmp_path):
+    from copy import deepcopy
+
+    rows = [
+        {"source_id": "node-a", "charger_id": "cp", "location": "Site",
+         "id": 21, "state": "stopped", "energy_wh": 10500},
+        {"source_id": "node-a", "charger_id": "cp", "location": "Site",
+         "id": 22, "state": "stopped", "energy_wh": 0},
+        {"source_id": "node-a", "charger_id": "cp", "location": "Site",
+         "id": 23, "state": "open", "active": True,
+         "energy_wh": None, "live_energy_wh": 2500},
+        {"source_id": "node-a", "charger_id": "cp", "location": "Site",
+         "id": 24, "state": "stopped", "energy_wh": None},
+    ]
+    data = {"sources": [], "connectors": [], "events": [], "transactions": rows}
+    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
+    client = TestClient(web.create_app(tmp_path / "unused", allowed_source_ids=("node-a",)))
+    success = client.get("/")
+    assert success.status_code == 200
+    assert ">21</td>" in success.text
+    assert ">22</td>" not in success.text
+    assert ">23</td>" not in success.text
+    assert ">24</td>" not in success.text
+    assert 'data-tx-view="success" aria-pressed="true"' in success.text
+    assert 'data-tx-view="failed" aria-pressed="false"' in success.text
+    assert 'name="tx_view" value="success"' in success.text
+    failed = client.get("/?tx_view=failed")
+    assert failed.status_code == 200
+    assert ">22</td>" in failed.text
+    assert ">21</td>" not in failed.text
+    assert ">23</td>" not in failed.text
+    assert 'data-tx-view="failed" aria-pressed="true"' in failed.text
+    all_rows = client.get("/?tx_view=all")
+    assert all_rows.status_code == 200
+    assert all(f">{id}</td>" in all_rows.text for id in (21, 22, 23, 24))
+    assert client.get("/?tx_view=other").status_code == 422
+    api = client.get("/api/snapshot")
+    assert api.status_code == 200
+    assert [row["id"] for row in api.json()["transactions"]] == [21, 22, 23, 24]
+    assert "next.searchParams.set(\"tx_view\", button.dataset.txView)" in success.text
+
+
+def test_transaction_energy_filter_does_not_confuse_zero_with_missing():
+    data = [
+        {"energy_wh": 0}, {"energy_wh": 0.0}, {"energy_wh": 1},
+        {"energy_wh": None}, {}, {"energy_wh": False},
+        {"energy_wh": -1}, {"energy_wh": float("nan")},
+    ]
+    assert web._filter_transaction_energy(data, "failed") == data[:2]
+    assert web._filter_transaction_energy(data, "success") == [data[2]]
+    assert web._filter_transaction_energy(data, "all") is data
