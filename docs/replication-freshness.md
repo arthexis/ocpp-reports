@@ -1,3 +1,29 @@
+## Charger power: measured versus nominal
+
+The **Potencia** cell is a connector snapshot, not transaction energy.
+When OCPP `MeterValues` contains `Power.Active.Import`, Reports uses
+the measured `power_w` only if its timestamp is offset-aware and no more
+than 120 seconds old. An older measurement is not presented as live.
+
+An operator may instead configure `ocpp-csms rating set --power-kw N`
+for the one known CSMS charge point (or specify `--cp ID`). Omitted
+`--connector` sets the charger-wide default; `--connector all` writes
+explicit ratings for observed physical outlets, and `--connector N` sets
+a specific outlet. The CSMS adds `rated_power_w` and `rating_scope`
+to its export/v1 status snapshot, including empty-cursor refreshes.
+
+The local Reports warehouse projects these into additive
+`connector_ratings` metadata and emits `rating` changefeed updates
+to the existing collector; the collector stores the latest values per
+source/charger/connector. No transaction replay or manual Reports
+reset is required. Dashboard displays **medida** for fresh metered power,
+otherwise **nominal** for the configured rating, otherwise an em dash.
+Raw metered `power_w` is never overwritten by rating metadata.
+
+Connector 0 describes the shared station capability, not an
+independent charging connector: inherited ratings must not be summed
+to estimate station power. Existing source allowlists still apply.
+
 # Replication freshness and connector status provenance (#111)
 
 There are separate clocks. `sources.last_ingested_at` is **local ingest time**. `collector_receipts.received_at` is when a **new replication sequence** was accepted by the collector. A replay or no-op must not advance this value. `connector_state.observed_at` is the producer snapshot export time and can advance even if the charger remains faulted. `status_observed_at` is the original CSMS StatusNotification receipt, never inferred from exported_at, a Heartbeat, or a collector acknowledgement.
