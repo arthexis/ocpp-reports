@@ -8,7 +8,12 @@ from pathlib import Path
 
 
 def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | None = None,
-             limit: int = 100, allowed_source_ids: tuple[str, ...] | None = None) -> dict:
+             limit: int = 100, allowed_source_ids: tuple[str, ...] | None = None,
+             transaction_limit: int | None = None) -> dict:
+    if transaction_limit is None:
+        transaction_limit = limit
+    if not 1 <= transaction_limit <= 500:
+        raise ValueError("transaction_limit must be between 1 and 500")
     if not 1 <= limit <= 500:
         raise ValueError("limit must be between 1 and 500")
     if allowed_source_ids is not None and not allowed_source_ids:
@@ -67,7 +72,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                 "SELECT source_id,charger_id,connector_id,status,connected,transaction_id,"
                 "power_w,energy_wh,observed_at,synced_at,payload FROM connector_state" + clause +
                 " ORDER BY source_id,charger_id,connector_id", args)]
-        def recent(table, ordering, column):
+        def recent(table, ordering, column, row_limit):
             if table not in tables:
                 return []
             where, args = source_filter()
@@ -76,10 +81,10 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                 args.append(charger_id)
             clause = " WHERE " + " AND ".join(where) if where else ""
             rows = db.execute(f"SELECT source_id,{column},payload FROM {table}" +
-                              clause + f" ORDER BY {ordering} DESC LIMIT ?", (*args, limit))
+                              clause + f" ORDER BY {ordering} DESC LIMIT ?", (*args, row_limit))
             return [{**json.loads(r["payload"]), "source_id": r["source_id"]} for r in rows]
-        transactions = recent("current_transactions", "COALESCE(json_extract(payload, '$.stopped_at'), json_extract(payload, '$.started_at'), imported_at)", "transaction_id")
-        events = recent("events", "event_id", "event_id")
+        transactions = recent("current_transactions", "COALESCE(json_extract(payload, '$.stopped_at'), json_extract(payload, '$.started_at'), imported_at)", "transaction_id", transaction_limit)
+        events = recent("events", "event_id", "event_id", limit)
         # Replicated evidence is stored separately from local ingestion. Expose both
         # through the same read-only dashboard without rewriting source evidence.
         if "collector_latest" in tables:
@@ -149,7 +154,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             connectors.sort(key=lambda r: (r["source_id"], str(r.get("charger_id")), str(r.get("connector_id"))))
             transactions.sort(key=lambda r: str(r.get("stopped_at") or r.get("started_at") or ""), reverse=True)
             events.sort(key=lambda r: (r["source_id"], r.get("id") or 0), reverse=True)
-            transactions = transactions[:limit]
+            transactions = transactions[:transaction_limit]
             events = events[:limit]
         # Collector metadata enrichment after source-scoped queries. Never use
         # location to authorize sources or to alter replicated evidence.
