@@ -304,13 +304,16 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         if tz not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
         try:
-            return event_group_details(
+            result = event_group_details(
                 warehouse, group_source=group_source, first_event_id=first_event_id,
                 source_id=source_id, charger_id=charger_id,
                 allowed_source_ids=allowed_source_ids, term=filter, status=status,
                 location=location, date_from=date_from, date_to=date_to,
                 zone=tz, offset=offset,
             )
+            for event in result["events"]:
+                event["display_at"] = display_date(event.get("at"), tz)
+            return result
         except PermissionError as exc:
             raise HTTPException(403, str(exc)) from exc
         except LookupError as exc:
