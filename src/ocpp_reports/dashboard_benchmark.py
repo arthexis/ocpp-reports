@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import sqlite3
 import statistics
 import time
@@ -64,7 +63,7 @@ def benchmark(database: Path, *, iterations: int = 100, warmup: int = 5) -> dict
         from fastapi.testclient import TestClient
         from .web import create_app
     except ImportError as exc:
-        raise RuntimeError("Dashboard benchmark requires ocpp-reports[web] and httpx") from exc
+        raise RuntimeError("Dashboard benchmark requires ocpp-reports[web,benchmark] (httpx2)") from exc
 
     inventory = _inventory(path)
     app = create_app(path)
