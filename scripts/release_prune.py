@@ -53,42 +53,72 @@ def _runtime_references(root: Path, owner: str) -> dict[str, set[str]]:
     def consume(raw: str, reason: str) -> None:
         for name in re.findall(prefix, raw):
             found.setdefault(name, set()).add(reason)
+    # First determine *which* processes are relevant using public metadata.
+    # Do not attempt to read private maps/cmdlines of unrelated accounts.
+    units = []
+    for service in SERVICES[owner]:
+        result = subprocess.run(
+            ["systemctl", "show", service,
+             "--property=ExecStart,WorkingDirectory,FragmentPath,MainPID,ControlGroup,LoadState",
+             "--no-pager"], capture_output=True, text=True, timeout=15, check=False)
+        if result.returncode or len(result.stdout) > 65536:
+            errors.append("systemd inventory unavailable")
+            continue
+        info = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
+        if info.get("LoadState") == "not-found":
+            continue  # Optional service unit, absent for this Reports role.
+        consume(result.stdout, "service")
+        try:
+            main_pid = int(info.get("MainPID", "0"))
+        except ValueError:
+            errors.append("invalid systemd MainPID")
+            continue
+        group = info.get("ControlGroup", "")
+        if group and (not group.startswith("/") or ".." in group.split("/")):
+            errors.append("invalid systemd cgroup")
+            continue
+        units.append((main_pid, group))
+
     proc = Path("/proc")
     if not proc.is_dir():
         raise ValueError("process inventory unavailable")
     processes = [p for p in proc.iterdir() if p.name.isdigit()]
     if len(processes) > 32768:
         raise ValueError("process inventory limit exceeded")
+    owner_uid = os.geteuid()
     for process in processes:
         try:
+            status = (process / "status").read_text()
+            uid_line = next(line for line in status.splitlines() if line.startswith("Uid:"))
+            uid = int(uid_line.split()[1])
+            cgroup = (process / "cgroup").read_text()
+            pid = int(process.name)
+            member = any(
+                pid == main or (
+                    bool(group) and any(
+                        entry.partition("::")[2] == group or
+                        entry.partition("::")[2].startswith(group.rstrip("/") + "/")
+                        for entry in cgroup.splitlines()
+                        if "::" in entry
+                    )
+                )
+                for main, group in units
+            )
+            if uid != owner_uid and not member:
+                continue
+            # Once classified as relevant, unreadable evidence blocks pruning.
             for file in ("cmdline", "maps"):
                 with (process / file).open("rb") as stream:
                     data = stream.read(1048577)
                 if len(data) > 1048576:
-                    raise ValueError("process inventory truncated")
+                    raise ValueError("relevant process inventory truncated")
                 consume(data.decode("utf-8", errors="replace"), "process")
             for file in ("cwd", "exe"):
-                try:
-                    consume(os.readlink(process / file), "process")
-                except FileNotFoundError:
-                    pass
-        except FileNotFoundError:
-            pass  # process exited during scan
-        except PermissionError:
-            errors.append("process inventory inaccessible")
-        except OSError:
-            errors.append("process inventory incomplete")
-    for service in SERVICES[owner]:
-        result = subprocess.run(
-            ["systemctl", "show", service, "--property=ExecStart,WorkingDirectory,FragmentPath",
-             "--no-pager"], capture_output=True, text=True, timeout=15, check=False)
-        if result.returncode:
-            errors.append("systemd inventory unavailable")
-            continue
-        if len(result.stdout) > 65536:
-            errors.append("systemd inventory truncated")
-            continue
-        consume(result.stdout, "service")
+                consume(os.readlink(process / file), "process")
+        except (FileNotFoundError, ProcessLookupError, StopIteration):
+            pass  # Short-lived PID disappeared during observation.
+        except (PermissionError, OSError, ValueError) as exc:
+            errors.append("process inventory incomplete: " + type(exc).__name__)
     return found, sorted(set(errors))
 
 
