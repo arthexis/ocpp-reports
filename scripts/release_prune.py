@@ -13,7 +13,7 @@ import sys
 
 PATTERNS = {
     "csms": re.compile(r"[0-9a-f]{12}(?:-dev)?"),
-    "reports": re.compile(r"[0-9a-f]{40}-pkg"),
+    "reports": re.compile(r"[0-9a-f]{40}(?:-pkg)?"),
 }
 SERVICES = {
     "csms": ("ocpp-csms.service",),
@@ -183,7 +183,7 @@ def preview(root: Path, owner: str, cli: Path | None = None,
             else:
                 result["candidates"].append({"name": path.name, "path": str(path),
                                               "identity": [info.st_dev, info.st_ino],
-                                              "reasons": ["not current, previous or CLI"],
+                                              "reasons": ["legacy SHA-only release; not current, previous or CLI"] if owner == "reports" and not path.name.endswith("-pkg") else ["not current, previous or CLI"],
                                               "deletable": True})
         if any(p not in names for p in protected):
             raise ValueError("reference to missing release")
