@@ -43,6 +43,7 @@ def state(db):
             "observations": conn.execute("SELECT COUNT(*) FROM transaction_observations").fetchone()[0],
             "changes": conn.execute("SELECT COUNT(*) FROM replication_changes").fetchone()[0],
             "tx": json.loads(conn.execute("SELECT payload FROM current_transactions").fetchone()[0]),
+            "imported_at": conn.execute("SELECT imported_at FROM current_transactions").fetchone()[0],
         }
 
 
@@ -56,6 +57,9 @@ def test_dry_run_apply_idempotence_and_forwarding(tmp_path):
     assert state(db) == original
     assert refresh(db, cp="cp-a", transaction=42, dry_run=False, producer=provider)["status"] == "updated"
     updated = state(db)
+    assert updated["imported_at"] == original["imported_at"]
+    assert updated["tx"]["soc_metadata_refreshed_at"]
+    assert updated["tx"]["soc_metadata_provenance"] == "ocpp-meter-values"
     assert updated["cursor"] == original["cursor"]
     assert updated["events"] == original["events"]
     assert updated["observations"] == original["observations"]
