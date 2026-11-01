@@ -35,13 +35,13 @@ class ReleasePrunePreviewTests(unittest.TestCase):
     def test_protect_current_previous_and_only_inventory_old(self):
         before = sorted(str(p) for p in self.base.rglob("*"))
         report = prune.preview(self.root, self.owner)
-        self.assertEqual(report["status"], "preview_only")
-        self.assertEqual([row["name"] for row in report["unverified"]], [self.names[2]])
+        self.assertEqual(report["status"], "candidates_ready")
+        self.assertEqual([row["name"] for row in report["candidates"]], [self.names[2]])
         self.assertEqual({row["name"] for row in report["protected"]}, set(self.names[:2]))
         self.assertTrue(report["dry_run"])
         self.assertFalse(report["deletion_enabled"])
-        self.assertTrue(all(not row["deletable"] for row in
-                            report["unverified"] + report["protected"]))
+        self.assertTrue(all(row["deletable"] for row in report["candidates"]))
+        self.assertTrue(all(not row["deletable"] for row in report["protected"]))
         self.assertEqual(sorted(str(p) for p in self.base.rglob("*")), before)
         self.assertEqual(report, prune.preview(self.root, self.owner))
 
@@ -50,14 +50,14 @@ class ReleasePrunePreviewTests(unittest.TestCase):
         (self.root / "current").symlink_to(self.base)
         report = prune.preview(self.root, self.owner)
         self.assertEqual(report["status"], "blocked")
-        self.assertEqual(report["unverified"], [])
+        self.assertEqual(report["candidates"], [])
         self.assertTrue(report["errors"])
 
     def test_broken_previous_blocks_candidates(self):
         (self.root / "previous").unlink()
         report = prune.preview(self.root, self.owner)
         self.assertEqual(report["status"], "blocked")
-        self.assertFalse(report["unverified"])
+        self.assertFalse(report["candidates"])
 
     def test_apply_refused_with_no_mutations(self):
         result = subprocess.run([sys.executable, str(SCRIPT), "--owner", self.owner,

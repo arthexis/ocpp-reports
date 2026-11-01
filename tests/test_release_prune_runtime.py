@@ -39,8 +39,8 @@ class RuntimeReferenceTests(unittest.TestCase):
         with patch.object(prune, "_runtime_references",
                           return_value=({self.old: {"process"}}, [])):
             report = prune.preview(self.root, self.owner, self.cli, inspect_runtime=True)
-        self.assertEqual(report["status"], "runtime_checked")
-        self.assertEqual(report["unverified"], [])
+        self.assertEqual(report["status"], "candidates_ready")
+        self.assertEqual(report["candidates"], [])
         self.assertIn("process", next(x["reasons"] for x in report["protected"]
                                        if x["name"] == self.old))
         self.assertFalse(report["deletion_enabled"])
@@ -61,7 +61,7 @@ class RuntimeReferenceTests(unittest.TestCase):
                           return_value=({name: {"service"}}, [])):
             report = prune.preview(self.root, self.owner, self.cli, inspect_runtime=True)
         self.assertEqual(report["status"], "blocked")
-        self.assertEqual(report["unverified"], [])
+        self.assertEqual(report["candidates"], [])
         self.assertTrue(report["errors"])
 
 
