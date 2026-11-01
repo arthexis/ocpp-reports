@@ -122,7 +122,12 @@ def test_location_applies_to_transactions_and_events(tmp_path):
     assert view["events"][0]["location"] == "Site West"
     html = TestClient(create_app(db)).get("/").text
     assert "<th>Ubicación</th>" in html
-    assert html.count("Site West") >= 3
+    # Detail rows are lazy, so locations are no longer rendered in initial HTML.
+    assert html.count("Site West") >= 2
+    response = TestClient(create_app(db)).get(
+        "/api/event-group?group_source=node-a&first_event_id=3")
+    assert response.status_code == 200
+    assert response.json()["events"][0]["location"] == "Site West"
 
 
 def test_cli_infers_collector_database_from_installed_setting(tmp_path, monkeypatch):

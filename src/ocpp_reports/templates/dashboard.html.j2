@@ -78,6 +78,13 @@ header{align-items:start;gap:.65rem}
 @media(max-width:1100px){.header-filters{width:100%;justify-content:start}.dashboard-grid{grid-template-columns:1fr}.dashboard-grid section,.dashboard-grid .connectors-panel,.dashboard-grid .transactions-panel,.dashboard-grid .events-panel,.dashboard-grid .sync-panel{grid-column:1}}
 @media(max-width:700px){.header-filters{flex-wrap:wrap}.header-filters label{flex:1 1 100%}.header-filters .unified-filter{width:100%;min-width:0}}
 
+.transaction-pagination{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}
+.transaction-pages{display:flex;align-items:center;gap:.25rem;flex-wrap:wrap}
+.transaction-pages a,.transaction-pages span.page-current,.transaction-pages span.page-disabled{display:inline-flex;min-width:2rem;min-height:2rem;align-items:center;justify-content:center;padding:.2rem .5rem;border-radius:.4rem;text-decoration:none;font-size:.86rem}
+.transaction-pages a{color:var(--accent);border:1px solid var(--line)}
+.transaction-pages a:hover{background:var(--bg)}
+.transaction-pages .page-current{background:var(--accent);color:var(--surface);font-weight:700}
+.transaction-pages .page-disabled{color:var(--muted);opacity:.65}
 .transactions-heading{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem}
 .transactions-heading h2{margin:0}
 .transaction-filters{display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;font-size:.85rem}
@@ -137,13 +144,34 @@ header{align-items:start;gap:.65rem}
 <td class="numeric">{{ (t.soc_start|string ~ '%') if t.soc_start is defined and t.soc_start is not none else '—' }}</td>
 <td class="numeric">{{ (t.soc_end|string ~ '%') if t.soc_end is defined and t.soc_end is not none else '—' }}</td>
 <td class="numeric">{% if t.energy_wh is defined and t.energy_wh is not none %}{{ "%.2f"|format(t.energy_wh / 1000) }} kWh (final){% elif t.live_energy_wh is defined and t.live_energy_wh is not none and t.active %}{{ "%.2f"|format(t.live_energy_wh / 1000) }} kWh <span class="{{ 'stale' if t.live_energy_stale else 'muted' }}">(estimada{% if t.live_energy_stale %}, antigua{% else %}, en vivo{% endif %})</span><div class="note muted">Medición: {{ t.live_energy_observed_at|display_date(timezone) if t.live_energy_observed_at else "Sin fecha" }}</div>{% elif t.active %}Final pendiente · estimación no disponible{% else %}—{% endif %}</td></tr>
-{% else %}<tr><td class="empty" colspan="9">Sin transacciones</td></tr>{% endfor %}</tbody></table></div><p class="muted note">SoC: primera y última medición reportada; no se estiman valores ni se presupone una medición al cierre.</p></section>
+{% else %}<tr><td class="empty" colspan="9">Sin transacciones</td></tr>{% endfor %}</tbody></table></div><nav class="transaction-pagination" aria-label="Páginas de transacciones">
+<span class="muted note">Mostrando {{ ((tx_page - 1) * 20 + 1) if tx_total else 0 }}–{{ [tx_page * 20, tx_total]|min }} de {{ tx_total }} transacciones recientes</span>
+<div class="transaction-pages">
+{% if tx_page > 1 %}<a rel="prev" href="{{ request.url.include_query_params(tx_page=tx_page-1) }}#transactions" aria-label="Página anterior">Anterior</a>{% else %}<span class="page-disabled" aria-disabled="true">Anterior</span>{% endif %}
+{% set first_page = [1, tx_page - 3]|max %}
+{% set last_page = [tx_pages, first_page + 6]|min %}
+{% set first_page = [1, last_page - 6]|max %}
+{% if first_page > 1 %}<a href="{{ request.url.include_query_params(tx_page=1) }}#transactions" aria-label="Página 1">1</a>{% if first_page > 2 %}<span class="page-disabled" aria-hidden="true">…</span>{% endif %}{% endif %}
+{% for p in range(first_page, last_page + 1) %}
+{% if p == tx_page %}<span class="page-current" aria-current="page">{{ p }}</span>{% else %}<a href="{{ request.url.include_query_params(tx_page=p) }}#transactions" aria-label="Página {{ p }}">{{ p }}</a>{% endif %}
+{% endfor %}
+{% if last_page < tx_pages %}{% if last_page + 1 < tx_pages %}<span class="page-disabled" aria-hidden="true">…</span>{% endif %}<a href="{{ request.url.include_query_params(tx_page=tx_pages) }}#transactions" aria-label="Página {{ tx_pages }}">{{ tx_pages }}</a>{% endif %}
+{% if tx_page < tx_pages %}<a rel="next" href="{{ request.url.include_query_params(tx_page=tx_page+1) }}#transactions" aria-label="Página siguiente">Siguiente</a>{% else %}<span class="page-disabled" aria-disabled="true">Siguiente</span>{% endif %}
+</div></nav>
+<p class="muted note">SoC: primera y última medición reportada; no se estiman valores ni se presupone una medición al cierre.</p></section>
 <section class="sync-panel" id="synchronization"><h2>Sincronización</h2><p class="muted note">Ingestión local y recepción de réplica son distintas. La recarga de la página no confirma datos nuevos del cargador.</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
 {% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at|display_date(timezone) if s.last_ingested_at else "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at|display_date(timezone) if s.last_replication_received_at else "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
 <section class="events-panel" id="events"><h2>Eventos recientes</h2>
 <p class="muted note">Eventos consecutivos de la misma acción y cargador se agrupan; abre un grupo para ver el detalle.</p>
 {% for group in event_groups %}
+{% if group.first_event_id is defined %}
+<details class="event-group" data-source="{{ group.source_id }}" data-first-id="{{ group.first_event_id }}">
+<summary>{{ group.location or group.source_id }} · {{ group.action or 'Sin acción' }}
+{% if group.event_count > 1 %}× {{ group.event_count }}{% endif %}
+<span class="muted note"> · {{ group.at|display_date(timezone) }}</span></summary>
+<div class="event-detail"><p class="muted note">Abre el grupo para consultar sus eventos.</p></div></details>
+{% else %}
 <details><summary>{{ group.location or group.source_id }} · {{ group.action or 'Sin acción' }}
 {% if group["items"]|length > 1 %}× {{ group["items"]|length }}{% endif %}
 <span class="muted note"> · {{ group["items"][0].at|display_date(timezone) }}</span></summary>
@@ -151,7 +179,14 @@ header{align-items:start;gap:.65rem}
 {% for e in group["items"] %}<tr><td>{{ e.id }}</td><td>{{ e.location }}</td><td>{{ e.charger_id }}</td>
 <td>{{ e.action }}</td><td>{{ e.at|display_date(timezone) }}</td></tr>{% endfor %}
 </tbody></table></div></details>
+{% endif %}
 {% else %}<p class="muted">Sin eventos</p>{% endfor %}
+<nav class="transaction-pagination" aria-label="Páginas de eventos">
+<div class="transaction-pages">
+{% if event_page > 1 %}<a href="{{ request.url.include_query_params(event_page=event_page-1) }}#events" rel="prev">Anterior</a>{% else %}<span class="page-disabled">Anterior</span>{% endif %}
+<span class="page-current" aria-current="page">{{ event_page }}</span>
+{% if event_has_next %}<a href="{{ request.url.include_query_params(event_page=event_page+1) }}#events" rel="next">Siguiente</a>{% else %}<span class="page-disabled">Siguiente</span>{% endif %}
+</div></nav>
 </section></div></main>
 
 <script>
@@ -184,8 +219,62 @@ header{align-items:start;gap:.65rem}
     button.addEventListener("click", () => {
       const next = new URL(window.location.href);
       next.searchParams.set("tx_view", button.dataset.txView);
+      next.searchParams.delete("tx_page");
       next.hash = "transactions";
       window.location.assign(next.toString());
+    });
+  }
+  // Opening a group requests at most 50 original events. No event payloads
+  // are embedded in the initial HTML; all DOM fields use textContent.
+  for (const details of document.querySelectorAll(".event-group")) {
+    const holder = details.querySelector(".event-detail");
+    let offset = 0, exhausted = false, loading = false;
+    const table = document.createElement("table");
+    const body = document.createElement("tbody");
+    const header = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    for (const label of ["ID", "Ubicación", "Cargador", "Acción", "Fecha"]) {
+      const th = document.createElement("th"); th.textContent = label; headRow.append(th);
+    }
+    header.append(headRow); table.append(header, body);
+    const wrapper = document.createElement("div"); wrapper.className = "scroll"; wrapper.append(table);
+    const more = document.createElement("button"); more.type = "button"; more.textContent = "Ver 50 más";
+    const status = document.createElement("p"); status.className = "muted note";
+    holder.replaceChildren(wrapper, status, more);
+    const load = async () => {
+      if (loading || exhausted) return;
+      loading = true; more.disabled = true; status.textContent = "Cargando eventos…";
+      const url = new URL("/api/event-group", window.location.origin);
+      const args = new URLSearchParams(window.location.search);
+      for (const [key, value] of args) url.searchParams.set(key, value);
+      url.searchParams.set("group_source", details.dataset.source);
+      url.searchParams.set("first_event_id", details.dataset.firstId);
+      url.searchParams.set("offset", String(offset));
+      try {
+        const response = await fetch(url, {credentials: "same-origin"});
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const page = await response.json();
+        for (const event of page.events) {
+          const tr = document.createElement("tr");
+          for (const value of [event.id, event.location, event.charger_id, event.action, event.display_at]) {
+            const td = document.createElement("td"); td.textContent = value == null ? "—" : String(value);
+            tr.append(td);
+          }
+          body.append(tr);
+        }
+        offset += page.events.length;
+        exhausted = !page.has_next;
+        more.hidden = exhausted;
+        status.textContent = offset + " eventos cargados";
+      } catch (_) {
+        status.textContent = "No se pudieron cargar los eventos. Reintentar.";
+      } finally {
+        loading = false; more.disabled = false;
+      }
+    };
+    more.addEventListener("click", load);
+    details.addEventListener("toggle", () => {
+      if (details.open && offset === 0) load();
     });
   }
   let timer;
