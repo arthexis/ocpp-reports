@@ -256,7 +256,7 @@ header{align-items:start;gap:.65rem}
         const page = await response.json();
         for (const event of page.events) {
           const tr = document.createElement("tr");
-          for (const value of [event.id, event.location, event.charger_id, event.action, event.at]) {
+          for (const value of [event.id, event.location, event.charger_id, event.action, event.display_at]) {
             const td = document.createElement("td"); td.textContent = value == null ? "—" : String(value);
             tr.append(td);
           }
