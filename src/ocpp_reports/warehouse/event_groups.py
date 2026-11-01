@@ -208,6 +208,14 @@ def event_group_details(
                                 limit + 1, offset]).fetchall()
     if not rows and offset == 0:
         raise LookupError("Event group not found")
-    return {"events": [{**json.loads(r["payload"]), "source_id": r["source_id"],
-                        "location": r["location"]} for r in rows[:limit]],
-            "has_next": len(rows) > limit}
+    # Return only columns displayed in the dashboard. Never send raw OCPP
+    # evidence, RFID values, vendor payloads or private event metadata.
+    events = []
+    for row in rows[:limit]:
+        payload = json.loads(row["payload"])
+        events.append({
+            "source_id": row["source_id"], "location": row["location"],
+            "id": payload.get("id"), "charger_id": payload.get("charger_id"),
+            "action": payload.get("action"), "at": payload.get("at"),
+        })
+    return {"events": events, "has_next": len(rows) > limit}
