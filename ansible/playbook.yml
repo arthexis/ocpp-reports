@@ -54,6 +54,12 @@
         that:
           - reports_role is defined
           - reports_role in ['terminal', 'satellite', 'watchtower', 'control']
+    - name: Validate optional local ingestion override
+      ansible.builtin.assert:
+        that:
+          - reports_local_ingest_setting in ['', 'true', '1', 'yes', 'on', 'false', '0', 'no', 'off']
+        fail_msg: "OCPP_REPORTS_LOCAL_INGEST_ENABLED must be true/false (or 1/0, yes/no, on/off)."
+      when: reports_role in ['watchtower', 'control']
     - name: Inspect existing local ingestion enablement
       ansible.builtin.command:
         argv:
