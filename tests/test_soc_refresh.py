@@ -54,8 +54,16 @@ def test_dry_run_apply_idempotence_and_forwarding(tmp_path):
     preview = refresh(db, cp="cp-a", transaction=42, producer=provider)
     assert preview["status"] == "would_update"
     assert preview["fields_changed"] == ["soc_end", "soc_start"]
+    assert len(preview["preview_token"]) == 64
+    assert preview["imported_at"] == original["imported_at"]
+    assert preview["replication_sequence_before"] == preview["replication_sequence_after"]
     assert state(db) == original
-    assert refresh(db, cp="cp-a", transaction=42, dry_run=False, producer=provider)["status"] == "updated"
+    apply_receipt = refresh(db, cp="cp-a", transaction=42, dry_run=False,
+                            expect_preview=preview["preview_token"], producer=provider)
+    assert apply_receipt["status"] == "updated"
+    assert apply_receipt["replication_sequence_after"] > apply_receipt["replication_sequence_before"]
+    assert apply_receipt["imported_at"] == original["imported_at"]
+    assert apply_receipt["soc_metadata_refreshed_at"]
     updated = state(db)
     assert updated["imported_at"] == original["imported_at"]
     assert updated["tx"]["soc_metadata_refreshed_at"]
@@ -134,7 +142,8 @@ def test_cli_requires_explicit_apply_and_identifiers(monkeypatch, tmp_path):
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["status"] == "would_update"
     assert state(db)["tx"].get("soc_end") is None
-    result = CliRunner().invoke(app, [*cmd, "--apply"])
+    preview_token = json.loads(result.stdout)["preview_token"]
+    result = CliRunner().invoke(app, [*cmd, "--apply", "--expect-preview", preview_token])
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["status"] == "updated"
 
@@ -146,3 +155,87 @@ def test_refuses_refresh_of_live_transaction(tmp_path):
     with pytest.raises(ValueError, match="completed transaction"):
         refresh(db, cp="cp-a", transaction=42, dry_run=False,
                 producer=lambda **_: evidence())
+
+
+def test_stale_preview_rejects_producer_evidence_change(tmp_path):
+    db = seed(tmp_path)
+    preview = refresh(db, cp="cp-a", transaction=42,
+                      producer=lambda **_: evidence())
+    before = state(db)
+    with pytest.raises(ValueError, match="Stale SoC preview"):
+        refresh(db, cp="cp-a", transaction=42, dry_run=False,
+                expect_preview=preview["preview_token"],
+                producer=lambda **_: evidence(start=29))
+    assert state(db) == before
+
+
+def test_stale_preview_rejects_local_projection_change(tmp_path):
+    db = seed(tmp_path)
+    provider = lambda **_: evidence()
+    preview = refresh(db, cp="cp-a", transaction=42, producer=provider)
+    with sqlite3.connect(db) as conn:
+        row = conn.execute("SELECT payload FROM current_transactions").fetchone()
+        payload = json.loads(row[0])
+        payload["quality"]["source_refreshed"] = True
+        conn.execute("UPDATE current_transactions SET payload=?",
+                     (json.dumps(payload),))
+    before = state(db)
+    with pytest.raises(ValueError, match="Stale SoC preview"):
+        refresh(db, cp="cp-a", transaction=42, dry_run=False,
+                expect_preview=preview["preview_token"], producer=provider)
+    assert state(db) == before
+
+
+def test_preview_does_not_go_stale_from_unrelated_replication(tmp_path):
+    db = seed(tmp_path)
+    provider = lambda **_: evidence()
+    preview = refresh(db, cp="cp-a", transaction=42, producer=provider)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO replication_changes(source_id,kind,record_key,payload)"
+            " VALUES (?,?,?,?)",
+            ("fixture-source-a", "event", "unrelated", "{}"),
+        )
+    receipt = refresh(db, cp="cp-a", transaction=42, dry_run=False,
+                      expect_preview=preview["preview_token"], producer=provider)
+    assert receipt["status"] == "updated"
+    assert receipt["replication_sequence_after"] > receipt["replication_sequence_before"]
+
+
+def test_replay_of_reviewed_preview_refused_after_apply(tmp_path):
+    db = seed(tmp_path)
+    provider = lambda **_: evidence()
+    preview = refresh(db, cp="cp-a", transaction=42, producer=provider)
+    refresh(db, cp="cp-a", transaction=42, dry_run=False,
+            expect_preview=preview["preview_token"], producer=provider)
+    before = state(db)
+    with pytest.raises(ValueError, match="Stale SoC preview"):
+        refresh(db, cp="cp-a", transaction=42, dry_run=False,
+                expect_preview=preview["preview_token"], producer=provider)
+    assert state(db) == before
+
+
+def test_preview_guard_rejects_invalid_use_and_cli_stale_token(monkeypatch, tmp_path):
+    db = seed(tmp_path)
+    provider = lambda **_: evidence()
+    with pytest.raises(ValueError, match="requires --apply"):
+        refresh(db, cp="cp-a", transaction=42, expect_preview="0" * 64,
+                producer=provider)
+    with pytest.raises(ValueError, match="64-character"):
+        refresh(db, cp="cp-a", transaction=42, dry_run=False,
+                expect_preview="bad", producer=provider)
+    import ocpp_reports.soc_refresh as module
+    original = module.refresh
+
+    def injected(database, **kwargs):
+        return original(database, **kwargs, producer=provider)
+
+    monkeypatch.setattr(module, "refresh", injected)
+    arguments = ["metadata", "refresh", "--cp", "cp-a", "--transaction", "42",
+                 "--database", str(db)]
+    first = CliRunner().invoke(app, arguments)
+    assert first.exit_code == 0, first.output
+    wrong = CliRunner().invoke(app, [*arguments, "--apply", "--expect-preview", "0" * 64])
+    assert wrong.exit_code == 2
+    assert "Stale SoC preview" in wrong.output
+    assert state(db)["tx"].get("soc_end") is None
