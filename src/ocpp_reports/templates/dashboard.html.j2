@@ -87,11 +87,11 @@ header{align-items:start;gap:.65rem}
 .transaction-pages .page-disabled{color:var(--muted);opacity:.65}
 .transactions-heading{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem}
 .transactions-heading h2{margin:0}
-.transaction-filters{display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;font-size:.85rem}
-.transaction-filters button{border:0;background:transparent;color:var(--muted);font-size:inherit;font-weight:500;padding:.2rem .3rem;min-height:32px}
-.transaction-filters button.selected{color:var(--accent);font-weight:750;text-decoration:underline;text-underline-offset:4px}
-.transaction-filters button:hover{color:var(--accent)}
-.transaction-filters span{color:var(--muted)}
+.transaction-filters,.connector-filters{display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;font-size:.85rem}
+.transaction-filters button,.connector-filters button{border:0;background:transparent;color:var(--muted);font-size:inherit;font-weight:500;padding:.2rem .3rem;min-height:32px}
+.transaction-filters button.selected,.connector-filters button.selected{color:var(--accent);font-weight:750;text-decoration:underline;text-underline-offset:4px}
+.transaction-filters button:hover,.connector-filters button:hover{color:var(--accent)}
+.transaction-filters span,.connector-filters span{color:var(--muted)}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand"><h1>{{ title }}</h1>
 <div class="muted">Estado de cargadores · Solo lectura · Página actualizada cada 15 s ·
@@ -103,6 +103,7 @@ header{align-items:start;gap:.65rem}
 <label for="dashboard-search">Filtrar <input id="dashboard-search" class="unified-filter" type="search" name="filter" value="{{ filter }}" placeholder="Origen, cargador, ubicación o estado" autocomplete="off"></label>
 <input type="hidden" name="tz" id="timezone-value" value="{{ timezone }}">
 <input type="hidden" name="tx_view" value="{{ tx_view }}">
+<input type="hidden" name="connector_view" value="{{ connector_view }}">
 </form>
 </header><main id="content">
 {% set counts = namespace(faults=0, charging=0, available=0, uncertain=0) %}
@@ -124,8 +125,15 @@ header{align-items:start;gap:.65rem}
 <a class="operational-card operational-card--uncertain" href="#connectors"><strong>{{ counts.uncertain }}</strong><span>Datos antiguos / otros</span></a>
 </div></section>
 
-<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><h2>Conectores</h2><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Snapshot recibido</th></tr></thead><tbody>
-{% for c in data.connectors %}<tr><td data-label="Ubicación">{{ c.location }}</td><td data-label="Cargador" class="charger-identity">{{ c.charger_id }}</td><td data-label="Conector">{{ c.connector_id }}</td>
+<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading"><h2>Conectores</h2>
+<div class="connector-filters" role="group" aria-label="Filtrar conectores">
+<button type="button" data-connector-view="combined" aria-pressed="{{ 'true' if connector_view == 'combined' else 'false' }}" class="{{ 'selected' if connector_view == 'combined' else '' }}">Combinado</button>
+<span aria-hidden="true">|</span>
+<button type="button" data-connector-view="station" aria-pressed="{{ 'true' if connector_view == 'station' else 'false' }}" class="{{ 'selected' if connector_view == 'station' else '' }}">Estación</button>
+<span aria-hidden="true">|</span>
+<button type="button" data-connector-view="individual" aria-pressed="{{ 'true' if connector_view == 'individual' else 'false' }}" class="{{ 'selected' if connector_view == 'individual' else '' }}">Individual</button>
+</div></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Snapshot recibido</th></tr></thead><tbody>
+{% for c in connector_rows %}<tr><td data-label="Ubicación">{{ c.location }}</td><td data-label="Cargador" class="charger-identity">{{ c.charger_id }}</td><td data-label="Conector">{{ c.connector_id }}</td>
 <td data-label="Estado">{% set state = (c.status or "")|lower %}<span class="status {% if state == 'charging' %}status--active{% elif state in ['available', 'finishing'] %}status--ok{% elif state in ['preparing', 'suspendedev', 'suspendedevse'] %}status--warn{% elif state in ['faulted', 'unavailable'] %}status--off{% endif %}">{{ c.status or "Desconocido" }}</span>{% if c.stale %} <span class="status status--warn">Antiguo</span>{% endif %}</td>
 <td data-label="Conectado"><span class="status {{ 'status--ok' if c.connected else 'status--off' }}">{{ "Sí" if c.connected else "No" }} (observado)</span></td>
 <td data-label="Potencia" class="numeric">{% if c.power_fresh and c.power_w is not none %}{{ "%.2f"|format(c.power_w / 1000) }} kW <span class="note muted" title="Power.Active.Import: medición reciente">medida</span>{% elif c.rated_power_w is defined and c.rated_power_w is not none %}{{ "%.2f"|format(c.rated_power_w / 1000) }} kW <span class="note muted" title="{{ 'Capacidad nominal del cargador, compartida; no es potencia medida' if c.connector_id == 0 or c.rating_scope == 'charger' else 'Capacidad nominal específica del conector; no es potencia medida' }}">nominal</span>{% else %}—{% endif %}</td>
@@ -215,6 +223,14 @@ header{align-items:start;gap:.65rem}
     next.searchParams.set("tz", zoneChoice.value);
     window.location.assign(next.toString());
   });
+  for (const button of document.querySelectorAll("[data-connector-view]")) {
+    button.addEventListener("click", () => {
+      const next = new URL(window.location.href);
+      next.searchParams.set("connector_view", button.dataset.connectorView);
+      next.hash = "connectors";
+      window.location.assign(next.toString());
+    });
+  }
   for (const button of document.querySelectorAll("[data-tx-view]")) {
     button.addEventListener("click", () => {
       const next = new URL(window.location.href);
