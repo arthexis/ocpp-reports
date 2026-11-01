@@ -64,7 +64,7 @@ class ReleasePrunePreviewTests(unittest.TestCase):
                                  "--root", str(self.root), "--apply"],
                                 text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("apply requires canonical deploy.sh owner lock", result.stderr)
+        self.assertIn("Reports releases are root-owned", result.stderr)
         self.assertTrue(all((self.releases / name).is_dir() for name in self.names))
 
 
