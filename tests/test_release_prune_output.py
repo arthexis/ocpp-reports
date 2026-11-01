@@ -22,7 +22,7 @@ class PruneOutputTests(unittest.TestCase):
             "protected": [
                 {"name": "a" * 12, "reasons": ["current", "service"], "deletable": False}
             ],
-            "unverified": [
+            "candidates": [
                 {"name": "b" * 12, "reasons": [], "deletable": False}
             ],
             "legacy": [],
@@ -40,7 +40,7 @@ class PruneOutputTests(unittest.TestCase):
         code, output = self.run_cli()
         self.assertEqual(code, 1)
         self.assertIn("Protected releases", output)
-        self.assertIn("Unverified releases", output)
+        self.assertIn("Deletion candidates", output)
         self.assertIn("a" * 12, output)
         self.assertIn("current, service", output)
         self.assertIn("process inventory incomplete", output)
