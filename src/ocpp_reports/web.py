@@ -10,6 +10,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from .warehouse_queries import snapshot
+from .warehouse.event_groups import event_groups_page, event_group_details
+import sqlite3
 
 
 def minute_utc(value: str | None) -> str:
@@ -182,11 +184,14 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     templates.env.filters["minute_utc"] = minute_utc
     templates.env.filters["display_date"] = display_date
 
-    def read(source_id: str | None, charger_id: str | None, limit: int, *, transaction_pagination: dict | None = None):
+    def read(source_id: str | None, charger_id: str | None, limit: int, *, transaction_pagination: dict | None = None,
+             skip_events: bool = False):
         if allowed_source_ids is not None and source_id and source_id not in allowed_source_ids:
             raise HTTPException(403, "Source is not available in this dashboard")
         try:
             options = {"transaction_pagination": transaction_pagination} if transaction_pagination is not None else {}
+            if skip_events:
+                options["skip_events"] = True
             return snapshot(warehouse, source_id=source_id, charger_id=charger_id, limit=limit,
                             allowed_source_ids=allowed_source_ids, **options)
         except FileNotFoundError as exc:
@@ -199,7 +204,8 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
               charger_id: str | None = None, filter: str = "",
               status: str = "", location: str = "",
               date_from: str = "", date_to: str = "", tz: str | None = None,
-              tx_view: str = "success", tx_page: int = Query(1, ge=1)):
+              tx_view: str = "success", tx_page: int = Query(1, ge=1),
+              event_page: int = Query(1, ge=1)):
         tz = tz or zones[0]
         if tz not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
@@ -217,7 +223,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         sql_page = dict(term=filter, status=status, location=location,
                         date_from=date_from, date_to=date_to, zone=tz,
                         view=tx_view, page=tx_page)
-        data = read(source_id, charger_id, 100, transaction_pagination=sql_page)
+        data = read(source_id, charger_id, 100, transaction_pagination=sql_page, skip_events=True)
         paginated = data.get("transaction_pagination")
         # Keep connector/event filters in the established presentation path.
         rows = data["transactions"] if paginated is not None else None
@@ -246,6 +252,22 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             tx_page = min(tx_page, tx_pages)
             start = (tx_page - 1) * 20
             data["transactions"] = filtered_transactions[start:start + 20]
+        # SQL window grouping reads only summaries; details are fetched lazily.
+        if paginated is not None:
+            try:
+                grouped = event_groups_page(
+                    warehouse, source_id=source_id, charger_id=charger_id,
+                    allowed_source_ids=allowed_source_ids, term=filter, status=status,
+                    location=location, date_from=date_from, date_to=date_to,
+                    zone=tz, page=event_page,
+                )
+            except (ValueError, OSError, sqlite3.Error) as exc:
+                raise HTTPException(503, "Event history unavailable") from exc
+            event_groups = grouped["groups"]
+            event_has_next = grouped["has_next"]
+        else:
+            event_groups = _group_events(data["events"])[:10]
+            event_has_next = False
         now = datetime.now(timezone.utc)
         for connector in data["connectors"]:
             try:
@@ -254,7 +276,8 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             except (ValueError, AttributeError, TypeError):
                 connector["stale"] = True
         return templates.TemplateResponse(request, "dashboard.html.j2",
-                                          {"data": data, "event_groups": _group_events(data["events"]),
+                                          {"data": data, "event_groups": event_groups,
+                                           "event_page": event_page, "event_has_next": event_has_next,
                                            "title": title, "source_id": source_id or "",
                                            "charger_id": charger_id or "", "filter": filter,
                                            "status_filter": status, "location_filter": location,
@@ -263,6 +286,39 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                                            "transaction_counts": transaction_counts,
                                            "tx_page": tx_page, "tx_pages": tx_pages,
                                            "tx_total": tx_total})
+
+    @app.get("/api/event-group")
+    def api_event_group(
+        group_source: str, first_event_id: int = Query(..., ge=1),
+        source_id: str | None = None, charger_id: str | None = None,
+        filter: str = "", status: str = "", location: str = "",
+        date_from: str = "", date_to: str = "", tz: str | None = None,
+        offset: int = Query(0, ge=0),
+    ):
+        if allowed_source_ids is not None and (
+            group_source not in allowed_source_ids or
+            (source_id is not None and source_id not in allowed_source_ids)
+        ):
+            raise HTTPException(403, "Source is not available in this dashboard")
+        tz = tz or zones[0]
+        if tz not in zones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
+        try:
+            return event_group_details(
+                warehouse, group_source=group_source, first_event_id=first_event_id,
+                source_id=source_id, charger_id=charger_id,
+                allowed_source_ids=allowed_source_ids, term=filter, status=status,
+                location=location, date_from=date_from, date_to=date_to,
+                zone=tz, offset=offset,
+            )
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except (OSError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Event history unavailable") from exc
 
     @app.get("/api/snapshot")
     def api_snapshot(source_id: str | None = None, charger_id: str | None = None,
