@@ -18,7 +18,7 @@ if ! flock -n 9; then
   echo "Another ocpp-reports deployment/prune holds the owner lock" >&2; exit 3
 fi
 
-# Read-only owner release inventory; no Ansible, root privileges or service changes.
+# Owner release retention; explicit apply delegates only deletion to sudo.
 if [ "${1:-}" = "--prune" ]; then
   shift
   mode="--dry-run"
@@ -37,8 +37,20 @@ if [ "${1:-}" = "--prune" ]; then
         exit 2 ;;
     esac
   done
+  if [ "$mode" = "--apply" ]; then
+    # Installer-created virtualenvs are root-owned. Keep this shell alive
+    # holding the deployment lock while sudo removes only vetted releases.
+    if [ "${OCPP_REPORTS_INSTALL_ROOT:-/opt/ocpp-reports}" != /opt/ocpp-reports ] ||
+       [ "${OCPP_REPORTS_CLI_LINK:-/usr/local/bin/ocpp-reports}" != /usr/local/bin/ocpp-reports ]; then
+      echo "Privileged prune only supports canonical Reports install paths" >&2
+      exit 2
+    fi
+    sudo -- python3 scripts/release_prune.py --owner reports \
+      --root /opt/ocpp-reports --cli /usr/local/bin/ocpp-reports --apply --elevated ${json:+"$json"}
+    exit $?
+  fi
   exec python3 "scripts/release_prune.py" --owner reports \
-    --root "${OCPP_REPORTS_INSTALL_ROOT:-/opt/ocpp-reports}" --cli "${OCPP_REPORTS_CLI_LINK:-/usr/local/bin/ocpp-reports}" "$mode" ${json:+"$json"}
+    --root "${OCPP_REPORTS_INSTALL_ROOT:-/opt/ocpp-reports}" --cli "${OCPP_REPORTS_CLI_LINK:-/usr/local/bin/ocpp-reports}" --dry-run ${json:+"$json"}
 fi
 
 role=""
