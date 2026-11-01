@@ -114,8 +114,13 @@ def _runtime_references(root: Path, owner: str, *, proc: Path = Path("/proc")) -
                 consume(data.decode("utf-8", errors="replace"), "process")
             for file in ("cwd", "exe"):
                 consume(os.readlink(process / file), "process")
-        except (FileNotFoundError, ProcessLookupError, StopIteration):
-            pass  # Short-lived PID disappeared during observation.
+        except FileNotFoundError:
+            # A vanished PID is benign; missing metadata on a *live* PID is not.
+            if process.exists():
+                errors.append("process inventory incomplete: missing live PID evidence")
+        except (ProcessLookupError, StopIteration):
+            if process.exists():
+                errors.append("process inventory incomplete: live PID changed")
         except (PermissionError, OSError, ValueError) as exc:
             errors.append("process inventory incomplete: " + type(exc).__name__)
     return found, sorted(set(errors))
