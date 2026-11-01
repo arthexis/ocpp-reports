@@ -1,0 +1,30 @@
+---
+# Only an explicit false opt-out may remove an already installed local
+# producer. An omitted variable on a routine deployment must not stop a
+# previously configured ingestion chain.
+- name: Check for installed local ingestion unit
+  ansible.builtin.stat:
+    path: /etc/systemd/system/ocpp-reports-ingest.service
+  become: true
+  register: reports_local_ingest_existing_unit
+
+- name: Stop and disable explicitly opted-out local ingestion
+  ansible.builtin.systemd_service:
+    name: ocpp-reports-ingest.service
+    state: stopped
+    enabled: false
+  become: true
+  when: reports_local_ingest_existing_unit.stat.exists
+
+- name: Remove stale local-ingestion CSMS start link on explicit opt-out
+  ansible.builtin.file:
+    path: /etc/systemd/system/ocpp-csms.service.wants/ocpp-reports-ingest.service
+    state: absent
+  become: true
+  register: reports_local_ingest_removed_csms_link
+
+- name: Reload systemd after explicit local ingestion opt-out
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  become: true
+  when: reports_local_ingest_removed_csms_link.changed
