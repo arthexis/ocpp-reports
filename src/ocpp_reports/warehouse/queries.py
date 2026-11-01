@@ -12,7 +12,7 @@ from .transaction_pagination import transaction_page
 def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | None = None,
              limit: int = 100, allowed_source_ids: tuple[str, ...] | None = None,
              transaction_limit: int | None = None,
-             transaction_pagination: dict | None = None) -> dict:
+             transaction_pagination: dict | None = None, skip_events: bool = False) -> dict:
     if transaction_limit is None:
         transaction_limit = limit
     if not 1 <= transaction_limit <= 500:
@@ -88,7 +88,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             return [{**json.loads(r["payload"]), "source_id": r["source_id"]} for r in rows]
         transactions = (recent("current_transactions", "COALESCE(json_extract(payload, '$.stopped_at'), json_extract(payload, '$.started_at'), imported_at)", "transaction_id", transaction_limit)
                         if transaction_pagination is None else [])
-        events = recent("events", "event_id", "event_id", limit)
+        events = [] if skip_events else recent("events", "event_id", "event_id", limit)
         # Replicated evidence is stored separately from local ingestion. Expose both
         # through the same read-only dashboard without rewriting source evidence.
         if "collector_latest" in tables:
@@ -113,12 +113,13 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                 if charger_id:
                     event_clause += " AND json_extract(payload,'$.charger_id')=?"
                     event_args.append(charger_id)
-                remote.extend(db.execute(
-                    "SELECT source_id,kind,record_key,payload FROM collector_latest"
-                    + event_clause
-                    + " ORDER BY source_id DESC, json_extract(payload,'$.id') DESC LIMIT ?",
-                    [*event_args, limit],
-                ).fetchall())
+                if not skip_events:
+                    remote.extend(db.execute(
+                        "SELECT source_id,kind,record_key,payload FROM collector_latest"
+                        + event_clause
+                        + " ORDER BY source_id DESC, json_extract(payload,'$.id') DESC LIMIT ?",
+                        [*event_args, limit],
+                    ).fetchall())
             receipt_times = {}
             if "collector_receipts" in tables:
                 receipt_times = {r["source_id"]: r["received_at"] for r in db.execute(
