@@ -6,10 +6,13 @@ import sqlite3
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+from .transaction_pagination import transaction_page
+
 
 def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | None = None,
              limit: int = 100, allowed_source_ids: tuple[str, ...] | None = None,
-             transaction_limit: int | None = None) -> dict:
+             transaction_limit: int | None = None,
+             transaction_pagination: dict | None = None) -> dict:
     if transaction_limit is None:
         transaction_limit = limit
     if not 1 <= transaction_limit <= 500:
@@ -83,14 +86,19 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             rows = db.execute(f"SELECT source_id,{column},payload FROM {table}" +
                               clause + f" ORDER BY {ordering} DESC LIMIT ?", (*args, row_limit))
             return [{**json.loads(r["payload"]), "source_id": r["source_id"]} for r in rows]
-        transactions = recent("current_transactions", "COALESCE(json_extract(payload, '$.stopped_at'), json_extract(payload, '$.started_at'), imported_at)", "transaction_id", transaction_limit)
+        transactions = (recent("current_transactions", "COALESCE(json_extract(payload, '$.stopped_at'), json_extract(payload, '$.started_at'), imported_at)", "transaction_id", transaction_limit)
+                        if transaction_pagination is None else [])
         events = recent("events", "event_id", "event_id", limit)
         # Replicated evidence is stored separately from local ingestion. Expose both
         # through the same read-only dashboard without rewriting source evidence.
         if "collector_latest" in tables:
+            # The HTML view fetches transaction rows by SQL page below.
+            # Never materialize all remote transaction payloads first.
+            extra = (" AND kind != 'transaction'" if scope_clause
+                     else " WHERE kind != 'transaction'") if transaction_pagination is not None else ""
             remote = db.execute(
                 "SELECT source_id,kind,record_key,payload FROM collector_latest"
-                + scope_clause
+                + scope_clause + extra
                 + " ORDER BY source_id,kind,record_key",
                 scope_args,
             ).fetchall()
@@ -168,6 +176,13 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                 locations[(row["source_id"], row["charger_id"])] = row["location"]
         # Overlay ratings by source+charger+connector, preserving independent
         # customer scopes and never substituting nominal values for power_w.
+        pagination_result = None
+        if transaction_pagination is not None:
+            pagination_result = transaction_page(
+                db, tables, source_id=source_id, charger_id=charger_id,
+                allowed_source_ids=allowed_source_ids, **transaction_pagination,
+            )
+            transactions = pagination_result["transactions"]
         for connector in connectors:
             key = (connector["source_id"], connector["charger_id"], connector["connector_id"])
             rated, scope = ratings.get(key, (None, None))
@@ -211,5 +226,8 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             transaction["live_energy_stale"] = not (timedelta(0) <= age <= timedelta(minutes=5))
         except ValueError:
             pass
-    return {"sources": sources, "connectors": connectors,
-            "transactions": transactions, "events": events}
+    result = {"sources": sources, "connectors": connectors,
+              "transactions": transactions, "events": events}
+    if transaction_pagination is not None:
+        result["transaction_pagination"] = pagination_result
+    return result
