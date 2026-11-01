@@ -206,10 +206,12 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
               status: str = "", location: str = "",
               date_from: str = "", date_to: str = "", tz: str | None = None,
               tx_view: str = "success", tx_page: int = Query(1, ge=1),
-              event_page: int = Query(1, ge=1)):
+              event_page: int = Query(1, ge=1), connector_view: str = "combined"):
         tz = tz or zones[0]
         if tz not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
+        if connector_view not in ("combined", "station", "individual"):
+            raise HTTPException(422, "Invalid connector view")
         if tx_view not in ("success", "failed", "all"):
             raise HTTPException(422, "Invalid transaction view")
         for day in (date_from, date_to):
@@ -279,8 +281,18 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                 connector["stale"] = (now - observed).total_seconds() > 30
             except (ValueError, AttributeError, TypeError):
                 connector["stale"] = True
+        # Presentation-only selection. Operational cards still count all connectors,
+        # and /api/snapshot preserves the complete source-scoped evidence.
+        connector_rows = [
+            connector for connector in data["connectors"]
+            if connector_view == "combined"
+            or (connector_view == "station" and connector.get("connector_id") == 0)
+            or (connector_view == "individual" and connector.get("connector_id") != 0)
+        ]
         response = templates.TemplateResponse(request, "dashboard.html.j2",
-                                          {"data": data, "event_groups": event_groups,
+                                          {"data": data, "connector_rows": connector_rows,
+                                           "connector_view": connector_view,
+                                           "event_groups": event_groups,
                                            "event_page": event_page, "event_has_next": event_has_next,
                                            "title": title, "source_id": source_id or "",
                                            "charger_id": charger_id or "", "filter": filter,
