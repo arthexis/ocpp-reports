@@ -50,10 +50,10 @@ def test_real_systemd_lifecycle_runner_is_wired_to_pr_ci():
 def test_deploy_infers_previous_local_ingest_without_explicit_override():
     """Exercise the actual Ansible Jinja expression for each supported input."""
     from jinja2.nativetypes import NativeEnvironment
-    import yaml
-
-    play = yaml.safe_load((ROOT / "ansible/playbook.yml").read_text())[0]
-    expression = play["vars"]["reports_local_ingest_enabled"]
+    playbook = (ROOT / "ansible/playbook.yml").read_text()
+    expression = playbook.split("    reports_local_ingest_enabled: >-\\n", 1)[1].split(
+        "    reports_local_ingest_explicitly_disabled:", 1
+    )[0].strip()
     env = NativeEnvironment()
     cases = [
         ("", "enabled", True),
