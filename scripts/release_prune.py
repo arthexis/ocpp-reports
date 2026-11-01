@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
+import pwd
 import json
 import os
 from pathlib import Path
@@ -183,7 +185,7 @@ def preview(root: Path, owner: str, cli: Path | None = None,
             else:
                 result["candidates"].append({"name": path.name, "path": str(path),
                                               "identity": [info.st_dev, info.st_ino],
-                                              "reasons": ["legacy SHA-only release; not current, previous or CLI"] if owner == "reports" and not path.name.endswith("-pkg") else ["not current, previous or CLI"],
+                                              "reasons": ["legacy"] if owner == "reports" and not path.name.endswith("-pkg") else ["not current, previous or CLI"],
                                               "deletable": True})
         if any(p not in names for p in protected):
             raise ValueError("reference to missing release")
@@ -254,8 +256,29 @@ def apply_prune(root: Path, owner: str, cli: Path | None, *, limit: int = 64) ->
     return receipt
 
 
-def _require_owner_lock(owner: str) -> None:
-    """Reject direct apply invocations lacking the canonical shell deploy lock."""
+def _require_owner_lock(owner: str, *, elevated: bool = False) -> None:
+    """Require canonical owner lock for any deletion, including sudo children."""
+    if elevated:
+        if owner != "reports" or os.geteuid() != 0:
+            raise ValueError("elevated prune is restricted to root-owned Reports")
+        caller = os.environ.get("SUDO_USER", "")
+        if not caller or caller == "root":
+            raise ValueError("elevated prune requires sudo from a non-root operator")
+        try:
+            home = Path(pwd.getpwnam(caller).pw_dir)
+            lock = home / ".local/state/ocpp-reports/deploy.lock"
+            if lock.is_symlink():
+                raise ValueError("unsafe owner lock symlink")
+            with lock.open("rb") as stream:
+                try:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    return
+                else:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+        except OSError as exc:
+            raise ValueError("elevated prune cannot verify owner lock") from exc
+        raise ValueError("elevated prune requires held deploy.sh owner lock")
     lock = Path.home() / ".local" / "state" / ("ocpp-csms" if owner == "csms" else "ocpp-reports") / "deploy.lock"
     try:
         held = os.fstat(9)
@@ -273,7 +296,7 @@ def format_report(report: dict) -> str:
     legacy = report.get("legacy", [])
     errors = report.get("errors", [])
     lines = [
-        f"{report['owner'].upper()} release retention — read-only",
+        f"{report['owner'].upper()} release retention — " + ("apply" if "deleted" in report else "dry-run"),
         f"Root: {report['root']}",
         f"Status: {report['status']} | "
         f"Protected: {len(protected)} | Candidates: {len(candidates)} | "
@@ -282,7 +305,7 @@ def format_report(report: dict) -> str:
     ]
     for heading, entries in (
         ("Protected releases", protected),
-        ("Deletion candidates (dry-run only)", candidates),
+        ("Deletion candidates", candidates),
         ("Legacy releases (not approved for deletion)", legacy),
     ):
         if not entries:
@@ -317,14 +340,24 @@ def main(argv=None):
     parser.add_argument("--json", action="store_true", help="print the complete JSON inventory")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--confirm", action="store_true")
+    parser.add_argument("--elevated", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.apply and args.dry_run:
         parser.error("--apply and --dry-run are mutually exclusive")
     if args.confirm and not args.apply:
         parser.error("--confirm requires --apply")
+    if args.elevated and not args.apply:
+        parser.error("--elevated requires --apply")
     if args.apply:
+        if args.owner == "reports":
+            if not args.elevated:
+                parser.error("Reports releases are root-owned; run via ./deploy.sh --prune --apply")
+            if args.root != Path("/opt/ocpp-reports") or args.cli != Path("/usr/local/bin/ocpp-reports"):
+                parser.error("elevated Reports prune only supports canonical install paths")
+        elif args.elevated:
+            parser.error("elevated prune is for Reports only")
         try:
-            _require_owner_lock(args.owner)
+            _require_owner_lock(args.owner, elevated=args.elevated)
         except ValueError as exc:
             parser.error(str(exc))
         report = apply_prune(args.root, args.owner, args.cli)
