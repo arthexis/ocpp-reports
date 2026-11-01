@@ -138,3 +138,27 @@ This is a low-concurrency baseline, **not** an external HTTP load test.
 Run against a copy of the warehouse if even repeated read queries could
 interfere with production operations. The database is opened read-only;
 no schema changes or migrations are performed.
+
+
+### Performance acceptance for the current watchtower
+
+The measured production baseline is recorded in [issue #140](https://github.com/arthexis/ocpp-reports/issues/140):
+dashboard p95 3084.509 ms, transaction page 2 p95 3098.317 ms,
+station view p95 3267.191 ms, API snapshot p95 1271.926 ms.
+
+The target for the **current charger count and current warehouse size**
+is **p95 below 1000 ms for all HTML dashboard scenarios**. This
+target must be confirmed by repeating the 100-iteration benchmark on
+the same watchtower after merging and deploying the optimization.
+Do not treat CI passing or a single fast request as proof.
+
+The benchmark now records `stages` with percentile distributions from
+the dashboard's `Server-Timing` header: `snapshot`, `event-groups`, and
+`template`. The default first event page streams groups without the full
+historic window calculation; filtered requests and subsequent pages
+retain the exact window path. API snapshot history is bounded to the
+requested limit; raw evidence and stored records are unchanged.
+
+After deploying, run the benchmark with a new filename and compare
+the HTML p95, API p95, API `peak_python_bytes`, and stage breakdown
+against issue #140. Keep the benchmark read-only and sequential.
