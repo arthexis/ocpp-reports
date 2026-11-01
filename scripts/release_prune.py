@@ -41,7 +41,7 @@ def _pointer(root: Path, name: str) -> Path | None:
     return target
 
 
-def _runtime_references(root: Path, owner: str) -> dict[str, set[str]]:
+def _runtime_references(root: Path, owner: str, *, proc: Path = Path("/proc")) -> tuple[dict[str, set[str]], list[str]]:
     """Conservatively account for process references and systemd service definitions.
 
     An inaccessible/truncated runtime observation is a hard prune blocker.
@@ -79,7 +79,6 @@ def _runtime_references(root: Path, owner: str) -> dict[str, set[str]]:
             continue
         units.append((main_pid, group))
 
-    proc = Path("/proc")
     if not proc.is_dir():
         raise ValueError("process inventory unavailable")
     processes = [p for p in proc.iterdir() if p.name.isdigit()]
