@@ -133,7 +133,7 @@ def preview(root: Path, owner: str, cli: Path | None = None,
         "schema": "ocpp/owner-prune-preview/v2",
         "owner": owner, "root": str(root), "dry_run": True,
         "deletion_enabled": False, "status": "blocked",
-        "protected": [], "unverified": [], "legacy": [], "errors": [],
+        "protected": [], "candidates": [], "legacy": [], "errors": [],
     }
     try:
         if owner not in PATTERNS:
@@ -180,10 +180,10 @@ def preview(root: Path, owner: str, cli: Path | None = None,
                                             "reasons": sorted(protected[path]),
                                             "deletable": False})
             else:
-                result["unverified"].append({"name": path.name, "path": str(path),
+                result["candidates"].append({"name": path.name, "path": str(path),
                                               "identity": [info.st_dev, info.st_ino],
-                                              "reasons": ["runtime validation required"] if not inspect_runtime else [],
-                                              "deletable": False})
+                                              "reasons": ["not current, previous or CLI"],
+                                              "deletable": True})
         if any(p not in names for p in protected):
             raise ValueError("reference to missing release")
         if active is None:
@@ -196,12 +196,11 @@ def preview(root: Path, owner: str, cli: Path | None = None,
                 raise ValueError("missing/unsafe Reports role")
             if role.read_text().strip() not in ("terminal", "satellite", "watchtower", "control"):
                 raise ValueError("invalid Reports role")
-        result["status"] = ("blocked" if result["errors"] else
-                            ("runtime_checked" if inspect_runtime else "preview_only"))
+        result["status"] = ("blocked" if result["errors"] else "candidates_ready")
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         result["errors"].append(f"{type(exc).__name__}: {exc}")
         result["protected"] = []
-        result["unverified"] = []
+        result["candidates"] = []
         result["legacy"] = []
     return result
 
@@ -210,20 +209,20 @@ def preview(root: Path, owner: str, cli: Path | None = None,
 def format_report(report: dict) -> str:
     """Render the read-only inventory as a concise release list."""
     protected = report.get("protected", [])
-    unverified = report.get("unverified", [])
+    candidates = report.get("candidates", [])
     legacy = report.get("legacy", [])
     errors = report.get("errors", [])
     lines = [
         f"{report['owner'].upper()} release retention — read-only",
         f"Root: {report['root']}",
         f"Status: {report['status']} | "
-        f"Protected: {len(protected)} | Unverified: {len(unverified)} | "
+        f"Protected: {len(protected)} | Candidates: {len(candidates)} | "
         f"Legacy: {len(legacy)}",
         "",
     ]
     for heading, entries in (
         ("Protected releases", protected),
-        ("Unverified releases (not approved for deletion)", unverified),
+        ("Deletion candidates (dry-run only)", candidates),
         ("Legacy releases (not approved for deletion)", legacy),
     ):
         if not entries:
@@ -254,7 +253,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.apply or args.confirm:
         parser.error("deletion remains disabled in increment 2 pending verified owner runtime and rollback acceptance")
-    report = preview(args.root, args.owner, args.cli, inspect_runtime=True)
+    report = preview(args.root, args.owner, args.cli, inspect_runtime=False)
     print(json.dumps(report, indent=2, sort_keys=True) if args.json else format_report(report))
     return 0 if not report["errors"] else 1
 
