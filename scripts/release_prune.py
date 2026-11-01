@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import shutil
 import subprocess
 import sys
 
@@ -206,6 +207,65 @@ def preview(root: Path, owner: str, cli: Path | None = None,
 
 
 
+
+def apply_prune(root: Path, owner: str, cli: Path | None, *, limit: int = 64) -> dict:
+    """Remove only pointer-free owner releases; caller must hold deploy.sh lock."""
+    plan = preview(root, owner, cli)
+    receipt = {
+        "schema": "ocpp/owner-prune-receipt/v1",
+        "owner": owner, "root": str(Path(root).absolute()),
+        "dry_run": False, "deletion_enabled": True,
+        "status": "blocked", "protected": plan["protected"],
+        "deleted": [], "skipped": [], "errors": list(plan["errors"]),
+    }
+    if plan["status"] != "candidates_ready" or receipt["errors"]:
+        return receipt
+    if not shutil.rmtree.avoids_symlink_attacks:
+        receipt["errors"].append("symlink-safe directory removal unavailable")
+        return receipt
+    candidates = plan["candidates"]
+    if len(candidates) > limit:
+        receipt["errors"].append("candidate count exceeds per-run limit")
+        return receipt
+    for candidate in candidates:
+        name = candidate["name"]
+        fresh = preview(root, owner, cli)
+        if fresh["status"] != "candidates_ready" or fresh["errors"]:
+            receipt["errors"].extend(fresh["errors"] or ["inventory changed"])
+            receipt["skipped"].append({"name": name, "reason": "inventory changed"})
+            break
+        match = next((item for item in fresh["candidates"] if item["name"] == name), None)
+        if match is None or match["identity"] != candidate["identity"]:
+            receipt["skipped"].append({"name": name, "reason": "candidate changed"})
+            continue
+        path = Path(root).absolute() / "releases" / name
+        try:
+            info = _directory(path)
+            if [info.st_dev, info.st_ino] != candidate["identity"]:
+                receipt["skipped"].append({"name": name, "reason": "directory identity changed"})
+                continue
+            shutil.rmtree(path)
+            receipt["deleted"].append(name)
+        except OSError as exc:
+            receipt["errors"].append(f"{name}: {type(exc).__name__}: {exc}")
+            receipt["skipped"].append({"name": name, "reason": "removal failed"})
+            break
+    receipt["status"] = "partial" if receipt["errors"] else "completed"
+    return receipt
+
+
+def _require_owner_lock(owner: str) -> None:
+    """Reject direct apply invocations lacking the canonical shell deploy lock."""
+    lock = Path.home() / ".local" / "state" / ("ocpp-csms" if owner == "csms" else "ocpp-reports") / "deploy.lock"
+    try:
+        held = os.fstat(9)
+        expected = lock.stat()
+    except OSError as exc:
+        raise ValueError("apply requires canonical deploy.sh owner lock") from exc
+    if (held.st_dev, held.st_ino) != (expected.st_dev, expected.st_ino):
+        raise ValueError("apply requires canonical deploy.sh owner lock")
+
+
 def format_report(report: dict) -> str:
     """Render the read-only inventory as a concise release list."""
     protected = report.get("protected", [])
@@ -236,7 +296,14 @@ def format_report(report: dict) -> str:
         lines.append("Blocking errors:")
         lines.extend(f"  - {error}" for error in errors)
         lines.append("")
-    lines.append("No releases deleted. --apply is disabled.")
+    if "deleted" in report:
+        lines.append("Deleted " + str(len(report["deleted"])) + " release(s).")
+        for name in report["deleted"]:
+            lines.append("  " + name)
+        for item in report.get("skipped", []):
+            lines.append("  skipped " + item["name"] + ": " + item["reason"])
+    else:
+        lines.append("No releases deleted (dry-run).")
     lines.append("Use --json for the machine-readable inventory.")
     return "\n".join(lines)
 
@@ -251,9 +318,18 @@ def main(argv=None):
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--confirm", action="store_true")
     args = parser.parse_args(argv)
-    if args.apply or args.confirm:
-        parser.error("deletion remains disabled in increment 2 pending verified owner runtime and rollback acceptance")
-    report = preview(args.root, args.owner, args.cli, inspect_runtime=False)
+    if args.apply and args.dry_run:
+        parser.error("--apply and --dry-run are mutually exclusive")
+    if args.confirm and not args.apply:
+        parser.error("--confirm requires --apply")
+    if args.apply:
+        try:
+            _require_owner_lock(args.owner)
+        except ValueError as exc:
+            parser.error(str(exc))
+        report = apply_prune(args.root, args.owner, args.cli)
+    else:
+        report = preview(args.root, args.owner, args.cli, inspect_runtime=False)
     print(json.dumps(report, indent=2, sort_keys=True) if args.json else format_report(report))
     return 0 if not report["errors"] else 1
 
