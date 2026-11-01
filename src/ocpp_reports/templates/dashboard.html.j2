@@ -165,6 +165,13 @@ header{align-items:start;gap:.65rem}
 <section class="events-panel" id="events"><h2>Eventos recientes</h2>
 <p class="muted note">Eventos consecutivos de la misma acción y cargador se agrupan; abre un grupo para ver el detalle.</p>
 {% for group in event_groups %}
+{% if group.first_event_id is defined %}
+<details class="event-group" data-source="{{ group.source_id }}" data-first-id="{{ group.first_event_id }}">
+<summary>{{ group.location or group.source_id }} · {{ group.action or 'Sin acción' }}
+{% if group.event_count > 1 %}× {{ group.event_count }}{% endif %}
+<span class="muted note"> · {{ group.at|display_date(timezone) }}</span></summary>
+<div class="event-detail"><p class="muted note">Abre el grupo para consultar sus eventos.</p></div></details>
+{% else %}
 <details><summary>{{ group.location or group.source_id }} · {{ group.action or 'Sin acción' }}
 {% if group["items"]|length > 1 %}× {{ group["items"]|length }}{% endif %}
 <span class="muted note"> · {{ group["items"][0].at|display_date(timezone) }}</span></summary>
@@ -172,7 +179,14 @@ header{align-items:start;gap:.65rem}
 {% for e in group["items"] %}<tr><td>{{ e.id }}</td><td>{{ e.location }}</td><td>{{ e.charger_id }}</td>
 <td>{{ e.action }}</td><td>{{ e.at|display_date(timezone) }}</td></tr>{% endfor %}
 </tbody></table></div></details>
+{% endif %}
 {% else %}<p class="muted">Sin eventos</p>{% endfor %}
+<nav class="transaction-pagination" aria-label="Páginas de eventos">
+<div class="transaction-pages">
+{% if event_page > 1 %}<a href="{{ request.url.include_query_params(event_page=event_page-1) }}#events" rel="prev">Anterior</a>{% else %}<span class="page-disabled">Anterior</span>{% endif %}
+<span class="page-current" aria-current="page">{{ event_page }}</span>
+{% if event_has_next %}<a href="{{ request.url.include_query_params(event_page=event_page+1) }}#events" rel="next">Siguiente</a>{% else %}<span class="page-disabled">Siguiente</span>{% endif %}
+</div></nav>
 </section></div></main>
 
 <script>
@@ -208,6 +222,59 @@ header{align-items:start;gap:.65rem}
       next.searchParams.delete("tx_page");
       next.hash = "transactions";
       window.location.assign(next.toString());
+    });
+  }
+  // Opening a group requests at most 50 original events. No event payloads
+  // are embedded in the initial HTML; all DOM fields use textContent.
+  for (const details of document.querySelectorAll(".event-group")) {
+    const holder = details.querySelector(".event-detail");
+    let offset = 0, exhausted = false, loading = false;
+    const table = document.createElement("table");
+    const body = document.createElement("tbody");
+    const header = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    for (const label of ["ID", "Ubicación", "Cargador", "Acción", "Fecha"]) {
+      const th = document.createElement("th"); th.textContent = label; headRow.append(th);
+    }
+    header.append(headRow); table.append(header, body);
+    const wrapper = document.createElement("div"); wrapper.className = "scroll"; wrapper.append(table);
+    const more = document.createElement("button"); more.type = "button"; more.textContent = "Ver 50 más";
+    const status = document.createElement("p"); status.className = "muted note";
+    holder.replaceChildren(wrapper, status, more);
+    const load = async () => {
+      if (loading || exhausted) return;
+      loading = true; more.disabled = true; status.textContent = "Cargando eventos…";
+      const url = new URL("/api/event-group", window.location.origin);
+      const args = new URLSearchParams(window.location.search);
+      for (const [key, value] of args) url.searchParams.set(key, value);
+      url.searchParams.set("group_source", details.dataset.source);
+      url.searchParams.set("first_event_id", details.dataset.firstId);
+      url.searchParams.set("offset", String(offset));
+      try {
+        const response = await fetch(url, {credentials: "same-origin"});
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const page = await response.json();
+        for (const event of page.events) {
+          const tr = document.createElement("tr");
+          for (const value of [event.id, event.location, event.charger_id, event.action, event.at]) {
+            const td = document.createElement("td"); td.textContent = value == null ? "—" : String(value);
+            tr.append(td);
+          }
+          body.append(tr);
+        }
+        offset += page.events.length;
+        exhausted = !page.has_next;
+        more.hidden = exhausted;
+        status.textContent = offset + " eventos cargados";
+      } catch (_) {
+        status.textContent = "No se pudieron cargar los eventos. Reintentar.";
+      } finally {
+        loading = false; more.disabled = false;
+      }
+    };
+    more.addEventListener("click", load);
+    details.addEventListener("toggle", () => {
+      if (details.open && offset === 0) load();
     });
   }
   let timer;
