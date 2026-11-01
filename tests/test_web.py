@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from ocpp_reports.ingest import ingest_page
 from ocpp_reports.follow import sync_page
-from ocpp_reports.web import create_app
+from ocpp_reports.web import create_app, session_duration
 from ocpp_reports.warehouse_queries import snapshot
 
 
@@ -40,6 +40,11 @@ def test_missing_warehouse_is_unavailable(tmp_path):
     client = TestClient(create_app(tmp_path / "missing.sqlite"))
     assert client.get("/").status_code == 503
     assert not (tmp_path / "missing.sqlite").exists()
+
+
+def test_subsecond_session_duration_is_visible():
+    assert session_duration("2026-10-26T21:28:00.746Z", "2026-10-26T21:28:01.706Z") == "0:00:00.960"
+    assert session_duration("2026-10-26T21:28:01.706Z", "2026-10-26T21:28:00.746Z") == "—"
 
 
 def test_limit_validation(tmp_path):

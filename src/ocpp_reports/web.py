@@ -65,9 +65,12 @@ def session_duration(start: str | None, stop: str | None) -> str:
         last = datetime.fromisoformat(stop.replace("Z", "+00:00"))
         if first.tzinfo is None or last.tzinfo is None:
             return "—"
-        seconds = int((last - first).total_seconds())
-        if seconds < 0:
+        elapsed = (last - first).total_seconds()
+        if elapsed < 0:
             return "—"
+        if 0 < elapsed < 1:
+            return f"0:00:{elapsed:06.3f}"
+        seconds = int(elapsed)
     except (ValueError, TypeError, OverflowError):
         return "—"
     hours, remainder = divmod(seconds, 3600)
