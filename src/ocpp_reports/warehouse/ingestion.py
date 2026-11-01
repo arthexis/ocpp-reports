@@ -21,6 +21,25 @@ def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
 
+def _enrich_missing(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    """Add new non-null metadata without regressing a repaired projection.
+
+    On an equal cursor there is no proof a replay is newer, so existing
+    non-null values win. New evidence must use a subsequent event cursor.
+    """
+    result = dict(existing)
+    for key, value in incoming.items():
+        if key in {"started_at", "stopped_at", "date_metadata_provenance"}:
+            continue
+        prior = result.get(key)
+        if prior is None and value is not None:
+            result[key] = value
+        elif isinstance(prior, dict) and isinstance(value, dict):
+            result[key] = _enrich_missing(prior, value)
+    return result
+
+
+
 from .schema import _schema
 
 
@@ -134,10 +153,24 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
             position = (cursor["next"], cursor["after"])
             date_repaired = current_tx is not None and json.loads(current_tx[4]).get(
                 "date_metadata_provenance") == "stored-charger-event-times"
-            # A later replay of the same historical page must not undo an
-            # explicitly repaired, completed transaction projection.
-            if date_repaired and position <= (current_tx[0], current_tx[1]):
+            if date_repaired and position < (current_tx[0], current_tx[1]):
+                # A strictly older page is historical evidence, not a new
+                # projection; retain the repaired current view.
                 continue
+            if date_repaired and position == (current_tx[0], current_tx[1]):
+                # Same-cursor replays may enrich metadata even after a date
+                # repair. Only fill previously unknown fields: replaying an
+                # older snapshot must not undo either the repaired dates or
+                # metadata that arrived later.
+                existing = json.loads(current_tx[4])
+                enriched = _enrich_missing(existing, tx)
+                if enriched != existing:
+                    refreshed = _canonical(enriched)
+                    values = (source, tx["charger_id"], tx["id"], cursor["after"],
+                              cursor["next"], hashlib.sha256(refreshed.encode("utf-8")).hexdigest(),
+                              refreshed, timestamp)
+                else:
+                    continue
             if current_tx is None or position > (current_tx[0], current_tx[1]) or (
                 position == (current_tx[0], current_tx[1]) and digest != current_tx[2]
                 and datetime.fromisoformat(timestamp.replace("Z", "+00:00")) >
