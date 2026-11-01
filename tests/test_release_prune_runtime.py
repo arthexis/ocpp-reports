@@ -28,11 +28,17 @@ class RuntimeReferenceTests(unittest.TestCase):
         (self.root / "previous").symlink_to(self.releases / self.old)
         if self.owner == "reports":
             (self.root / "role").write_text("terminal")
+        self.cli = Path(self.temp.name) / "bin" / ("ocpp-csms" if self.owner == "csms" else "ocpp-reports")
+        self.cli.parent.mkdir(parents=True)
+        executable = self.releases / self.current / "venv" / "bin" / self.cli.name
+        executable.parent.mkdir(parents=True)
+        executable.write_text("#!/bin/sh\\nexit 0\\n")
+        self.cli.symlink_to(executable)
 
     def test_protects_runtime_consumer(self):
         with patch.object(prune, "_runtime_references",
                           return_value=({self.old: {"process"}}, [])):
-            report = prune.preview(self.root, self.owner, inspect_runtime=True)
+            report = prune.preview(self.root, self.owner, self.cli, inspect_runtime=True)
         self.assertEqual(report["status"], "runtime_checked")
         self.assertEqual(report["unverified"], [])
         self.assertIn("process", next(x["reasons"] for x in report["protected"]
@@ -42,7 +48,7 @@ class RuntimeReferenceTests(unittest.TestCase):
     def test_incomplete_process_inventory_blocks_cleanup(self):
         with patch.object(prune, "_runtime_references",
                           return_value=({}, ["process inventory inaccessible"])):
-            report = prune.preview(self.root, self.owner, inspect_runtime=True)
+            report = prune.preview(self.root, self.owner, self.cli, inspect_runtime=True)
         self.assertEqual(report["status"], "blocked")
         self.assertTrue(report["errors"])
         self.assertTrue(all(not row["deletable"] for row in report["protected"]))
@@ -53,7 +59,7 @@ class RuntimeReferenceTests(unittest.TestCase):
         name += "-pkg" if self.owner == "reports" else ""
         with patch.object(prune, "_runtime_references",
                           return_value=({name: {"service"}}, [])):
-            report = prune.preview(self.root, self.owner, inspect_runtime=True)
+            report = prune.preview(self.root, self.owner, self.cli, inspect_runtime=True)
         self.assertEqual(report["status"], "blocked")
         self.assertEqual(report["unverified"], [])
         self.assertTrue(report["errors"])
