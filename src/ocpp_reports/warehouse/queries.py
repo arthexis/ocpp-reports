@@ -144,7 +144,8 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                     "SELECT source_id,kind,record_key,payload FROM collector_latest"
                     + transaction_filter
                     + " ORDER BY COALESCE(json_extract(payload,'$.stopped_at'),"
-                    + " json_extract(payload,'$.started_at'),'') DESC LIMIT ?",
+                    + " json_extract(payload,'$.started_at'),'') DESC,"
+                    + " source_id,record_key LIMIT ?",
                     [*transaction_args, transaction_limit + len(transactions)],
                 ))
                 if not skip_events:
