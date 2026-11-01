@@ -109,9 +109,9 @@ def refresh(
             patched["soc_metadata_refreshed_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             encoded = json.dumps(patched, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
             db.execute(
-                "UPDATE current_transactions SET payload=?, fingerprint=?, imported_at=? "
+                "UPDATE current_transactions SET payload=?, fingerprint=? "
                 "WHERE source_id=? AND charger_id=? AND transaction_id=?",
                 (encoded, hashlib.sha256(encoded.encode()).hexdigest(),
-                 patched["soc_metadata_refreshed_at"], source, cp, transaction),
+                 source, cp, transaction),
             )
         return result
