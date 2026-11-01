@@ -6,7 +6,7 @@ from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 
 from ocpp_reports.warehouse.queries import snapshot
-from ocpp_reports.web import minute_utc, display_date
+from ocpp_reports.web import minute_utc, display_date, session_duration
 
 
 def test_forwarded_live_energy_and_finalization(tmp_path):
@@ -26,6 +26,7 @@ def test_forwarded_live_energy_and_finalization(tmp_path):
     environment = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parents[1] / "src/ocpp_reports/templates")))
     environment.filters["minute_utc"] = minute_utc
     environment.filters["display_date"] = display_date
+    environment.filters["session_duration"] = session_duration
     template = environment.get_template("dashboard.html.j2")
     html = template.render(data=data, connector_rows=data['connectors'], connector_view='combined', source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1},
                            tx_page=1, tx_pages=1, tx_total=1, event_page=1, event_has_next=False)

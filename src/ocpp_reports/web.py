@@ -56,6 +56,25 @@ def display_date(value: str | None, zone: str) -> str:
     return parsed.astimezone(ZoneInfo(zone)).strftime("%Y-%m-%d %H:%M") + (" UTC" if zone == "UTC" else "")
 
 
+def session_duration(start: str | None, stop: str | None) -> str:
+    """Display a completed session's elapsed time from charger event dates."""
+    if not start or not stop:
+        return "—"
+    try:
+        first = datetime.fromisoformat(start.replace("Z", "+00:00"))
+        last = datetime.fromisoformat(stop.replace("Z", "+00:00"))
+        if first.tzinfo is None or last.tzinfo is None:
+            return "—"
+        seconds = int((last - first).total_seconds())
+        if seconds < 0:
+            return "—"
+    except (ValueError, TypeError, OverflowError):
+        return "—"
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours}:{minutes:02d}:{seconds:02d}"
+
+
 def _filter_dashboard(data: dict, *, term: str, status: str,
                       location: str, date_from: str, date_to: str, zone: str) -> dict:
     """Filter presentation data only; preserve the raw snapshot API."""
@@ -184,6 +203,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
     templates.env.filters["minute_utc"] = minute_utc
     templates.env.filters["display_date"] = display_date
+    templates.env.filters["session_duration"] = session_duration
 
     def read(source_id: str | None, charger_id: str | None, limit: int, *, transaction_pagination: dict | None = None,
              skip_events: bool = False):
