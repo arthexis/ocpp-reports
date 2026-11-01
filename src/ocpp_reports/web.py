@@ -182,12 +182,13 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     templates.env.filters["minute_utc"] = minute_utc
     templates.env.filters["display_date"] = display_date
 
-    def read(source_id: str | None, charger_id: str | None, limit: int, *, transaction_limit: int | None = None):
+    def read(source_id: str | None, charger_id: str | None, limit: int, *, transaction_pagination: dict | None = None):
         if allowed_source_ids is not None and source_id and source_id not in allowed_source_ids:
             raise HTTPException(403, "Source is not available in this dashboard")
         try:
+            options = {"transaction_pagination": transaction_pagination} if transaction_pagination is not None else {}
             return snapshot(warehouse, source_id=source_id, charger_id=charger_id, limit=limit,
-                            allowed_source_ids=allowed_source_ids)
+                            allowed_source_ids=allowed_source_ids, **options)
         except FileNotFoundError as exc:
             raise HTTPException(503, str(exc)) from exc
         except (ValueError, OSError) as exc:
@@ -202,29 +203,49 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         tz = tz or zones[0]
         if tz not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
-        # Keep event activity at 100 entries while paging the most recent
-        # 500 transaction projections, rendering only 20 rows at once.
-        data = read(source_id, charger_id, 100, transaction_limit=500)
+        if tx_view not in ("success", "failed", "all"):
+            raise HTTPException(422, "Invalid transaction view")
+        for day in (date_from, date_to):
+            if day:
+                try:
+                    datetime.strptime(day, "%Y-%m-%d")
+                except ValueError as exc:
+                    raise HTTPException(422, str(exc)) from exc
+        if date_from and date_to and date_from > date_to:
+            raise HTTPException(422, "Date range start must not exceed end")
+        # Filter and paginate transactions inside SQLite, before decoding JSON.
+        sql_page = dict(term=filter, status=status, location=location,
+                        date_from=date_from, date_to=date_to, zone=tz,
+                        view=tx_view, page=tx_page)
+        data = read(source_id, charger_id, 100, transaction_pagination=sql_page)
+        paginated = data.get("transaction_pagination")
+        # Keep connector/event filters in the established presentation path.
+        rows = data["transactions"] if paginated is not None else None
+        if rows is not None:
+            data = {**data, "transactions": []}
         try:
             data = _filter_dashboard(data, term=filter, status=status,
                                      location=location, date_from=date_from, date_to=date_to, zone=tz)
+            if rows is not None:
+                data["transactions"] = rows
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-        try:
+        if paginated is not None:
+            transaction_counts = paginated["counts"]
+            tx_total, tx_pages, tx_page = paginated["total"], paginated["pages"], paginated["page"]
+        else:
+            # Backward-compatible path for external/injected snapshot providers.
             transaction_counts = {
                 "success": len(_filter_transaction_energy(data["transactions"], "success")),
                 "failed": len(_filter_transaction_energy(data["transactions"], "failed")),
                 "all": len(data["transactions"]),
             }
             filtered_transactions = _filter_transaction_energy(data["transactions"], tx_view)
-            tx_page_size = 20
             tx_total = len(filtered_transactions)
-            tx_pages = max(1, (tx_total + tx_page_size - 1) // tx_page_size)
+            tx_pages = max(1, (tx_total + 19) // 20)
             tx_page = min(tx_page, tx_pages)
-            start = (tx_page - 1) * tx_page_size
-            data["transactions"] = filtered_transactions[start:start + tx_page_size]
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
+            start = (tx_page - 1) * 20
+            data["transactions"] = filtered_transactions[start:start + 20]
         now = datetime.now(timezone.utc)
         for connector in data["connectors"]:
             try:
