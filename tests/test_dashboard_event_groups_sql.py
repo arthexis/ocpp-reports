@@ -37,6 +37,7 @@ def _seed(path):
                 payload = _event(n, "StatusNotification", state="Available")
             else:
                 payload = _event(n)
+            payload["rfid"] = "PRIVATE-SECRET-DO-NOT-RENDER"
             db.execute("INSERT INTO events(source_id,event_id,payload) VALUES (?,?,?)",
                        ("a", n, json.dumps(payload)))
         # Independent remote source has its own event IDs, including collisions.
@@ -89,6 +90,7 @@ def test_source_security_and_filter_scope(tmp_path):
     details = client.get("/api/event-group?group_source=a&first_event_id=194")
     assert details.status_code == 200
     assert len(details.json()["events"]) == 50
+    assert "PRIVATE-SECRET-DO-NOT-RENDER" not in details.text
     assert client.get("/api/event-group?group_source=a&first_event_id=193").status_code == 404
     assert client.get("/api/event-group?group_source=a&first_event_id=194&offset=-1").status_code == 422
     assert client.get("/?event_page=0").status_code == 422
