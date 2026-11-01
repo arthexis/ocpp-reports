@@ -76,17 +76,27 @@ def benchmark(database: Path, *, iterations: int = 100, warmup: int = 5) -> dict
     results = {}
     with TestClient(app) as client:
         for name, url in scenarios.items():
-            def execute() -> None:
+            def execute():
                 response = client.get(url)
                 if response.status_code != 200:
                     raise RuntimeError(f"{name}: HTTP {response.status_code}: {response.text[:160]}")
+                return response
             for _ in range(warmup):
                 execute()
             samples = []
+            stages: dict[str, list[float]] = {}
             for _ in range(iterations):
                 started = time.perf_counter()
-                execute()
+                response = execute()
                 samples.append((time.perf_counter() - started) * 1000)
+                for chunk in response.headers.get("server-timing", "").split(","):
+                    if ";dur=" not in chunk:
+                        continue
+                    key, _, duration = chunk.strip().partition(";dur=")
+                    try:
+                        stages.setdefault(key, []).append(float(duration))
+                    except ValueError:
+                        continue
             # Memory measurement is separate: tracemalloc materially alters timings.
             tracemalloc.start()
             try:
@@ -95,6 +105,9 @@ def benchmark(database: Path, *, iterations: int = 100, warmup: int = 5) -> dict
             finally:
                 tracemalloc.stop()
             results[name] = {**_stats(samples), "peak_python_bytes": peak}
+            if stages:
+                results[name]["stages"] = {key: _stats(values)
+                                           for key, values in stages.items()}
 
     def query() -> None:
         snapshot(path, transaction_pagination={
