@@ -467,6 +467,39 @@ def run(
         typer.echo(f"Written {output}")
 
 
+@app.command("benchmark")
+def benchmark_command(
+    database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
+    iterations: int = typer.Option(100, "--iterations", min=1, max=10000, help="Measured requests per scenario"),
+    warmup: int = typer.Option(5, "--warmup", min=0, max=1000, help="Unmeasured requests per scenario"),
+    output: Path | None = typer.Option(None, "--output", help="Write JSON to a new file (never overwrite)"),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON instead of a summary"),
+) -> None:
+    """Benchmark read-only dashboard routes locally without running an HTTP server."""
+    from .charger_locations import collector_database
+    from .dashboard_benchmark import benchmark, write_result
+
+    try:
+        path = collector_database(database)
+        result = benchmark(path, iterations=iterations, warmup=warmup)
+        if output is not None:
+            write_result(result, output)
+    except (ValueError, FileNotFoundError, OSError, RuntimeError, __import__("sqlite3").Error) as exc:
+        typer.echo(f"Benchmark failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    if json_output:
+        typer.echo(json.dumps(result, indent=2))
+    else:
+        typer.echo(f"Dashboard benchmark (read-only): {path}")
+        typer.echo(f"Iterations: {iterations} | Warmup: {warmup}")
+        typer.echo(f"{'Scenario':<25} {'p50 ms':>9} {'p95 ms':>9} {'p99 ms':>9} {'max ms':>9}")
+        for name, stats in result["scenarios"].items():
+            typer.echo(f"{name:<25} {stats['p50_ms']:>9.2f} {stats['p95_ms']:>9.2f} "
+                       f"{stats['p99_ms']:>9.2f} {stats['max_ms']:>9.2f}")
+        if output is not None:
+            typer.echo(f"Saved: {output}")
+
+
 @app.command("serve")
 def serve(
     database: Path | None = typer.Option(None, "--database", help="Override installed collector warehouse"),
