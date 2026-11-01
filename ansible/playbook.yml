@@ -4,9 +4,13 @@
   connection: local
   become: false
   vars:
-    reports_local_ingest_enabled: "{{ lookup('env', 'OCPP_REPORTS_LOCAL_INGEST_ENABLED') | default('false', true) | bool }}"
-    # Do not turn off a previously configured local producer on a deploy where
-    # the opt-in env is simply omitted. Only explicit false is a disable request.
+    # Explicit true/false overrides the installed state; an omitted flag
+    # preserves local ingestion already enabled on this host.
+    reports_local_ingest_setting: "{{ lookup('env', 'OCPP_REPORTS_LOCAL_INGEST_ENABLED') | trim | lower }}"
+    reports_local_ingest_enabled: >-
+      {{ reports_local_ingest_setting in ['true', '1', 'yes', 'on'] or
+         (reports_local_ingest_setting == '' and
+          (reports_existing_ingest_enabled.stdout | default('') | trim) in ['enabled', 'enabled-runtime']) }}
     reports_local_ingest_explicitly_disabled: >-
       {{ lookup('env', 'OCPP_REPORTS_LOCAL_INGEST_ENABLED') | trim | lower in ['false', '0', 'no', 'off'] }}
     reports_local_diagnostics_source: "{{ lookup('env', 'OCPP_REPORTS_LOCAL_DIAGNOSTICS_SOURCE') | default(ansible_facts['hostname'], true) }}"
@@ -50,6 +54,30 @@
         that:
           - reports_role is defined
           - reports_role in ['terminal', 'satellite', 'watchtower', 'control']
+    - name: Validate optional local ingestion override
+      ansible.builtin.assert:
+        that:
+          - reports_local_ingest_setting in ['', 'true', '1', 'yes', 'on', 'false', '0', 'no', 'off']
+        fail_msg: "OCPP_REPORTS_LOCAL_INGEST_ENABLED must be true/false (or 1/0, yes/no, on/off)."
+      when: reports_role in ['watchtower', 'control']
+    - name: Inspect existing local ingestion enablement
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - ocpp-reports-ingest.service
+      become: true
+      register: reports_existing_ingest_enabled
+      changed_when: false
+      failed_when: false
+      when: reports_role in ['watchtower', 'control']
+    - name: Describe effective local ingestion selection
+      ansible.builtin.debug:
+        msg: >-
+          Local ingestion {{ 'enabled' if reports_local_ingest_enabled | bool else 'skipped' }}
+          (env={{ 'explicit' if reports_local_ingest_setting else 'inferred' }},
+          previous={{ reports_existing_ingest_enabled.stdout | default('not checked') | trim }}).
+      when: reports_role in ['watchtower', 'control']
     - name: Check persisted installation role
       ansible.builtin.stat:
         path: "{{ reports_root }}/role"
