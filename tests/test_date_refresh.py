@@ -131,3 +131,45 @@ def test_cli_defaults_to_preview_and_requires_backup_for_apply(tmp_path):
     applied = CliRunner().invoke(app, [*args, "--backup", str(tmp_path / "copy.sqlite"), "--apply"])
     assert applied.exit_code == 0, applied.output
     assert json.loads(applied.stdout)["status"] == "updated"
+
+
+def test_same_cursor_enriches_metadata_without_undoing_repaired_dates(tmp_path):
+    local, remote = tmp_path / "local.sqlite", tmp_path / "collector.sqlite"
+    historical = _page()
+    sync_page(local, historical)
+    initial_batch = changes_page(local, "porsche-source")
+    accept_batch(remote, Batch.model_validate(initial_batch))
+
+    refresh(local, source="porsche-source", cp="cp-a", transactions=[233],
+            dry_run=False, backup=tmp_path / "before.sqlite")
+    repaired = _tx(local, "porsche-source")
+    assert repaired["started_at"] == START
+    assert repaired["stopped_at"] == STOP
+
+    # The event cursor is unchanged, but additional SoC/quality metadata has
+    # become available. None -> observed is additive; valid old data remains.
+    enriched = _page()
+    enriched["data"]["transactions"][0]["soc_start"] = 24
+    enriched["data"]["transactions"][0]["soc_end"] = 82
+    enriched["data"]["transactions"][0]["quality"]["corrected"] = True
+    sync_page(local, enriched)
+    current = _tx(local, "porsche-source")
+    assert (current["started_at"], current["stopped_at"]) == (START, STOP)
+    assert (current["soc_start"], current["soc_end"]) == (24, 82)
+    assert current["quality"]["corrected"] is True
+    assert current["energy_wh"] == 34062
+
+    # Replaying the original page must not remove the new metadata or dates.
+    sequence_before = changes_page(local, "porsche-source")["next"]
+    sync_page(local, historical)
+    again = _tx(local, "porsche-source")
+    assert (again["started_at"], again["stopped_at"]) == (START, STOP)
+    assert (again["soc_start"], again["soc_end"]) == (24, 82)
+    assert again["quality"]["corrected"] is True
+    assert changes_page(local, "porsche-source")["next"] == sequence_before
+
+    delta = changes_page(local, "porsche-source", after=initial_batch["next"])
+    accept_batch(remote, Batch.model_validate(delta))
+    replicated = _tx(remote, "porsche-source")
+    assert (replicated["started_at"], replicated["stopped_at"]) == (START, STOP)
+    assert (replicated["soc_start"], replicated["soc_end"]) == (24, 82)
