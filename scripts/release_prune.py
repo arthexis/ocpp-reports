@@ -6,7 +6,6 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import stat
 import subprocess
 import sys
@@ -48,6 +47,7 @@ def _runtime_references(root: Path, owner: str) -> dict[str, set[str]]:
     An inaccessible/truncated runtime observation is a hard prune blocker.
     """
     found: dict[str, set[str]] = {}
+    errors: list[str] = []
     releases = root / "releases"
     prefix = re.escape(str(releases)) + r"/([^/\s\x00;}\]]+)"
     def consume(raw: str, reason: str) -> None:
@@ -74,18 +74,22 @@ def _runtime_references(root: Path, owner: str) -> dict[str, set[str]]:
                     pass
         except FileNotFoundError:
             pass  # process exited during scan
-        except PermissionError as exc:
-            raise ValueError("process inventory inaccessible") from exc
+        except PermissionError:
+            errors.append("process inventory inaccessible")
+        except OSError:
+            errors.append("process inventory incomplete")
     for service in SERVICES[owner]:
         result = subprocess.run(
             ["systemctl", "show", service, "--property=ExecStart,WorkingDirectory,FragmentPath",
              "--no-pager"], capture_output=True, text=True, timeout=15, check=False)
         if result.returncode:
-            raise ValueError("systemd inventory unavailable")
+            errors.append("systemd inventory unavailable")
+            continue
         if len(result.stdout) > 65536:
-            raise ValueError("systemd inventory truncated")
+            errors.append("systemd inventory truncated")
+            continue
         consume(result.stdout, "service")
-    return found
+    return found, sorted(set(errors))
 
 
 def preview(root: Path, owner: str, cli: Path | None = None,
@@ -120,7 +124,9 @@ def preview(root: Path, owner: str, cli: Path | None = None,
         elif inspect_runtime:
             raise ValueError("managed CLI reference unavailable")
         if inspect_runtime:
-            for name, reasons in _runtime_references(root, owner).items():
+            runtime_references, runtime_errors = _runtime_references(root, owner)
+            result["errors"].extend(runtime_errors)
+            for name, reasons in runtime_references.items():
                 if not PATTERNS[owner].fullmatch(name):
                     raise ValueError("runtime references unknown release")
                 protected.setdefault(releases / name, set()).update(reasons)
@@ -156,7 +162,8 @@ def preview(root: Path, owner: str, cli: Path | None = None,
                 raise ValueError("missing/unsafe Reports role")
             if role.read_text().strip() not in ("terminal", "satellite", "watchtower", "control"):
                 raise ValueError("invalid Reports role")
-        result["status"] = "runtime_checked" if inspect_runtime else "preview_only"
+        result["status"] = ("blocked" if result["errors"] else
+                            ("runtime_checked" if inspect_runtime else "preview_only"))
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         result["errors"].append(f"{type(exc).__name__}: {exc}")
         result["protected"] = []
