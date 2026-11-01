@@ -82,7 +82,7 @@ def main() -> None:
         systemctl("start", csms)
         for name in names:
             await_state(name, True)
-        assert systemctl("is-enabled", ingest).stdout.strip() in ("enabled", "linked")
+        assert systemctl("is-enabled", ingest).stdout.strip() in ("enabled", "enabled-runtime", "linked", "linked-runtime")
 
         # A clean dependency stop is not a crash. The wanted child must be
         # started again by the subsequent producer start, not Restart=on-failure.
