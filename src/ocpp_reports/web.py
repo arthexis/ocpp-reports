@@ -182,7 +182,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     templates.env.filters["minute_utc"] = minute_utc
     templates.env.filters["display_date"] = display_date
 
-    def read(source_id: str | None, charger_id: str | None, limit: int):
+    def read(source_id: str | None, charger_id: str | None, limit: int, *, transaction_limit: int | None = None):
         if allowed_source_ids is not None and source_id and source_id not in allowed_source_ids:
             raise HTTPException(403, "Source is not available in this dashboard")
         try:
@@ -202,9 +202,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         tz = tz or zones[0]
         if tz not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
-        # Bound the dashboard to the latest 500 entries; render only one
-        # 20-row page, retaining existing server-side presentation filters.
-        data = read(source_id, charger_id, 500)
+        # Keep event activity at 100 entries while paging the most recent
+        # 500 transaction projections, rendering only 20 rows at once.
+        data = read(source_id, charger_id, 100, transaction_limit=500)
         try:
             data = _filter_dashboard(data, term=filter, status=status,
                                      location=location, date_from=date_from, date_to=date_to, zone=tz)
