@@ -139,6 +139,79 @@ def _query(db: sqlite3.Connection, *, source_id: str | None, charger_id: str | N
     return cte, [*parameters, *filter_args]
 
 
+
+def _default_first_page(db: sqlite3.Connection, tables: set[str],
+                        source_id: str | None,
+                        allowed_source_ids: tuple[str, ...] | None,
+                        page_size: int) -> dict:
+    """Stream exactly enough ordered evidence to finish the first ten groups.
+
+    Unlike the window query, this doesn't decode and rank all historic event
+    payloads on a normal unfiltered first-page dashboard request.
+    """
+    conditions, args = [], []
+    if allowed_source_ids is not None:
+        conditions.append("source_id IN (" + ",".join("?" for _ in allowed_source_ids) + ")")
+        args.extend(allowed_source_ids)
+    if source_id:
+        conditions.append("source_id=?")
+        args.append(source_id)
+    scope = " AND ".join(conditions) if conditions else "1=1"
+    branches, parameters = [], []
+    if "events" in tables:
+        branches.append("SELECT source_id,event_id,payload FROM events WHERE " + scope)
+        parameters.extend(args)
+    if "collector_latest" in tables:
+        branches.append(
+            "SELECT r.source_id, CAST(json_extract(r.payload,'$.id') AS INTEGER) AS event_id,"
+            " r.payload FROM collector_latest r WHERE r.kind='event' AND " + scope
+            + (" AND NOT EXISTS (SELECT 1 FROM events l WHERE l.source_id=r.source_id"
+               " AND l.event_id=CAST(json_extract(r.payload,'$.id') AS INTEGER))"
+               if "events" in tables else "")
+        )
+        parameters.extend(args)
+    if not branches:
+        return {"groups": [], "page": 1, "has_next": False}
+    locations = {}
+    if "collector_charger_locations" in tables:
+        locations = {(r[0], r[1]): r[2] for r in db.execute(
+            "SELECT source_id,charger_id,location FROM collector_charger_locations")}
+    sql = ("SELECT source_id,event_id,payload FROM (" + " UNION ALL ".join(branches)
+           + ") ORDER BY source_id DESC,event_id DESC")
+    groups: list[dict] = []
+    previous_key = None
+    for source, event_id, serialized in db.execute(sql, parameters):
+        payload = json.loads(serialized)
+        charger = payload.get("charger_id")
+        action = payload.get("action")
+        kind = payload.get("kind")
+        status = payload.get("status")
+        key = None
+        if source is not None and charger:
+            if action == "Heartbeat" and kind == "ocpp":
+                key = (source, charger, "Heartbeat")
+            elif (action == "StatusNotification" and kind == "status"
+                  and status in ("Available", "Preparing", "Charging",
+                                 "SuspendedEV", "SuspendedEVSE", "Finishing", "Reserved")
+                  and not payload.get("error_code") and not payload.get("info")
+                  and payload.get("connector_id") is not None):
+                key = (source, charger, "StatusNotification",
+                       payload["connector_id"], status)
+        if not groups or key is None or key != previous_key:
+            if len(groups) == page_size:
+                return {"groups": groups, "page": 1, "has_next": True}
+            groups.append({
+                "source_id": source, "charger_id": charger,
+                "location": locations.get((source, charger), source),
+                "action": action, "at": payload.get("at"),
+                "event_count": 0, "first_event_id": event_id,
+            })
+        groups[-1]["event_count"] += 1
+        previous_key = key
+    return {"groups": groups, "page": 1, "has_next": False}
+
+
+
 def event_groups_page(
     database: str | Path, *, source_id: str | None = None, charger_id: str | None = None,
     allowed_source_ids: tuple[str, ...] | None = None, term: str = "", status: str = "",
@@ -157,6 +230,11 @@ def event_groups_page(
                            location=location, date_from=date_from, date_to=date_to, zone=zone)
         if not cte:
             return {"groups": [], "page": 1, "has_next": False}
+        if (page == 1 and not any((charger_id, term, status, location,
+                                   date_from, date_to))):
+            return _default_first_page(db, {
+                r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            }, source_id, allowed_source_ids, page_size)
         # Rank group numbers instead of materializing the event JSON for each
         # group; the newest row supplies the display information.
         sql = cte + (

@@ -249,7 +249,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         sql_page = dict(term=filter, status=status, location=location,
                         date_from=date_from, date_to=date_to, zone=tz,
                         view=tx_view, page=tx_page)
+        snapshot_started = perf_counter()
         data = read(source_id, charger_id, 100, transaction_pagination=sql_page, skip_events=True)
+        snapshot_duration_ms = (perf_counter() - snapshot_started) * 1000
         paginated = data.get("transaction_pagination")
         # Keep connector/event filters in the established presentation path.
         rows = data["transactions"] if paginated is not None else None
@@ -312,6 +314,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             or (connector_view == "station" and connector.get("connector_id") == 0)
             or (connector_view == "individual" and connector.get("connector_id") != 0)
         ]
+        template_started = perf_counter()
         response = templates.TemplateResponse(request, "dashboard.html.j2",
                                           {"data": data, "connector_rows": connector_rows,
                                            "connector_view": connector_view,
@@ -325,8 +328,12 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                                            "transaction_counts": transaction_counts,
                                            "tx_page": tx_page, "tx_pages": tx_pages,
                                            "tx_total": tx_total})
+        template_duration_ms = (perf_counter() - template_started) * 1000
+        timings = [f"snapshot;dur={snapshot_duration_ms:.1f}"]
         if group_duration_ms is not None:
-            response.headers["Server-Timing"] = f"event-groups;dur={group_duration_ms:.1f}"
+            timings.append(f"event-groups;dur={group_duration_ms:.1f}")
+        timings.append(f"template;dur={template_duration_ms:.1f}")
+        response.headers["Server-Timing"] = ", ".join(timings)
         return response
 
     @app.get("/api/event-group")

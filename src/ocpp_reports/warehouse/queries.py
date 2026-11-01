@@ -120,14 +120,43 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             # The HTML view pages transactions separately in SQLite and
             # needs only a bounded recent event sample. Avoid materializing
             # the potentially very large replicated transaction/event history.
+            where_prefix = " AND " if scope_clause else " WHERE "
             if transaction_pagination is None:
-                remote = db.execute(
+                # The public API exposes only a bounded recent snapshot.
+                # Fetching all collector history consumed >130 MiB on the
+                # production watchtower even when callers requested 100 rows.
+                remote = list(db.execute(
                     "SELECT source_id,kind,record_key,payload FROM collector_latest"
-                    + scope_clause + " ORDER BY source_id,kind,record_key",
-                    scope_args,
-                ).fetchall()
+                    + scope_clause + where_prefix + "kind IN ('connector','rating')"
+                    + " ORDER BY source_id,kind,record_key", scope_args,
+                ))
+                transaction_filter = scope_clause + where_prefix + "kind='transaction'"
+                event_filter = scope_clause + where_prefix + "kind='event'"
+                transaction_args = list(scope_args)
+                event_args = list(scope_args)
+                if charger_id:
+                    predicate = " AND json_extract(payload,'$.charger_id')=?"
+                    transaction_filter += predicate
+                    event_filter += predicate
+                    transaction_args.append(charger_id)
+                    event_args.append(charger_id)
+                remote.extend(db.execute(
+                    "SELECT source_id,kind,record_key,payload FROM collector_latest"
+                    + transaction_filter
+                    + " ORDER BY COALESCE(json_extract(payload,'$.stopped_at'),"
+                    + " json_extract(payload,'$.started_at'),'') DESC,"
+                    + " source_id,record_key LIMIT ?",
+                    [*transaction_args, transaction_limit + len(transactions)],
+                ))
+                if not skip_events:
+                    remote.extend(db.execute(
+                        "SELECT source_id,kind,record_key,payload FROM collector_latest"
+                        + event_filter
+                        + " ORDER BY source_id DESC,"
+                        + " CAST(json_extract(payload,'$.id') AS INTEGER) DESC LIMIT ?",
+                        [*event_args, limit + len(events)],
+                    ))
             else:
-                where_prefix = " AND " if scope_clause else " WHERE "
                 remote = list(db.execute(
                     "SELECT source_id,kind,record_key,payload FROM collector_latest"
                     + scope_clause + where_prefix + "kind IN ('connector','rating')"
@@ -142,9 +171,9 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                     remote.extend(db.execute(
                         "SELECT source_id,kind,record_key,payload FROM collector_latest"
                         + event_clause
-                        + " ORDER BY source_id DESC, json_extract(payload,'$.id') DESC LIMIT ?",
+                        + " ORDER BY source_id DESC, CAST(json_extract(payload,'$.id') AS INTEGER) DESC LIMIT ?",
                         [*event_args, limit],
-                    ).fetchall())
+                    ))
             receipt_times = {}
             if "collector_receipts" in tables:
                 receipt_times = {r["source_id"]: r["received_at"] for r in db.execute(
