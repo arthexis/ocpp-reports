@@ -82,6 +82,7 @@ def test_source_security_and_filter_scope(tmp_path):
     html = client.get("/")
     assert html.status_code == 200
     assert "× 69" in html.text
+    assert "event-groups;dur=" in html.headers["server-timing"]
     assert 'data-first-id="194"' in html.text
     assert "Abre el grupo" in html.text
     assert "Ver 50 más" in html.text
@@ -90,6 +91,7 @@ def test_source_security_and_filter_scope(tmp_path):
     details = client.get("/api/event-group?group_source=a&first_event_id=194")
     assert details.status_code == 200
     assert len(details.json()["events"]) == 50
+    assert details.json()["query_duration_ms"] >= 0
     assert "PRIVATE-SECRET-DO-NOT-RENDER" not in details.text
     assert client.get("/api/event-group?group_source=a&first_event_id=193").status_code == 404
     assert client.get("/api/event-group?group_source=a&first_event_id=194&offset=-1").status_code == 422
