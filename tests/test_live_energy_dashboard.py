@@ -27,7 +27,7 @@ def test_forwarded_live_energy_and_finalization(tmp_path):
     environment.filters["minute_utc"] = minute_utc
     environment.filters["display_date"] = display_date
     template = environment.get_template("dashboard.html.j2")
-    html = template.render(data=data, source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1},
+    html = template.render(data=data, connector_rows=data['connectors'], connector_view='combined', source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1},
                            tx_page=1, tx_pages=1, tx_total=1, event_page=1, event_has_next=False)
     assert "34.75" in html and "en vivo" in html
     with sqlite3.connect(dbpath) as db:
@@ -38,6 +38,6 @@ def test_forwarded_live_energy_and_finalization(tmp_path):
         item.update(state="stopped", active=False, energy_wh=35000)
         db.execute("UPDATE collector_latest SET payload=?", (json.dumps(item),))
     finalized = snapshot(dbpath)
-    html = template.render(data=finalized, source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1},
+    html = template.render(data=finalized, connector_rows=finalized['connectors'], connector_view='combined', source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1},
                            tx_page=1, tx_pages=1, tx_total=1, event_page=1, event_has_next=False)
     assert "35.00" in html and "(final)" in html
