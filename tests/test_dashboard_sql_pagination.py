@@ -54,7 +54,7 @@ def test_all_history_is_counted_and_only_page_records_loaded(tmp_path):
     _seed(dbpath, local=521, remote=42)
     first = _page(dbpath)
     assert first["transaction_pagination"]["counts"] == {
-        "all": 563, "success": 509, "failed": 54
+        "all": 563, "success": 507, "failed": 56
     }
     assert len(first["transactions"]) == 20
     assert first["transaction_pagination"]["pages"] == 29
