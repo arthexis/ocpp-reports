@@ -92,16 +92,33 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
         # Replicated evidence is stored separately from local ingestion. Expose both
         # through the same read-only dashboard without rewriting source evidence.
         if "collector_latest" in tables:
-            # The HTML view fetches transaction rows by SQL page below.
-            # Never materialize all remote transaction payloads first.
-            extra = (" AND kind != 'transaction'" if scope_clause
-                     else " WHERE kind != 'transaction'") if transaction_pagination is not None else ""
-            remote = db.execute(
-                "SELECT source_id,kind,record_key,payload FROM collector_latest"
-                + scope_clause + extra
-                + " ORDER BY source_id,kind,record_key",
-                scope_args,
-            ).fetchall()
+            # The HTML view pages transactions separately in SQLite and
+            # needs only a bounded recent event sample. Avoid materializing
+            # the potentially very large replicated transaction/event history.
+            if transaction_pagination is None:
+                remote = db.execute(
+                    "SELECT source_id,kind,record_key,payload FROM collector_latest"
+                    + scope_clause + " ORDER BY source_id,kind,record_key",
+                    scope_args,
+                ).fetchall()
+            else:
+                where_prefix = " AND " if scope_clause else " WHERE "
+                remote = list(db.execute(
+                    "SELECT source_id,kind,record_key,payload FROM collector_latest"
+                    + scope_clause + where_prefix + "kind IN ('connector','rating')"
+                    + " ORDER BY source_id,kind,record_key", scope_args,
+                ))
+                event_clause = scope_clause + where_prefix + "kind='event'"
+                event_args = list(scope_args)
+                if charger_id:
+                    event_clause += " AND json_extract(payload,'$.charger_id')=?"
+                    event_args.append(charger_id)
+                remote.extend(db.execute(
+                    "SELECT source_id,kind,record_key,payload FROM collector_latest"
+                    + event_clause
+                    + " ORDER BY source_id DESC, json_extract(payload,'$.id') DESC LIMIT ?",
+                    [*event_args, limit],
+                ).fetchall())
             receipt_times = {}
             if "collector_receipts" in tables:
                 receipt_times = {r["source_id"]: r["received_at"] for r in db.execute(
