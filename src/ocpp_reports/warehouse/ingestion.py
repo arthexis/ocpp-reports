@@ -166,11 +166,12 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
                 enriched = _enrich_missing(existing, tx)
                 if enriched != existing:
                     refreshed = _canonical(enriched)
-                    values = (source, tx["charger_id"], tx["id"], cursor["after"],
-                              cursor["next"], hashlib.sha256(refreshed.encode("utf-8")).hexdigest(),
-                              refreshed, timestamp)
-                else:
-                    continue
+                    db.execute("""UPDATE current_transactions
+                        SET fingerprint=?, payload=?, imported_at=?
+                        WHERE source_id=? AND charger_id=? AND transaction_id=?""",
+                        (hashlib.sha256(refreshed.encode("utf-8")).hexdigest(),
+                         refreshed, timestamp, source, tx["charger_id"], tx["id"]))
+                continue
             if current_tx is None or position > (current_tx[0], current_tx[1]) or (
                 position == (current_tx[0], current_tx[1]) and digest != current_tx[2]
                 and datetime.fromisoformat(timestamp.replace("Z", "+00:00")) >
