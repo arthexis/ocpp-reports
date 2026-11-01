@@ -47,6 +47,8 @@ jobs:
         run: python3 -m pip install '.[test]' ansible-core ansible-lint
       - name: Fast preflight (rendered artifacts, shell, Ansible)
         run: bash scripts/preflight.sh --quick
+      - name: Isolated real-systemd local ingest lifecycle
+        run: sudo python3 scripts/test_local_ingest_systemd.py
 
   ansible_integration:
     name: Ansible deployment integration

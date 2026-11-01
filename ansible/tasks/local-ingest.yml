@@ -119,10 +119,31 @@
   become: true
   register: reports_local_ingest_unit
 
+# An already-enabled unit does not gain a new WantedBy symlink merely because
+# its template changes. Pull ingestion back in when CSMS starts after a deploy.
+- name: Ensure CSMS start pulls in local ingestion
+  ansible.builtin.file:
+    path: /etc/systemd/system/ocpp-csms.service.wants
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+- name: Link local ingestion to CSMS start
+  ansible.builtin.file:
+    src: /etc/systemd/system/ocpp-reports-ingest.service
+    dest: /etc/systemd/system/ocpp-csms.service.wants/ocpp-reports-ingest.service
+    state: link
+    owner: root
+    group: root
+  become: true
+  register: reports_local_csms_start_link
+
 - name: Enable and reconcile local ingestion service
   ansible.builtin.systemd_service:
     name: ocpp-reports-ingest.service
-    daemon_reload: "{{ reports_local_ingest_unit.changed }}"
+    daemon_reload: "{{ reports_local_ingest_unit.changed or reports_local_csms_start_link.changed }}"
     enabled: true
     state: "{{ 'restarted' if (reports_local_ingest_unit.changed or reports_release_changed | bool) else 'started' }}"
   become: true
