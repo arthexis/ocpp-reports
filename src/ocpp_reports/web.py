@@ -198,11 +198,13 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
               charger_id: str | None = None, filter: str = "",
               status: str = "", location: str = "",
               date_from: str = "", date_to: str = "", tz: str | None = None,
-              tx_view: str = "success"):
+              tx_view: str = "success", tx_page: int = Query(1, ge=1)):
         tz = tz or zones[0]
         if tz not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
-        data = read(source_id, charger_id, 100)
+        # Bound the dashboard to the latest 500 entries; render only one
+        # 20-row page, retaining existing server-side presentation filters.
+        data = read(source_id, charger_id, 500)
         try:
             data = _filter_dashboard(data, term=filter, status=status,
                                      location=location, date_from=date_from, date_to=date_to, zone=tz)
@@ -214,7 +216,13 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                 "failed": len(_filter_transaction_energy(data["transactions"], "failed")),
                 "all": len(data["transactions"]),
             }
-            data["transactions"] = _filter_transaction_energy(data["transactions"], tx_view)
+            filtered_transactions = _filter_transaction_energy(data["transactions"], tx_view)
+            tx_page_size = 20
+            tx_total = len(filtered_transactions)
+            tx_pages = max(1, (tx_total + tx_page_size - 1) // tx_page_size)
+            tx_page = min(tx_page, tx_pages)
+            start = (tx_page - 1) * tx_page_size
+            data["transactions"] = filtered_transactions[start:start + tx_page_size]
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         now = datetime.now(timezone.utc)
@@ -231,7 +239,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                                            "status_filter": status, "location_filter": location,
                                            "date_from": date_from, "date_to": date_to,
                                            "timezone": tz, "timezones": zones, "tx_view": tx_view,
-                                           "transaction_counts": transaction_counts})
+                                           "transaction_counts": transaction_counts,
+                                           "tx_page": tx_page, "tx_pages": tx_pages,
+                                           "tx_total": tx_total})
 
     @app.get("/api/snapshot")
     def api_snapshot(source_id: str | None = None, charger_id: str | None = None,
