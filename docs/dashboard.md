@@ -81,3 +81,32 @@ root -g www-data -m 0640 /dev/null PATH`, then `htpasswd -B PATH USERNAME`.
 Remove access with `sudo htpasswd -D PATH USERNAME`; list only usernames with
 `sudo cut -d: -f1 PATH`. Nginx reads the file on requests; no reload is needed.
 Browsers cache Basic credentials, so test with a private window after changes.
+
+
+## Event groups: read-only window implementation (PR #127)
+
+The **Eventos recientes** panel now selects the latest **10 groups per page**
+with SQLite window functions over the same source-scoped local and replicated
+events. Only adjacent routine Heartbeats and eligible benign status messages
+collapse; faults and transaction lifecycle events remain individual groups.
+Grouping follows the existing source/event-ID ordering rather than merging
+unrelated events across sources. SQL selects summaries only, so opening the
+dashboard does not download the groups' underlying event payloads.
+
+Expanding a group fetches up to **50 display-only event entries** using
+`GET /api/event-group?group_source=SOURCE&first_event_id=ID&offset=0`.
+The API revalidates the exact group boundary and source allowlist on each
+request. The browser can request the next 50 entries explicitly. The JSON
+response intentionally contains only event ID, source, charger, location,
+action, and timestamp fields, not raw OCPP payloads, RFID or customer secrets.
+Event-group queries never write to the warehouse, CSMS or replication cursors.
+
+**Field performance check:** capture dashboard response header
+`Server-Timing: event-groups;dur=...` and the scoped group-detail JSON
+`query_duration_ms` on several normal refreshes and expanded large groups.
+Compare warm/cold timings to current dashboard response latency and watch
+CPU/SQLite load; treat repeated high latency as evidence for a future
+materialized Reports-owned group projection. Avoid creating derived tables or
+indexes in the authoritative CSMS database. A 10,000-event synthetic
+heartbeat group is exercised in tests, but synthetic timing is not a
+production performance guarantee.
