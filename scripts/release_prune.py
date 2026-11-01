@@ -53,6 +53,7 @@ def preview(root: Path, owner: str, cli: Path | None = None) -> dict:
         "status": "blocked",
         "protected": [],
         "unverified": [],
+        "legacy": [],
         "errors": [],
     }
     try:
@@ -80,7 +81,15 @@ def preview(root: Path, owner: str, cli: Path | None = None) -> dict:
             raise ValueError("release inventory exceeds limit")
         for path in names:
             if not PATTERNS[owner].fullmatch(path.name):
-                raise ValueError(f"unrecognized release directory: {path.name}")
+                # Historical installs can contain noncanonical release names.
+                # Show but never propose them for removal without migration proof.
+                if path.is_symlink() or not path.is_dir():
+                    raise ValueError(f"unsafe legacy release entry: {path.name}")
+                _directory(path)
+                result["legacy"].append({"name": path.name, "path": str(path),
+                                         "reasons": ["legacy/unrecognized layout"],
+                                         "deletable": False})
+                continue
             _directory(path)
             (result["protected"] if path in protected else result["unverified"]).append({
                 "name": path.name,
@@ -97,6 +106,7 @@ def preview(root: Path, owner: str, cli: Path | None = None) -> dict:
         result["errors"].append(f"{type(exc).__name__}: {exc}")
         result["protected"] = []
         result["unverified"] = []
+        result["legacy"] = []
     return result
 
 
