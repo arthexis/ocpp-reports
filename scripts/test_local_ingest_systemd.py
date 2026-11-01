@@ -62,9 +62,9 @@ def main() -> None:
     link = wants / ingest
 
     def fixture(unit: str, content: str) -> None:
-        install = f"\\n[Install]\\nWantedBy={csms}\\n" if unit == ingest else ""
+        install = f"\n[Install]\nWantedBy={csms}\n" if unit == ingest else ""
         (UNIT_DIRECTORY / unit).write_text(
-            content + "\\n[Service]\\nType=simple\\nExecStart=/usr/bin/sleep infinity\\n" + install
+            content + "\n[Service]\nType=simple\nExecStart=/usr/bin/sleep infinity\n" + install
         )
 
     try:
