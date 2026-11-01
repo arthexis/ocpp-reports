@@ -8,6 +8,7 @@ UPDATE trigger emits the normal Reports changefeed record for forwarding.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -46,9 +47,13 @@ def refresh(
     transaction: int,
     dry_run: bool = True,
     expected_source: str | None = None,
+    expect_preview: str | None = None,
     producer: Callable[..., dict] = active_csms_transaction_soc,
 ) -> dict:
     """Preview or commit one existing transaction's derived SoC fields only."""
+    if expect_preview is not None and (dry_run or len(expect_preview) != 64
+                                        or any(c not in "0123456789abcdef" for c in expect_preview)):
+        raise ValueError("--expect-preview requires --apply and a 64-character lowercase SHA-256 token")
     if not cp or type(transaction) is not int or transaction <= 0:
         raise ValueError("Explicit --cp and positive --transaction are required")
     database = Path(database)
@@ -70,7 +75,8 @@ def refresh(
         if db.execute("SELECT 1 FROM sources WHERE source_id=?", (source,)).fetchone() is None:
             raise ValueError("Active CSMS source is not enrolled in this Reports warehouse")
         row = db.execute(
-            "SELECT payload FROM current_transactions WHERE source_id=? AND charger_id=? AND transaction_id=?",
+            "SELECT payload, fingerprint, imported_at FROM current_transactions "
+            "WHERE source_id=? AND charger_id=? AND transaction_id=?",
             (source, cp, transaction),
         ).fetchone()
         if row is None:
@@ -90,6 +96,24 @@ def refresh(
                 raise ValueError(f"Conflicting {field} evidence; refusing historical overwrite")
             if prior is None and value is not None:
                 changed[field] = value
+        # The preview token captures the exact local projection and fresh
+        # producer SoC evidence. It deliberately excludes unrelated changefeed
+        # activity so normal forwarding cannot invalidate a reviewed preview.
+        token_input = {
+            "source_id": source, "charger_id": cp, "transaction_id": transaction,
+            "payload": row[0], "fingerprint": row[1], "imported_at": row[2],
+            "producer_soc": new,
+        }
+        preview_token = hashlib.sha256(json.dumps(
+            token_input, sort_keys=True, separators=(",", ":"),
+            ensure_ascii=False, allow_nan=False,
+        ).encode()).hexdigest()
+        if expect_preview is not None and not hmac.compare_digest(expect_preview, preview_token):
+            raise ValueError("Stale SoC preview: producer evidence or local projection changed")
+        sequence_before = db.execute(
+            "SELECT COALESCE(MAX(sequence),0) FROM replication_changes WHERE source_id=?",
+            (source,),
+        ).fetchone()[0]
         result = {
             "schema": REPORT_SCHEMA,
             "status": "would_update" if dry_run and changed else "unchanged" if not changed else "updated",
@@ -101,6 +125,9 @@ def refresh(
             "proposed_soc_start": new["soc_start"],
             "proposed_soc_end": new["soc_end"],
             "fields_changed": sorted(changed),
+            "preview_token": preview_token,
+            "imported_at": row[2],
+            "replication_sequence_before": sequence_before,
         }
         if changed and not dry_run:
             patched = dict(existing)
@@ -109,9 +136,15 @@ def refresh(
             patched["soc_metadata_refreshed_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             encoded = json.dumps(patched, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
             db.execute(
-                "UPDATE current_transactions SET payload=?, fingerprint=?, imported_at=? "
+                "UPDATE current_transactions SET payload=?, fingerprint=? "
                 "WHERE source_id=? AND charger_id=? AND transaction_id=?",
                 (encoded, hashlib.sha256(encoded.encode()).hexdigest(),
-                 patched["soc_metadata_refreshed_at"], source, cp, transaction),
+                 source, cp, transaction),
             )
+        result["replication_sequence_after"] = db.execute(
+            "SELECT COALESCE(MAX(sequence),0) FROM replication_changes WHERE source_id=?",
+            (source,),
+        ).fetchone()[0]
+        if changed and not dry_run:
+            result["soc_metadata_refreshed_at"] = patched["soc_metadata_refreshed_at"]
         return result

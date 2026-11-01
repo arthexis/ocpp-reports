@@ -48,13 +48,17 @@ def metadata_refresh(
     database: Path = typer.Option(..., "--database", help="Existing local Reports warehouse SQLite"),
     source_id: str | None = typer.Option(None, "--source-id", help="Require this CSMS source identity"),
     dry_run: bool = typer.Option(True, "--dry-run/--apply", help="Preview by default; --apply commits only derived SoC"),
+    expect_preview: str | None = typer.Option(
+        None, "--expect-preview", help="Require the SHA-256 token from a matching dry-run when applying"
+    ),
 ) -> None:
     """Refresh only SoC metadata on an existing projected transaction; no cursor reset."""
     import sqlite3
     from .soc_refresh import refresh
     try:
         result = refresh(database, cp=cp, transaction=transaction,
-                         dry_run=dry_run, expected_source=source_id)
+                         dry_run=dry_run, expected_source=source_id,
+                         expect_preview=expect_preview)
     except (ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
         typer.echo(f"SoC refresh refused: {exc}", err=True)
         raise typer.Exit(2) from exc
