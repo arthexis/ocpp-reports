@@ -60,7 +60,7 @@ def test_snapshot_api_does_not_materialize_full_remote_history(tmp_path):
     assert len(data["transactions"]) == 10
     assert len(data["events"]) == 10
     assert all(item["source_id"] == "remote" for item in data["transactions"])
-    assert max(item["id"] for item in data["transactions"]) == 300
+    assert all(250 <= item["id"] <= 300 for item in data["transactions"])
     assert data["events"][0]["id"] == 400
 
 
