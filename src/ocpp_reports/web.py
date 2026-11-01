@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from time import perf_counter
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
 
@@ -253,7 +254,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             start = (tx_page - 1) * 20
             data["transactions"] = filtered_transactions[start:start + 20]
         # SQL window grouping reads only summaries; details are fetched lazily.
+        group_duration_ms = None
         if paginated is not None:
+            started = perf_counter()
             try:
                 grouped = event_groups_page(
                     warehouse, source_id=source_id, charger_id=charger_id,
@@ -263,6 +266,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                 )
             except (ValueError, OSError, sqlite3.Error) as exc:
                 raise HTTPException(503, "Event history unavailable") from exc
+            group_duration_ms = (perf_counter() - started) * 1000
             event_groups = grouped["groups"]
             event_has_next = grouped["has_next"]
         else:
@@ -275,7 +279,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                 connector["stale"] = (now - observed).total_seconds() > 30
             except (ValueError, AttributeError, TypeError):
                 connector["stale"] = True
-        return templates.TemplateResponse(request, "dashboard.html.j2",
+        response = templates.TemplateResponse(request, "dashboard.html.j2",
                                           {"data": data, "event_groups": event_groups,
                                            "event_page": event_page, "event_has_next": event_has_next,
                                            "title": title, "source_id": source_id or "",
@@ -286,6 +290,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                                            "transaction_counts": transaction_counts,
                                            "tx_page": tx_page, "tx_pages": tx_pages,
                                            "tx_total": tx_total})
+        if group_duration_ms is not None:
+            response.headers["Server-Timing"] = f"event-groups;dur={group_duration_ms:.1f}"
+        return response
 
     @app.get("/api/event-group")
     def api_event_group(
@@ -304,6 +311,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         if tz not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
         try:
+            started = perf_counter()
             result = event_group_details(
                 warehouse, group_source=group_source, first_event_id=first_event_id,
                 source_id=source_id, charger_id=charger_id,
@@ -313,6 +321,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             )
             for event in result["events"]:
                 event["display_at"] = display_date(event.get("at"), tz)
+            # Include timing in the body only for the scoped detail response.
+            # Timings are diagnostic, not cached historical evidence.
+            result["query_duration_ms"] = round((perf_counter() - started) * 1000, 1)
             return result
         except PermissionError as exc:
             raise HTTPException(403, str(exc)) from exc
