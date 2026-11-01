@@ -22,6 +22,8 @@ class ReleasePrunePreviewTests(unittest.TestCase):
         self.root = self.base / "install"
         self.releases = self.root / "releases"
         self.releases.mkdir(parents=True)
+        if "reports" in str(SCRIPT):
+            (self.root / "role").write_text("terminal")
         self.owner = "csms" if "csms" in str(SCRIPT) else "reports"
         self.names = (("a" * 12, "b" * 12, "c" * 12) if self.owner == "csms"
                       else ("a" * 40 + "-pkg", "b" * 40 + "-pkg", "c" * 40 + "-pkg"))
@@ -62,7 +64,7 @@ class ReleasePrunePreviewTests(unittest.TestCase):
                                  "--root", str(self.root), "--apply"],
                                 text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("deletion is not enabled", result.stderr)
+        self.assertIn("deletion remains disabled", result.stderr)
         self.assertTrue(all((self.releases / name).is_dir() for name in self.names))
 
 
