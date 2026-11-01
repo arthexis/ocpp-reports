@@ -127,11 +127,17 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
                 VALUES (?,?,?,?,?,?,?,?)""", values)
             # Reconcile the materialized projection in the same transaction as
             # evidence and cursor. Old-page replays cannot regress its state.
-            current_tx = db.execute("""SELECT page_next, page_after, fingerprint, imported_at
+            current_tx = db.execute("""SELECT page_next, page_after, fingerprint, imported_at, payload
                 FROM current_transactions
                 WHERE source_id=? AND charger_id=? AND transaction_id=?""",
                 (source, tx["charger_id"], tx["id"])).fetchone()
             position = (cursor["next"], cursor["after"])
+            date_repaired = current_tx is not None and json.loads(current_tx[4]).get(
+                "date_metadata_provenance") == "stored-charger-event-times"
+            # A later replay of the same historical page must not undo an
+            # explicitly repaired, completed transaction projection.
+            if date_repaired and position <= (current_tx[0], current_tx[1]):
+                continue
             if current_tx is None or position > (current_tx[0], current_tx[1]) or (
                 position == (current_tx[0], current_tx[1]) and digest != current_tx[2]
                 and datetime.fromisoformat(timestamp.replace("Z", "+00:00")) >

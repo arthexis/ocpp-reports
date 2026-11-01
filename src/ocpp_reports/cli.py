@@ -19,6 +19,27 @@ metadata_app = typer.Typer(help="Explicit, bounded producer metadata reconciliat
 app.add_typer(metadata_app, name="metadata")
 
 
+@metadata_app.command("dates")
+def metadata_dates(
+    transaction: list[int] = typer.Option(..., "--transaction", min=1, help="Historical transaction ID; repeat for a bounded batch"),
+    cp: str = typer.Option(..., "--cp", help="Exact OCPP charge point ID"),
+    source: str = typer.Option(..., "--source", help="Exact Reports source identity"),
+    database: Path = typer.Option(..., "--database", help="Existing local Reports warehouse SQLite"),
+    backup: Path | None = typer.Option(None, "--backup", help="New private SQLite backup path; required with --apply"),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply", help="Preview by default"),
+) -> None:
+    """Repair completed transaction dates from stored charger event timestamps."""
+    import sqlite3
+    from .date_refresh import refresh
+    try:
+        result = refresh(database, source=source, cp=cp, transactions=transaction,
+                         dry_run=dry_run, backup=backup)
+    except (ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
+        typer.echo(f"Date refresh refused: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    typer.echo(json.dumps(result, sort_keys=True))
+
+
 @metadata_app.command("refresh")
 def metadata_refresh(
     transaction: int = typer.Option(..., "--transaction", min=1, help="Exact historical transaction ID"),
