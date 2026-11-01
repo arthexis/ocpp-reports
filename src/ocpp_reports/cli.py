@@ -2,6 +2,7 @@
 from datetime import datetime
 from pathlib import Path
 import json
+import sqlite3
 import typer
 from . import __version__
 from .models import ReportRequest
@@ -122,7 +123,7 @@ def locations_list(
     except ValueError as exc:
         typer.echo(f"Location lookup refused: {exc}", err=True)
         raise typer.Exit(2)
-    except (OSError, __import__("sqlite3").Error) as exc:
+    except (OSError, sqlite3.Error) as exc:
         _location_sqlite_error("lookup", exc)
 
 
