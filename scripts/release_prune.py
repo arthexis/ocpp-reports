@@ -206,19 +206,56 @@ def preview(root: Path, owner: str, cli: Path | None = None,
     return result
 
 
+
+def format_report(report: dict) -> str:
+    """Render the read-only inventory as a concise release list."""
+    protected = report.get("protected", [])
+    unverified = report.get("unverified", [])
+    legacy = report.get("legacy", [])
+    errors = report.get("errors", [])
+    lines = [
+        f"{report['owner'].upper()} release retention — read-only",
+        f"Root: {report['root']}",
+        f"Status: {report['status']} | "
+        f"Protected: {len(protected)} | Unverified: {len(unverified)} | "
+        f"Legacy: {len(legacy)}",
+        "",
+    ]
+    for heading, entries in (
+        ("Protected releases", protected),
+        ("Unverified releases (not approved for deletion)", unverified),
+        ("Legacy releases (not approved for deletion)", legacy),
+    ):
+        if not entries:
+            continue
+        lines.append(f"{heading}:")
+        for entry in entries:
+            reasons = ", ".join(entry.get("reasons", []))
+            lines.append(f"  {entry['name']}" + (f"  ({reasons})" if reasons else ""))
+        lines.append("")
+    if errors:
+        lines.append("Blocking errors:")
+        lines.extend(f"  - {error}" for error in errors)
+        lines.append("")
+    lines.append("No releases deleted. --apply is disabled.")
+    lines.append("Use --json for the machine-readable inventory.")
+    return "\n".join(lines)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Owner immutable release retention")
     parser.add_argument("--owner", choices=tuple(PATTERNS), required=True)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--cli", type=Path)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--json", action="store_true", help="print the complete JSON inventory")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--confirm", action="store_true")
     args = parser.parse_args(argv)
     if args.apply or args.confirm:
         parser.error("deletion remains disabled in increment 2 pending verified owner runtime and rollback acceptance")
     report = preview(args.root, args.owner, args.cli, inspect_runtime=True)
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json.dumps(report, indent=2, sort_keys=True) if args.json else format_report(report))
     return 0 if not report["errors"] else 1
 
 
