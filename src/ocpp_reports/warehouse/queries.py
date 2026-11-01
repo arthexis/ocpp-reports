@@ -2,11 +2,36 @@
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from .transaction_pagination import transaction_page
+
+
+
+def _add_connector_zero_energy_rollups(connectors: list[dict]) -> None:
+    """Expose charger-level cumulative energy without rewriting source meter evidence.
+
+    C0 is a station-wide synthetic display total. Do not include its own meter
+    reading in the total, and do not sum it again in higher-level totals.
+    """
+    totals: dict[tuple[str, str], int | float] = {}
+    for row in connectors:
+        connector_id = row.get("connector_id")
+        value = row.get("energy_wh")
+        if (type(connector_id) is not int or connector_id <= 0
+                or type(value) not in (int, float)
+                or not math.isfinite(value) or value < 0):
+            continue
+        key = (row["source_id"], row["charger_id"])
+        totals[key] = totals.get(key, 0) + value
+    for row in connectors:
+        if row.get("connector_id") == 0:
+            row["aggregate_energy_wh"] = totals.get(
+                (row["source_id"], row["charger_id"])
+            )
 
 
 def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | None = None,
@@ -244,6 +269,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             transaction["live_energy_stale"] = not (timedelta(0) <= age <= timedelta(minutes=5))
         except ValueError:
             pass
+    _add_connector_zero_energy_rollups(connectors)
     result = {"sources": sources, "connectors": connectors,
               "transactions": transactions, "events": events}
     if transaction_pagination is not None:
