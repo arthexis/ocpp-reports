@@ -21,13 +21,18 @@ fi
 # Read-only owner release inventory; no Ansible, root privileges or service changes.
 if [ "${1:-}" = "--prune" ]; then
   shift
-  if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != "--dry-run" ]; }; then
-    echo "Usage: ./deploy.sh --prune [--dry-run]" >&2
-    exit 2
-  fi
+  format=""
+  for option in "$@"; do
+    case "$option" in
+      --dry-run) ;;
+      --json) format="--json" ;;
+      *) echo "Usage: ./deploy.sh --prune [--dry-run] [--json]" >&2; exit 2 ;;
+    esac
+  done
+  [ "$#" -le 2 ] || { echo "Too many prune options" >&2; exit 2; }
   exec python3 scripts/release_prune.py --owner reports \
     --root "${OCPP_REPORTS_INSTALL_ROOT:-/opt/ocpp-reports}" \
-    --cli "${OCPP_REPORTS_CLI_LINK:-/usr/local/bin/ocpp-reports}" --dry-run
+    --cli "${OCPP_REPORTS_CLI_LINK:-/usr/local/bin/ocpp-reports}" --dry-run ${format:+"$format"}
 fi
 
 role=""
