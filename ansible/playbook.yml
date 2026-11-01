@@ -34,8 +34,8 @@
     reports_commit: "{{ lookup('pipe', 'git -C ' ~ playbook_dir ~ '/.. rev-parse HEAD') | trim }}"
     reports_root: "{{ lookup('env', 'OCPP_REPORTS_INSTALL_ROOT') | default('/opt/ocpp-reports', true) }}"
     reports_install_extra: >-
-      {{ {'satellite': '[forwarder]', 'control': '[web,forwarder]',
-          'watchtower': '[web]'}.get(reports_role, '') }}
+      {{ {'satellite': '[forwarder]', 'control': '[web,forwarder,benchmark]',
+          'watchtower': '[web,benchmark]'}.get(reports_role, '') }}
     reports_release: "{{ reports_root }}/releases/{{ reports_commit }}-pkg"
     reports_current: "{{ reports_root }}/current"
     reports_previous: "{{ reports_root }}/previous"

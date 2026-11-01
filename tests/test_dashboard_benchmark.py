@@ -64,3 +64,34 @@ def test_benchmark_missing_database_and_invalid_options(tmp_path):
     assert not missing.exists()
     result = runner.invoke(app, ["benchmark", "--iterations", "0"])
     assert result.exit_code != 0
+
+
+def test_production_dashboard_roles_include_benchmark_client():
+    """Packaging regression: production watchtower must install the TestClient backend."""
+    import tomllib
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    with (root / "pyproject.toml").open("rb") as stream:
+        extras = tomllib.load(stream)["project"]["optional-dependencies"]
+    assert any(requirement.startswith("httpx2") for requirement in extras["benchmark"])
+    assert any(requirement.startswith("httpx2") for requirement in extras["test"])
+    assert not any(requirement.startswith("httpx2") for requirement in extras["forwarder"])
+    playbook = (root / "ansible/playbook.yml").read_text()
+    assert "'watchtower': '[web,benchmark]'" in playbook
+    assert "'control': '[web,forwarder,benchmark]'" in playbook
+
+
+def test_benchmark_client_dependency_is_importable():
+    """Fail in CI if the TestClient dependency cannot actually be imported."""
+    from fastapi.testclient import TestClient
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    @app.get("/ok")
+    def ok():
+        return {"ok": True}
+
+    with TestClient(app) as client:
+        assert client.get("/ok").json() == {"ok": True}
