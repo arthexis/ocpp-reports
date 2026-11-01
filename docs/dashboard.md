@@ -110,3 +110,31 @@ materialized Reports-owned group projection. Avoid creating derived tables or
 indexes in the authoritative CSMS database. A 10,000-event synthetic
 heartbeat group is exercised in tests, but synthetic timing is not a
 production performance guarantee.
+
+
+## Read-only dashboard benchmark
+
+Run on the watchtower using its installed warehouse (or explicitly select a copy):
+
+```bash
+ocpp-reports benchmark --iterations 100 --warmup 5 --output benchmark.json
+ocpp-reports benchmark --database /path/to/warehouse.sqlite --iterations 30 --json
+```
+
+The command checks the installed collector database when `--database` is omitted.
+It runs sequential in-process FastAPI requests without opening a listening port
+or needing dashboard credentials. It includes dashboard default, second
+transaction page, station connector view, snapshot API, and a direct
+SQL-backed snapshot query. The "charger_filter" scenario refers to the
+**station connector view**, not a source/charger search filter.
+
+Results report p50, p95, p99, max and mean time per scenario (milliseconds),
+with a separate Python peak-memory probe for HTTP routes; SQL query results
+have no memory probe. The JSON result records database size and row counts.
+Use distinct output filenames for successive baselines; `--output` refuses
+to overwrite an existing file.
+
+This is a low-concurrency baseline, **not** an external HTTP load test.
+Run against a copy of the warehouse if even repeated read queries could
+interfere with production operations. The database is opened read-only;
+no schema changes or migrations are performed.
