@@ -2,6 +2,18 @@
 set -eu
 cd "$(dirname "$0")"
 
+# Read-only owner release inventory; no Ansible, root privileges or service changes.
+if [ "${1:-}" = "--prune" ]; then
+  shift
+  if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != "--dry-run" ]; }; then
+    echo "Usage: ./deploy.sh --prune [--dry-run]" >&2
+    exit 2
+  fi
+  exec python3 scripts/release_prune.py --owner reports \
+    --root "${OCPP_REPORTS_INSTALL_ROOT:-/opt/ocpp-reports}" \
+    --cli "${OCPP_REPORTS_CLI_LINK:-/usr/local/bin/ocpp-reports}" --dry-run
+fi
+
 role=""
 explicit_role=false
 case "${1:-}" in
