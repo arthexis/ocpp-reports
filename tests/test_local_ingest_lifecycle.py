@@ -45,3 +45,47 @@ def test_real_systemd_lifecycle_runner_is_wired_to_pr_ci():
     assert 'systemctl("start", csms)' in runner
     assert 'await_state(ingest, False)' in runner
 
+
+
+def test_deploy_infers_previous_local_ingest_without_explicit_override():
+    """Exercise the actual Ansible Jinja expression for each supported input."""
+    from jinja2.nativetypes import NativeEnvironment
+    import yaml
+
+    play = yaml.safe_load((ROOT / "ansible/playbook.yml").read_text())[0]
+    expression = play["vars"]["reports_local_ingest_enabled"]
+    env = NativeEnvironment()
+    cases = [
+        ("", "enabled", True),
+        ("", "enabled-runtime", True),
+        ("", "disabled", False),
+        ("", "masked", False),
+        ("", "", False),
+        ("true", "disabled", True),
+        ("yes", "", True),
+        ("1", "", True),
+        ("on", "", True),
+        ("false", "enabled", False),
+        ("no", "enabled", False),
+        ("0", "enabled", False),
+        ("off", "enabled", False),
+    ]
+    for override, prior, expected in cases:
+        actual = env.from_string(expression).render(
+            reports_local_ingest_setting=override,
+            reports_existing_ingest_enabled={"stdout": prior},
+        )
+        assert actual is expected, (override, prior, actual)
+
+
+def test_deploy_checks_enablement_and_reconciles_optional_roles():
+    play = (ROOT / "ansible/playbook.yml").read_text()
+    for role in ("watchtower", "control"):
+        tasks = (ROOT / f"ansible/roles/{role}/tasks/main.yml").read_text()
+        assert 'when: reports_local_ingest_enabled | bool' in tasks
+        assert 'tasks/local-ingest-disabled.yml' in tasks
+    assert 'systemctl' in play and 'is-enabled' in play
+    assert 'reports_existing_ingest_enabled' in play
+    assert "reports_local_ingest_setting in ['', 'true', '1', 'yes', 'on', 'false', '0', 'no', 'off']" in play
+    assert 'failed_when: false' in play
+    assert 'changed_when: false' in play
