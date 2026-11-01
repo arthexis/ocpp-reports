@@ -38,5 +38,6 @@ def test_forwarded_live_energy_and_finalization(tmp_path):
         item.update(state="stopped", active=False, energy_wh=35000)
         db.execute("UPDATE collector_latest SET payload=?", (json.dumps(item),))
     finalized = snapshot(dbpath)
-    html = template.render(data=finalized, source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1})
+    html = template.render(data=finalized, source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1},
+                           tx_page=1, tx_pages=1, tx_total=1)
     assert "35.00" in html and "(final)" in html
