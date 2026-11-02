@@ -1,5 +1,4 @@
 """Explicit all-source dashboard inventory and tenant isolation regression tests."""
-import json
 import shlex
 from pathlib import Path
 
