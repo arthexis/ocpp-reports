@@ -34,9 +34,11 @@
           - item.hostname is match('^[a-z0-9]+([.-][a-z0-9]+)+$')
           - item.port | int >= 1024 and item.port | int <= 65535
           - item.port | int != 8081
-          - item.source_ids | length > 0
-          - item.source_ids is sequence and item.source_ids is not string
-          - item.source_ids | select('match', '^[A-Za-z0-9][A-Za-z0-9._-]*$') | list | length == item.source_ids | length
+          - >-
+            item.source_ids == '*' or
+            (item.source_ids is sequence and item.source_ids is not string and
+             item.source_ids | length > 0 and
+             item.source_ids | select('match', '^[A-Za-z0-9][A-Za-z0-9._-]*$') | list | length == item.source_ids | length)
           - item.title is match('^[A-Za-z0-9 ._-]+$')
           - item.htpasswd is match('^/etc/ocpp-reports/[A-Za-z0-9._-]+[.]htpasswd$')
       loop: "{{ reports_dashboard_instances }}"
