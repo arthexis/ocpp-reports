@@ -155,6 +155,45 @@ def _filter_transaction_energy(transactions: list[dict], view: str) -> list[dict
             and (value > 0 if view == "success" else value == 0)]
 
 
+def _operational_status_counts(connectors: list[dict]) -> dict[str, dict[str, int]]:
+    """Count distinct stations and physical connectors, without counting C0 twice.
+
+    A station belongs to each state present among its physical connectors;
+    C0 is used only when a station has no individual connector rows.
+    Stale observations may also retain a fault classification, as before.
+    """
+    groups: dict[tuple[str | None, str | None], list[dict]] = {}
+    for row in connectors:
+        key = (row.get("source_id"), row.get("charger_id"))
+        groups.setdefault(key, []).append(row)
+    counts = {name: {"stations": 0, "connectors": 0}
+              for name in ("available", "charging", "faults", "uncertain")}
+    for rows in groups.values():
+        physical = [row for row in rows if row.get("connector_id") not in (0, None)]
+        selected = physical or [row for row in rows if row.get("connector_id") == 0]
+        active_states: set[str] = set()
+        for row in selected:
+            state = (row.get("status") or "").lower()
+            states: set[str] = set()
+            if state in ("faulted", "unavailable"):
+                states.add("faults")
+            if row.get("stale") or not state:
+                states.add("uncertain")
+            elif state == "charging":
+                states.add("charging")
+            elif state == "available":
+                states.add("available")
+            elif state not in ("faulted", "unavailable"):
+                states.add("uncertain")
+            active_states.update(states)
+            if physical:
+                for category in states:
+                    counts[category]["connectors"] += 1
+        for category in active_states:
+            counts[category]["stations"] += 1
+    return counts
+
+
 def _event_group_key(event: dict) -> tuple | None:
     """Collapse only routine repeats; faults and transaction events stay explicit.
 
@@ -306,7 +345,8 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                 connector["stale"] = (now - observed).total_seconds() > 30
             except (ValueError, AttributeError, TypeError):
                 connector["stale"] = True
-        # Presentation-only selection. Operational cards still count all connectors,
+        operational_counts = _operational_status_counts(data["connectors"])
+        # Presentation-only selection. Operational cards count all scoped physical connectors,
         # and /api/snapshot preserves the complete source-scoped evidence.
         connector_rows = [
             connector for connector in data["connectors"]
@@ -317,6 +357,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         template_started = perf_counter()
         response = templates.TemplateResponse(request, "dashboard.html.j2",
                                           {"data": data, "connector_rows": connector_rows,
+                                           "operational_counts": operational_counts,
                                            "connector_view": connector_view,
                                            "event_groups": event_groups,
                                            "event_page": event_page, "event_has_next": event_has_next,
