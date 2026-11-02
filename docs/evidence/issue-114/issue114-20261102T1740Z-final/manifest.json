@@ -1,0 +1,1848 @@
+{
+  "installed_sha": "931de44ba7f62166de4b1902798f36d92dce849a",
+  "captures": [
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "case": "overview-closed",
+      "file": "audi-desktop-overview-closed.png",
+      "sha256": "a586dd8621015e2b05981c58717270b9c070790cff634087719b4ddf0288b595",
+      "captured_at": "2026-11-02T17:39:50.288569+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "case": "operations-open",
+      "file": "audi-desktop-operations-open.png",
+      "sha256": "fc5d9232f30a16670a9f1aa3adb69fe7020e1af2332df5ac8b837136ff139f05",
+      "captured_at": "2026-11-02T17:39:51.334753+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "case": "connectors-open",
+      "file": "audi-desktop-connectors-open.png",
+      "sha256": "121c14b2cf7eab1dda7b5b3850f82468e44b0a2fed7cc3c69650a513489417f5",
+      "captured_at": "2026-11-02T17:39:52.382365+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "case": "transactions-open",
+      "file": "audi-desktop-transactions-open.png",
+      "sha256": "89abf1d5abe6e9a3c0297d889f37e724989ba8e81858c6ac2243f4a4489746f9",
+      "captured_at": "2026-11-02T17:39:53.227716+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "case": "synchronization-open",
+      "file": "audi-desktop-synchronization-open.png",
+      "sha256": "04a6438ff05d60f20463c633591026746d50e07b4c87814431dc7bfd9983bd93",
+      "captured_at": "2026-11-02T17:39:53.817685+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "case": "events-open",
+      "file": "audi-desktop-events-open.png",
+      "sha256": "03160d7329fa59a8b98c1223776943a9025d159f08a7dc3ae5b0ab06f49e4edc",
+      "captured_at": "2026-11-02T17:39:54.368937+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "case": "connector-dates",
+      "file": "audi-desktop-connector-dates.png",
+      "sha256": "dee165006713cbcc14f1146029d1b6fabcb69a0e3fa273dd8d3dc391fe3bf92e",
+      "captured_at": "2026-11-02T17:39:54.774163+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "case": "lower-closed",
+      "file": "audi-desktop-lower-closed.png",
+      "sha256": "67b32816309822277fe84269c89980cce5247f69e8325b2f669fd730f9582117",
+      "captured_at": "2026-11-02T17:39:55.036536+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "case": "overview-closed",
+      "file": "porsche-desktop-overview-closed.png",
+      "sha256": "54add65620fb0e0e3769025236e99c8f281f95d2793eb067bd89fc9f7b3c466f",
+      "captured_at": "2026-11-02T17:39:59.326011+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "case": "operations-open",
+      "file": "porsche-desktop-operations-open.png",
+      "sha256": "f2fb411cc57370eb30e1b1dd9a07de549d212d0eb4857a780120ed9274cc8712",
+      "captured_at": "2026-11-02T17:40:00.308796+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "case": "connectors-open",
+      "file": "porsche-desktop-connectors-open.png",
+      "sha256": "7a7b36650affde3831a20db914cc8c05142313d9bb641e700919984bc55d166d",
+      "captured_at": "2026-11-02T17:40:01.249020+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "case": "transactions-open",
+      "file": "porsche-desktop-transactions-open.png",
+      "sha256": "b38fc4ce1ddfadf3707c63d45c6d31d80a5ad1f7dc18b482ec2a8ec0af8c2680",
+      "captured_at": "2026-11-02T17:40:02.076932+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "case": "synchronization-open",
+      "file": "porsche-desktop-synchronization-open.png",
+      "sha256": "b695a28e2a802ce4c45ceb5c89b31d6e48b561ba3e87033f43a141063f4075e0",
+      "captured_at": "2026-11-02T17:40:02.865983+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "case": "events-open",
+      "file": "porsche-desktop-events-open.png",
+      "sha256": "1ecbec69a33ffa4776ceb0e1ae2af8493c99cac15011a7ad9f86da5f31c3eb3c",
+      "captured_at": "2026-11-02T17:40:03.678872+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "case": "connector-dates",
+      "file": "porsche-desktop-connector-dates.png",
+      "sha256": "b0ef1cb1caff491281540b89e89c28e1f56d80abf24dbafe5d373d3602a68bf7",
+      "captured_at": "2026-11-02T17:40:04.273330+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "case": "lower-closed",
+      "file": "porsche-desktop-lower-closed.png",
+      "sha256": "aca0ffc51399fc4af83dca10ed37d2bed6cd214844dfe544a890cd5378867406",
+      "captured_at": "2026-11-02T17:40:04.567336+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "case": "overview-closed",
+      "file": "audi-android-overview-closed.png",
+      "sha256": "6243a81c974cc8141f31fa39005cb0a060d963b40c9e65549ecf345ede192800",
+      "captured_at": "2026-11-02T17:40:10.431972+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "case": "operations-open",
+      "file": "audi-android-operations-open.png",
+      "sha256": "c47aa83533db83f747d118d00fbcb23ac2927de740c2f8a90ea2305b64c32df9",
+      "captured_at": "2026-11-02T17:40:11.362860+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "case": "connectors-open",
+      "file": "audi-android-connectors-open.png",
+      "sha256": "ac612802f6a7811048e1d78e661aee6180864ddbd61a230f31b654bb45b921c0",
+      "captured_at": "2026-11-02T17:40:12.742804+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "case": "transactions-open",
+      "file": "audi-android-transactions-open.png",
+      "sha256": "7c82f2a4b416546150debe3f3331820e05c657f7e6ae4437bd04a6173807ee62",
+      "captured_at": "2026-11-02T17:40:13.947471+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "case": "synchronization-open",
+      "file": "audi-android-synchronization-open.png",
+      "sha256": "eb19540b9b86bbf40471c211b74af6672155bf71592f29ea090af8ade71ddc85",
+      "captured_at": "2026-11-02T17:40:15.190884+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "case": "events-open",
+      "file": "audi-android-events-open.png",
+      "sha256": "e5f04ef6fb93ed2d72572981fef09245d3950f192dc9f425487d8792a305cfa9",
+      "captured_at": "2026-11-02T17:40:16.257533+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "case": "connector-dates",
+      "file": "audi-android-connector-dates.png",
+      "sha256": "13e76e71050e74cacf18acd1be86ec57f488749e7799fb90a88f2b8b63a3989b",
+      "captured_at": "2026-11-02T17:40:17.247297+00:00"
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "case": "lower-closed",
+      "file": "audi-android-lower-closed.png",
+      "sha256": "bfd0f78c00ab8fbb060a8ca0343a9b1ce0b68981847a8da5eb97772e14dc0334",
+      "captured_at": "2026-11-02T17:40:17.852466+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "case": "overview-closed",
+      "file": "porsche-android-overview-closed.png",
+      "sha256": "1a95391fca8f306a39c7ce37e740d08de316d8d8f6561a159efc4dd7bad413ba",
+      "captured_at": "2026-11-02T17:40:24.515898+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "case": "operations-open",
+      "file": "porsche-android-operations-open.png",
+      "sha256": "adebaf2be2a9ee4e5c90bfae4c4f675a30e880e66f3fa4113fcf08a5346c939e",
+      "captured_at": "2026-11-02T17:40:25.390189+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "case": "connectors-open",
+      "file": "porsche-android-connectors-open.png",
+      "sha256": "4a998fb995b7be96860e149b37fbe74a40b7ffec47e56f6c2f3b23842d46bf09",
+      "captured_at": "2026-11-02T17:40:26.514456+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "case": "transactions-open",
+      "file": "porsche-android-transactions-open.png",
+      "sha256": "f7973b6b8ba853297a1eec459fd4459feb22915db3f7a8417be7eb343ea7cf90",
+      "captured_at": "2026-11-02T17:40:27.975056+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "case": "synchronization-open",
+      "file": "porsche-android-synchronization-open.png",
+      "sha256": "ce98932e09762b84178fa467f07f3a0b38dcfc621a27ec7d4a457edce1f5dafb",
+      "captured_at": "2026-11-02T17:40:29.163076+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "case": "events-open",
+      "file": "porsche-android-events-open.png",
+      "sha256": "ae3c53dfa93cf25c21483739e3cac3ea16cddf57b2ddbaeae1ed32b0cf56e97e",
+      "captured_at": "2026-11-02T17:40:30.442588+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "case": "connector-dates",
+      "file": "porsche-android-connector-dates.png",
+      "sha256": "428401e4e83cab3903a75a8d144cd5cb3686401387abe05698caf9efceb4adc8",
+      "captured_at": "2026-11-02T17:40:31.543975+00:00"
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "case": "lower-closed",
+      "file": "porsche-android-lower-closed.png",
+      "sha256": "a5c72feee2af86789ec2d05cc80eeec2b3ba7b98710027db3961e9f85f11c1f7",
+      "captured_at": "2026-11-02T17:40:32.297756+00:00"
+    }
+  ],
+  "results": [
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "panel": "operations",
+      "accessibleLabel": "Informaci\u00f3n sobre Estado de los cargadores",
+      "hover": {
+        "visible": true,
+        "left": 345.203125,
+        "right": 705.203125,
+        "top": 179.28125,
+        "bottom": 341.671875,
+        "width": 360,
+        "height": 162.390625,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 160,
+        "clientHeight": 160,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "focus": {
+        "visible": true,
+        "left": 345.203125,
+        "right": 705.203125,
+        "top": 179.28125,
+        "bottom": 341.671875,
+        "width": 360,
+        "height": 162.390625,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 160,
+        "clientHeight": 160,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "opened": {
+        "visible": true,
+        "left": 345.203125,
+        "right": 705.203125,
+        "top": 179.28125,
+        "bottom": 341.671875,
+        "width": 360,
+        "height": 162.390625,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 160,
+        "clientHeight": 160,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 160,
+        "clientHeight": 160
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      }
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "panel": "connectors",
+      "accessibleLabel": "Informaci\u00f3n sobre Conectores",
+      "hover": {
+        "visible": true,
+        "left": 212.921875,
+        "right": 572.921875,
+        "top": 355.34375,
+        "bottom": 654.125,
+        "width": 360,
+        "height": 298.78125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 297,
+        "clientHeight": 297,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "focus": {
+        "visible": true,
+        "left": 212.921875,
+        "right": 572.921875,
+        "top": 355.34375,
+        "bottom": 654.125,
+        "width": 360,
+        "height": 298.78125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 297,
+        "clientHeight": 297,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "opened": {
+        "visible": true,
+        "left": 212.921875,
+        "right": 572.921875,
+        "top": 355.34375,
+        "bottom": 654.125,
+        "width": 360,
+        "height": 298.78125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 297,
+        "clientHeight": 297,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 297,
+        "clientHeight": 297
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      }
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "panel": "transactions",
+      "accessibleLabel": "Informaci\u00f3n sobre Transacciones recientes",
+      "hover": {
+        "visible": true,
+        "left": 333.46875,
+        "right": 693.46875,
+        "top": 518.921875,
+        "bottom": 603.375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "focus": {
+        "visible": true,
+        "left": 333.46875,
+        "right": 693.46875,
+        "top": 518.921875,
+        "bottom": 603.375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "opened": {
+        "visible": true,
+        "left": 333.46875,
+        "right": 693.46875,
+        "top": 518.921875,
+        "bottom": 603.375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      }
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "panel": "synchronization",
+      "accessibleLabel": "Informaci\u00f3n sobre Sincronizaci\u00f3n",
+      "hover": {
+        "visible": true,
+        "left": 244.109375,
+        "right": 604.109375,
+        "top": 518.90625,
+        "bottom": 603.359375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "focus": {
+        "visible": true,
+        "left": 244.109375,
+        "right": 604.109375,
+        "top": 518.90625,
+        "bottom": 603.359375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "opened": {
+        "visible": true,
+        "left": 244.109375,
+        "right": 604.109375,
+        "top": 518.90625,
+        "bottom": 603.359375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      }
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "panel": "events",
+      "accessibleLabel": "Informaci\u00f3n sobre Eventos recientes",
+      "hover": {
+        "visible": true,
+        "left": 923.796875,
+        "right": 1283.796875,
+        "top": 518.90625,
+        "bottom": 603.359375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "focus": {
+        "visible": true,
+        "left": 923.796875,
+        "right": 1283.796875,
+        "top": 518.90625,
+        "bottom": 603.359375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "opened": {
+        "visible": true,
+        "left": 923.796875,
+        "right": 1283.796875,
+        "top": 518.90625,
+        "bottom": 603.359375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      }
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "http": 200,
+      "scope": [
+        "gway-002"
+      ],
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "default": {
+        "icons": 5,
+        "open": 0,
+        "documentWidth": 1440,
+        "connectorHeadingY": 323.984375,
+        "operationsHeight": 163.265625
+      },
+      "mobileLabels": [
+        {
+          "label": "Estado informado",
+          "pseudo": "none",
+          "text": "2026-10-30 03:57 UTC",
+          "rect": {
+            "top": 420.828125,
+            "bottom": 470.296875
+          }
+        },
+        {
+          "label": "Snapshot recibido",
+          "pseudo": "none",
+          "text": "2026-11-02 17:39 UTC",
+          "rect": {
+            "top": 420.828125,
+            "bottom": 470.296875
+          }
+        }
+      ]
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "panel": "operations",
+      "accessibleLabel": "Informaci\u00f3n sobre Estado de los cargadores",
+      "hover": {
+        "visible": true,
+        "left": 345.203125,
+        "right": 705.203125,
+        "top": 179.28125,
+        "bottom": 341.671875,
+        "width": 360,
+        "height": 162.390625,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 160,
+        "clientHeight": 160,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "focus": {
+        "visible": true,
+        "left": 345.203125,
+        "right": 705.203125,
+        "top": 179.28125,
+        "bottom": 341.671875,
+        "width": 360,
+        "height": 162.390625,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 160,
+        "clientHeight": 160,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "opened": {
+        "visible": true,
+        "left": 345.203125,
+        "right": 705.203125,
+        "top": 179.28125,
+        "bottom": 341.671875,
+        "width": 360,
+        "height": 162.390625,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 160,
+        "clientHeight": 160,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 160,
+        "clientHeight": 160
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "panel": "connectors",
+      "accessibleLabel": "Informaci\u00f3n sobre Conectores",
+      "hover": {
+        "visible": true,
+        "left": 212.921875,
+        "right": 572.921875,
+        "top": 355.34375,
+        "bottom": 654.125,
+        "width": 360,
+        "height": 298.78125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 297,
+        "clientHeight": 297,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "focus": {
+        "visible": true,
+        "left": 212.921875,
+        "right": 572.921875,
+        "top": 355.34375,
+        "bottom": 654.125,
+        "width": 360,
+        "height": 298.78125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 297,
+        "clientHeight": 297,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "opened": {
+        "visible": true,
+        "left": 212.921875,
+        "right": 572.921875,
+        "top": 355.34375,
+        "bottom": 654.125,
+        "width": 360,
+        "height": 298.78125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 297,
+        "clientHeight": 297,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 297,
+        "clientHeight": 297
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "panel": "transactions",
+      "accessibleLabel": "Informaci\u00f3n sobre Transacciones recientes",
+      "hover": {
+        "visible": true,
+        "left": 333.46875,
+        "right": 693.46875,
+        "top": 518.859375,
+        "bottom": 603.3125,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "focus": {
+        "visible": true,
+        "left": 333.46875,
+        "right": 693.46875,
+        "top": 518.859375,
+        "bottom": 603.3125,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "opened": {
+        "visible": true,
+        "left": 333.46875,
+        "right": 693.46875,
+        "top": 518.859375,
+        "bottom": 603.3125,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "panel": "synchronization",
+      "accessibleLabel": "Informaci\u00f3n sobre Sincronizaci\u00f3n",
+      "hover": {
+        "visible": true,
+        "left": 244.109375,
+        "right": 604.109375,
+        "top": 519.40625,
+        "bottom": 603.859375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "focus": {
+        "visible": true,
+        "left": 244.109375,
+        "right": 604.109375,
+        "top": 519.40625,
+        "bottom": 603.859375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "opened": {
+        "visible": true,
+        "left": 244.109375,
+        "right": 604.109375,
+        "top": 519.40625,
+        "bottom": 603.859375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "panel": "events",
+      "accessibleLabel": "Informaci\u00f3n sobre Eventos recientes",
+      "hover": {
+        "visible": true,
+        "left": 923.796875,
+        "right": 1283.796875,
+        "top": 519.40625,
+        "bottom": 603.859375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "focus": {
+        "visible": true,
+        "left": 923.796875,
+        "right": 1283.796875,
+        "top": 519.40625,
+        "bottom": 603.859375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "opened": {
+        "visible": true,
+        "left": 923.796875,
+        "right": 1283.796875,
+        "top": 519.40625,
+        "bottom": 603.859375,
+        "width": 360,
+        "height": 84.453125,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 1440,
+        "viewportHeight": 1000,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 1440
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "http": 200,
+      "scope": [
+        "gway-005",
+        "porsche-abb-1"
+      ],
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "default": {
+        "icons": 5,
+        "open": 0,
+        "documentWidth": 1440,
+        "connectorHeadingY": 323.984375,
+        "operationsHeight": 163.265625
+      },
+      "mobileLabels": [
+        {
+          "label": "Estado informado",
+          "pseudo": "none",
+          "text": "2026-10-31 19:20",
+          "rect": {
+            "top": 420.828125,
+            "bottom": 470.296875
+          }
+        },
+        {
+          "label": "Snapshot recibido",
+          "pseudo": "none",
+          "text": "2026-11-02 11:39",
+          "rect": {
+            "top": 420.828125,
+            "bottom": 470.296875
+          }
+        }
+      ]
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "panel": "operations",
+      "accessibleLabel": "Informaci\u00f3n sobre Estado de los cargadores",
+      "opened": {
+        "visible": true,
+        "left": 220.2604217529297,
+        "right": 548.2604217529297,
+        "top": 209.21875,
+        "bottom": 371.609375,
+        "width": 328,
+        "height": 162.390625,
+        "viewportWidth": 548,
+        "viewportHeight": 932,
+        "scrollHeight": 160,
+        "clientHeight": 160,
+        "overflowY": "auto",
+        "documentWidth": 548
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 160,
+        "clientHeight": 160
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      }
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "panel": "connectors",
+      "accessibleLabel": "Informaci\u00f3n sobre Conectores",
+      "opened": {
+        "visible": true,
+        "left": 119.375,
+        "right": 447.375,
+        "top": 325.3802185058594,
+        "bottom": 624.1614685058594,
+        "width": 328,
+        "height": 298.78125,
+        "viewportWidth": 447,
+        "viewportHeight": 760,
+        "scrollHeight": 297,
+        "clientHeight": 297,
+        "overflowY": "auto",
+        "documentWidth": 447
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 297,
+        "clientHeight": 297
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      }
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "panel": "transactions",
+      "accessibleLabel": "Informaci\u00f3n sobre Transacciones recientes",
+      "opened": {
+        "visible": true,
+        "left": 217.77084350585938,
+        "right": 545.7708435058594,
+        "top": 325.3802185058594,
+        "bottom": 409.8333435058594,
+        "width": 328,
+        "height": 84.453125,
+        "viewportWidth": 545,
+        "viewportHeight": 927,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 545
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      }
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "panel": "synchronization",
+      "accessibleLabel": "Informaci\u00f3n sobre Sincronizaci\u00f3n",
+      "opened": {
+        "visible": true,
+        "left": 144.83334350585938,
+        "right": 472.8333435058594,
+        "top": 325.2708435058594,
+        "bottom": 409.7239685058594,
+        "width": 328,
+        "height": 84.453125,
+        "viewportWidth": 473,
+        "viewportHeight": 804,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 473
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      }
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "panel": "events",
+      "accessibleLabel": "Informaci\u00f3n sobre Eventos recientes",
+      "opened": {
+        "visible": true,
+        "left": 167.0260467529297,
+        "right": 495.0260467529297,
+        "top": 325.21875,
+        "bottom": 409.671875,
+        "width": 328,
+        "height": 84.453125,
+        "viewportWidth": 495,
+        "viewportHeight": 841,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 495
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      }
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "http": 200,
+      "scope": [
+        "gway-002"
+      ],
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "default": {
+        "icons": 5,
+        "open": 0,
+        "documentWidth": 360,
+        "connectorHeadingY": 429.3333435058594,
+        "operationsHeight": 235.4947967529297
+      },
+      "mobileLabels": [
+        {
+          "label": "Estado informado",
+          "pseudo": "\"Estado informado\"",
+          "text": "2026-10-30 03:57 UTC",
+          "rect": {
+            "top": 292.8645935058594,
+            "bottom": 319.4270935058594
+          }
+        },
+        {
+          "label": "Snapshot recibido",
+          "pseudo": "\"Snapshot recibido\"",
+          "text": "2026-11-02 17:39 UTC",
+          "rect": {
+            "top": 319.4270935058594,
+            "bottom": 345.9895935058594
+          }
+        }
+      ]
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "panel": "operations",
+      "accessibleLabel": "Informaci\u00f3n sobre Estado de los cargadores",
+      "opened": {
+        "visible": true,
+        "left": 220.2604217529297,
+        "right": 548.2604217529297,
+        "top": 209.21875,
+        "bottom": 371.609375,
+        "width": 328,
+        "height": 162.390625,
+        "viewportWidth": 548,
+        "viewportHeight": 932,
+        "scrollHeight": 160,
+        "clientHeight": 160,
+        "overflowY": "auto",
+        "documentWidth": 548
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 160,
+        "clientHeight": 160
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "panel": "connectors",
+      "accessibleLabel": "Informaci\u00f3n sobre Conectores",
+      "opened": {
+        "visible": true,
+        "left": 119.375,
+        "right": 447.375,
+        "top": 325.3802185058594,
+        "bottom": 624.1614685058594,
+        "width": 328,
+        "height": 298.78125,
+        "viewportWidth": 447,
+        "viewportHeight": 760,
+        "scrollHeight": 297,
+        "clientHeight": 297,
+        "overflowY": "auto",
+        "documentWidth": 447
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 297,
+        "clientHeight": 297
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "panel": "transactions",
+      "accessibleLabel": "Informaci\u00f3n sobre Transacciones recientes",
+      "opened": {
+        "visible": true,
+        "left": 217.77084350585938,
+        "right": 545.7708435058594,
+        "top": 325.3802185058594,
+        "bottom": 409.8333435058594,
+        "width": 328,
+        "height": 84.453125,
+        "viewportWidth": 545,
+        "viewportHeight": 927,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 545
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "panel": "synchronization",
+      "accessibleLabel": "Informaci\u00f3n sobre Sincronizaci\u00f3n",
+      "opened": {
+        "visible": true,
+        "left": 144.83334350585938,
+        "right": 472.8333435058594,
+        "top": 325.2083435058594,
+        "bottom": 409.6614685058594,
+        "width": 328,
+        "height": 84.453125,
+        "viewportWidth": 473,
+        "viewportHeight": 804,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 473
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "panel": "events",
+      "accessibleLabel": "Informaci\u00f3n sobre Eventos recientes",
+      "opened": {
+        "visible": true,
+        "left": 167.0260467529297,
+        "right": 495.0260467529297,
+        "top": 325.46356201171875,
+        "bottom": 409.91668701171875,
+        "width": 328,
+        "height": 84.453125,
+        "viewportWidth": 495,
+        "viewportHeight": 841,
+        "scrollHeight": 82,
+        "clientHeight": 82,
+        "overflowY": "auto",
+        "documentWidth": 495
+      },
+      "scrollEnd": {
+        "scrollTop": 0,
+        "scrollHeight": 82,
+        "clientHeight": 82
+      },
+      "outside": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      },
+      "escape": {
+        "visible": false,
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0,
+        "viewportWidth": 360,
+        "viewportHeight": 612,
+        "scrollHeight": 0,
+        "clientHeight": 0,
+        "overflowY": "auto",
+        "documentWidth": 360
+      }
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "http": 200,
+      "scope": [
+        "gway-005",
+        "porsche-abb-1"
+      ],
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "default": {
+        "icons": 5,
+        "open": 0,
+        "documentWidth": 360,
+        "connectorHeadingY": 429.3333435058594,
+        "operationsHeight": 235.4947967529297
+      },
+      "mobileLabels": [
+        {
+          "label": "Estado informado",
+          "pseudo": "\"Estado informado\"",
+          "text": "2026-10-31 19:20",
+          "rect": {
+            "top": 292.8645935058594,
+            "bottom": 319.4270935058594
+          }
+        },
+        {
+          "label": "Snapshot recibido",
+          "pseudo": "\"Snapshot recibido\"",
+          "text": "2026-11-02 11:39",
+          "rect": {
+            "top": 319.4270935058594,
+            "bottom": 345.9895935058594
+          }
+        }
+      ]
+    }
+  ],
+  "privacy": "Identifiers masked and transaction/event bodies hidden by client-only CSS; layout and help controls unchanged. Meta refresh removed client-side during interactions.",
+  "android_model": "SM-G950F",
+  "android_version": "9"
+}
