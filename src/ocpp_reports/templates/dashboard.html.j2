@@ -92,6 +92,16 @@ header{align-items:start;gap:.65rem}
 .transaction-filters button.selected,.connector-filters button.selected{color:var(--accent);font-weight:750;text-decoration:underline;text-underline-offset:4px}
 .transaction-filters button:hover,.connector-filters button:hover{color:var(--accent)}
 .transaction-filters span,.connector-filters span{color:var(--muted)}
+
+/* Panel explanations stay off the page until hover, keyboard focus, or tap. */
+.panel-heading{display:flex;align-items:center;gap:.35rem;margin-bottom:.5rem;min-width:0}
+.panel-heading h2{margin:0}
+.panel-help{position:relative;display:inline-flex;align-items:center;flex:0 0 auto}
+.panel-help-trigger{border:0;background:transparent;color:var(--muted);font-size:1.15rem;line-height:1;cursor:pointer;border-radius:100%;min-width:32px;min-height:32px;padding:.2rem}
+.panel-help-trigger:hover,.panel-help-trigger:focus-visible{color:var(--accent)}
+.panel-help-text{display:none;position:absolute;z-index:30;top:calc(100% + .2rem);left:0;width:min(360px,calc(100vw - 2rem));max-height:min(60vh,400px);overflow:auto;padding:.75rem .85rem;border:1px solid var(--line);border-radius:.55rem;background:var(--surface);color:var(--ink);font-size:.84rem;font-weight:400;line-height:1.45;box-shadow:0 8px 24px #0003;text-align:left;white-space:normal}
+.panel-help:hover .panel-help-text,.panel-help:focus-within .panel-help-text,.panel-help.is-open .panel-help-text{display:block}
+@media(hover:none){.panel-help:hover:not(:focus-within):not(.is-open) .panel-help-text{display:none}}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand"><h1>{{ title }}</h1>
 <div class="muted">Estado de cargadores · Solo lectura · Página actualizada cada 15 s ·
@@ -107,8 +117,7 @@ header{align-items:start;gap:.65rem}
 </form>
 </header><main id="content">
 <section class="operations" aria-labelledby="operations-heading">
-<h2 id="operations-heading">Estado de los cargadores</h2>
-<p class="muted note">Estaciones (conectores individuales). Se cuenta cada estación una sola vez por estado; C0 es un resumen y no se duplica. Último estado informado, no conectividad en tiempo real; Una falla antigua también puede contarse como dato antiguo. Sin fecha original del estado, la antigüedad es desconocida.</p>
+<div class="panel-heading"><h2 id="operations-heading">Estado de los cargadores</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Estado de los cargadores" aria-controls="help-operations" aria-expanded="false" aria-describedby="help-operations">ⓘ</button><span class="panel-help-text" id="help-operations" role="tooltip">Estaciones (conectores individuales). Se cuenta cada estación una sola vez por estado; C0 es un resumen y no se duplica. Último estado informado, no conectividad en tiempo real. Una falla antigua también puede contarse como dato antiguo. Sin fecha original del estado, la antigüedad es desconocida.</span></span></div>
 <div class="cards operations-cards">
 <a class="operational-card operational-card--available" href="#connectors"><strong>{{ operational_counts.available.stations }} ({{ operational_counts.available.connectors }})</strong><span>Disponibles</span></a>
 <a class="operational-card operational-card--charging" href="#connectors"><strong>{{ operational_counts.charging.stations }} ({{ operational_counts.charging.connectors }})</strong><span>Cargando</span></a>
@@ -116,22 +125,22 @@ header{align-items:start;gap:.65rem}
 <a class="operational-card operational-card--uncertain" href="#connectors"><strong>{{ operational_counts.uncertain.stations }} ({{ operational_counts.uncertain.connectors }})</strong><span>Datos antiguos / otros</span></a>
 </div></section>
 
-<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading"><h2>Conectores</h2>
+<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading"><div class="panel-heading"><h2>Conectores</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Conectores" aria-controls="help-connectors" aria-expanded="false" aria-describedby="help-connectors">ⓘ</button><span class="panel-help-text" id="help-connectors" role="tooltip">Última observación del productor, no una conexión en tiempo real. Potencia: medida reciente o nominal configurada en CSMS (no es consumo actual). La capacidad de C0 es compartida y no debe sumarse con la de los conectores. Energía registrada: lectura acumulada de medidor (C0 = suma de conectores individuales), no consumo de la sesión. No sumar C0 nuevamente en totales. Estado informado es la fecha original del último StatusNotification cuando existe; snapshot recibido solo indica actualización del export. Sin fecha original se muestra desconocido; las fechas originales permanecen en la API.</span></span></div>
 <div class="connector-filters" role="group" aria-label="Filtrar conectores">
 <button type="button" data-connector-view="combined" aria-pressed="{{ 'true' if connector_view == 'combined' else 'false' }}" class="{{ 'selected' if connector_view == 'combined' else '' }}">Combinado</button>
 <span aria-hidden="true">|</span>
 <button type="button" data-connector-view="station" aria-pressed="{{ 'true' if connector_view == 'station' else 'false' }}" class="{{ 'selected' if connector_view == 'station' else '' }}">Estación</button>
 <span aria-hidden="true">|</span>
 <button type="button" data-connector-view="individual" aria-pressed="{{ 'true' if connector_view == 'individual' else 'false' }}" class="{{ 'selected' if connector_view == 'individual' else '' }}">Individual</button>
-</div></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado*</th><th>Potencia</th><th>Energía registrada</th><th>Estado informado</th><th>Snapshot recibido</th></tr></thead><tbody>
+</div></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado</th><th>Potencia</th><th>Energía registrada</th><th>Estado informado</th><th>Snapshot recibido</th></tr></thead><tbody>
 {% for c in connector_rows %}<tr><td data-label="Ubicación">{{ c.location }}</td><td data-label="Cargador" class="charger-identity">{{ c.charger_id }}</td><td data-label="Conector">{{ c.connector_id }}</td>
 <td data-label="Estado">{% set state = (c.status or "")|lower %}<span class="status {% if state == 'charging' %}status--active{% elif state in ['available', 'finishing'] %}status--ok{% elif state in ['preparing', 'suspendedev', 'suspendedevse'] %}status--warn{% elif state in ['faulted', 'unavailable'] %}status--off{% endif %}">{{ c.status or "Desconocido" }}</span>{% if c.status_time_unknown %} <span class="status status--warn">Fecha desconocida</span>{% elif c.stale %} <span class="status status--warn">Estado antiguo</span>{% endif %}</td>
 <td data-label="Conectado"><span class="status {{ 'status--ok' if c.connected else 'status--off' }}">{{ "Sí" if c.connected else "No" }} (observado)</span></td>
 <td data-label="Potencia" class="numeric">{% if c.power_fresh and c.power_w is not none %}{{ "%.2f"|format(c.power_w / 1000) }} kW <span class="note muted" title="Power.Active.Import: medición reciente">medida</span>{% elif c.rated_power_w is defined and c.rated_power_w is not none %}{{ "%.2f"|format(c.rated_power_w / 1000) }} kW <span class="note muted" title="{{ 'Capacidad nominal del cargador, compartida; no es potencia medida' if c.connector_id == 0 or c.rating_scope == 'charger' else 'Capacidad nominal específica del conector; no es potencia medida' }}">nominal</span>{% else %}—{% endif %}</td>
 <td data-label="Medidor" class="numeric">{% set displayed_energy_wh = c.aggregate_energy_wh if c.connector_id == 0 and c.aggregate_energy_wh is defined else c.energy_wh %}{{ "%.2f"|format(displayed_energy_wh / 1000) ~ " kWh" if displayed_energy_wh is not none else "—" }}</td><td data-label="Estado informado">{{ c.status_observed_at|display_date(timezone) if not c.status_time_unknown else "Desconocido" }}</td><td data-label="Snapshot recibido">{{ c.observed_at|display_date(timezone) }}</td></tr>
 {% else %}<tr><td class="empty" colspan="9">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
-<p class="muted note">* Última observación del productor, no una conexión en tiempo real. Potencia: medida reciente o nominal configurada en CSMS (no es consumo actual). La capacidad de C0 es compartida y no debe sumarse con la de los conectores. Energía registrada: lectura acumulada de medidor (C0 = suma de conectores individuales), no consumo de la sesión. No sumar C0 nuevamente en totales. Estado informado es la fecha original del último StatusNotification cuando existe; snapshot recibido solo indica actualización del export. Sin fecha original se muestra desconocido; las fechas originales permanecen en la API.</p></section>
-<section class="transactions-panel" id="transactions"><div class="transactions-heading"><h2>Transacciones recientes</h2>
+</section>
+<section class="transactions-panel" id="transactions"><div class="transactions-heading"><div class="panel-heading"><h2>Transacciones recientes</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Transacciones recientes" aria-controls="help-transactions" aria-expanded="false" aria-describedby="help-transactions">ⓘ</button><span class="panel-help-text" id="help-transactions" role="tooltip">SoC: primera y última medición reportada; no se estiman valores ni se presupone una medición al cierre.</span></span></div>
 <div class="transaction-filters" role="group" aria-label="Filtrar transacciones por energía final">
 <button type="button" data-tx-view="success" aria-pressed="{{ 'true' if tx_view == 'success' else 'false' }}" class="{{ 'selected' if tx_view == 'success' else '' }}">Exitosas ({{ transaction_counts["success"] }})</button>
 <span aria-hidden="true">|</span>
@@ -157,12 +166,11 @@ header{align-items:start;gap:.65rem}
 {% if last_page < tx_pages %}{% if last_page + 1 < tx_pages %}<span class="page-disabled" aria-hidden="true">…</span>{% endif %}<a href="{{ request.url.include_query_params(tx_page=tx_pages) }}#transactions" aria-label="Página {{ tx_pages }}">{{ tx_pages }}</a>{% endif %}
 {% if tx_page < tx_pages %}<a rel="next" href="{{ request.url.include_query_params(tx_page=tx_page+1) }}#transactions" aria-label="Página siguiente">Siguiente</a>{% else %}<span class="page-disabled" aria-disabled="true">Siguiente</span>{% endif %}
 </div></nav>
-<p class="muted note">SoC: primera y última medición reportada; no se estiman valores ni se presupone una medición al cierre.</p></section>
-<section class="sync-panel" id="synchronization"><h2>Sincronización</h2><p class="muted note">Ingestión local y recepción de réplica son distintas. La recarga de la página no confirma datos nuevos del cargador.</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
+</section>
+<section class="sync-panel" id="synchronization"><div class="panel-heading"><h2>Sincronización</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Sincronización" aria-controls="help-synchronization" aria-expanded="false" aria-describedby="help-synchronization">ⓘ</button><span class="panel-help-text" id="help-synchronization" role="tooltip">Ingestión local y recepción de réplica son distintas. La recarga de la página no confirma datos nuevos del cargador.</span></span></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
 {% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at|display_date(timezone) if s.last_ingested_at else "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at|display_date(timezone) if s.last_replication_received_at else "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
-<section class="events-panel" id="events"><h2>Eventos recientes</h2>
-<p class="muted note">Eventos consecutivos de la misma acción y cargador se agrupan; abre un grupo para ver el detalle.</p>
+<section class="events-panel" id="events"><div class="panel-heading"><h2>Eventos recientes</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Eventos recientes" aria-controls="help-events" aria-expanded="false" aria-describedby="help-events">ⓘ</button><span class="panel-help-text" id="help-events" role="tooltip">Eventos consecutivos de la misma acción y cargador se agrupan; abre un grupo para ver el detalle.</span></span></div>
 {% for group in event_groups %}
 {% if group.first_event_id is defined %}
 <details class="event-group" data-source="{{ group.source_id }}" data-first-id="{{ group.first_event_id }}">
@@ -190,6 +198,35 @@ header{align-items:start;gap:.65rem}
 
 <script>
 (() => {
+  // Info icons: hover, keyboard focus, or tap/click; Escape and outside press close.
+  const helpIcons = [...document.querySelectorAll(".panel-help")];
+  const closeHelp = (except = null) => {
+    for (const item of helpIcons) {
+      if (item === except) continue;
+      item.classList.remove("is-open");
+      item.querySelector(".panel-help-trigger").setAttribute("aria-expanded", "false");
+    }
+  };
+  for (const item of helpIcons) {
+    const trigger = item.querySelector(".panel-help-trigger");
+    trigger.addEventListener("click", () => {
+      const open = !item.classList.contains("is-open");
+      closeHelp(item);
+      item.classList.toggle("is-open", open);
+      trigger.setAttribute("aria-expanded", String(open));
+      if (!open) trigger.blur();
+    });
+  }
+  document.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest(".panel-help")) closeHelp();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeHelp();
+      if (document.activeElement?.classList.contains("panel-help-trigger")) document.activeElement.blur();
+    }
+  });
+
   const form = document.getElementById("dashboard-filters");
   const zoneChoice = document.getElementById("timezone-choice");
   const zoneHidden = document.getElementById("timezone-value");
