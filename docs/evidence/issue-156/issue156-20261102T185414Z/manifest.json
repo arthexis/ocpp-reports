@@ -1,0 +1,182 @@
+{
+  "captures": [
+    {
+      "site": "admin",
+      "mode": "desktop",
+      "origin": "https://customer.gelectriic.com",
+      "captured_at": "2026-11-02T18:54:22.634205+00:00",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "admin-desktop-20261102T185414Z.png",
+      "sha256": "76d517a750de6a9e36f9d7696cd4af255fed1d6f49dfe4275a3e9d3968d13ace"
+    },
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "origin": "https://audi.gelectriic.com",
+      "captured_at": "2026-11-02T18:54:31.731500+00:00",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "audi-desktop-20261102T185423Z.png",
+      "sha256": "d3deadcb4e6df278722ad89b07dfc2a9e18b7ba009b631cb4e8e1fe07c54cc93"
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "origin": "https://porsche.gelectriic.com",
+      "captured_at": "2026-11-02T18:54:40.878235+00:00",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "porsche-desktop-20261102T185432Z.png",
+      "sha256": "95de691182abdb7d122b378d60b09d713846859682f833a2656e2309192f9ab3"
+    },
+    {
+      "site": "admin",
+      "mode": "android",
+      "origin": "https://customer.gelectriic.com",
+      "captured_at": "2026-11-02T18:54:52.755422+00:00",
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "admin-android-20261102T185442Z.png",
+      "sha256": "ac36a6c4de1bd894ead96da9d79aab9a4b51d7e9077543e4e3884a04701645df"
+    },
+    {
+      "site": "audi",
+      "mode": "android",
+      "origin": "https://audi.gelectriic.com",
+      "captured_at": "2026-11-02T18:55:01.726783+00:00",
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "audi-android-20261102T185453Z.png",
+      "sha256": "13d6f9a895c50fa53b42fa02a67eadb73970065b3e111a5096b991175ab280be"
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "origin": "https://porsche.gelectriic.com",
+      "captured_at": "2026-11-02T18:55:11.047893+00:00",
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "porsche-android-20261102T185502Z.png",
+      "sha256": "d7646c2e0788b6c4d3e80dc869ddc4c20c4f53fb82555433f0d47440ba82ecc5"
+    }
+  ],
+  "installed_sha": "5b796c7a0b5d2e9555f0bd6400c21ab425234e7f",
+  "privacy": "Identity columns masked and record bodies hidden client-side. Credentials are independent, origin-scoped and excluded from artifacts.",
+  "android_model": "SM-G950F",
+  "http_tests": {
+    "redirect": {
+      "status": 301,
+      "basic_challenge": false,
+      "location": "https://customer.gelectriic.com/"
+    },
+    "unauth": {
+      "status": 401,
+      "basic_challenge": true
+    },
+    "admin": {
+      "status": 200,
+      "basic_challenge": false
+    },
+    "customer_on_admin": {
+      "status": 401,
+      "basic_challenge": true
+    },
+    "admin_on_audi": {
+      "status": 401,
+      "basic_challenge": true
+    },
+    "admin_on_porsche": {
+      "status": 401,
+      "basic_challenge": true
+    },
+    "admin_snapshot": {
+      "status": 200,
+      "sources": [
+        "gway-002",
+        "gway-005",
+        "porsche-abb-1"
+      ],
+      "counts": {
+        "sources": 3,
+        "connectors": 8,
+        "transactions": 100,
+        "events": 100
+      }
+    },
+    "location_filter_http": 200,
+    "audi": {
+      "snapshot_status": 200,
+      "scope": [
+        "gway-002"
+      ],
+      "scope_pass": true,
+      "cross_source_status": [
+        403,
+        403
+      ]
+    },
+    "porsche": {
+      "snapshot_status": 200,
+      "scope": [
+        "gway-005",
+        "porsche-abb-1"
+      ],
+      "scope_pass": true,
+      "cross_source_status": [
+        403,
+        403
+      ]
+    }
+  },
+  "location_tests": {
+    "matching": {
+      "http": 200,
+      "connector_rows": 3,
+      "location_filter_pass": true
+    },
+    "empty": {
+      "http": 200,
+      "connector_rows": 0,
+      "location_filter_pass": true
+    }
+  },
+  "future_source_regression": "4 passed, including later-source discovery and customer rejection; isolated temporary warehouse, no production injections",
+  "service_pids": {
+    "csms": 363491,
+    "collector": 441566,
+    "admin_dashboard": 448372,
+    "porsche_dashboard": 448151,
+    "audi_dashboard": 448235
+  }
+}
