@@ -58,3 +58,41 @@ def test_existing_source_scope_still_rejected(monkeypatch, tmp_path):
     client = TestClient(web.create_app(tmp_path / "unused", allowed_source_ids=("site-a",)))
     assert client.get("/?source_id=site-b").status_code == 403
     assert client.get("/api/snapshot?source_id=site-b").status_code == 403
+
+
+def test_status_counts_do_not_double_count_station_zero():
+    rows = [
+        {"source_id": "a", "charger_id": "same", "connector_id": 0, "status": "Available"},
+        {"source_id": "a", "charger_id": "same", "connector_id": 1, "status": "Available"},
+        {"source_id": "a", "charger_id": "same", "connector_id": 2, "status": "Available"},
+        {"source_id": "b", "charger_id": "same", "connector_id": 0, "status": "Available"},
+        {"source_id": "b", "charger_id": "same", "connector_id": 1, "status": "Charging"},
+        {"source_id": "b", "charger_id": "same", "connector_id": 2, "status": "Faulted", "stale": True},
+        {"source_id": "c", "charger_id": "station-only", "connector_id": 0, "status": "Unavailable"},
+    ]
+    got = web._operational_status_counts(rows)
+    assert got["available"] == {"stations": 1, "connectors": 2}
+    assert got["charging"] == {"stations": 1, "connectors": 1}
+    assert got["faults"] == {"stations": 2, "connectors": 1}
+    assert got["uncertain"] == {"stations": 1, "connectors": 1}
+
+
+def test_status_cards_render_station_and_connector_totals(monkeypatch, tmp_path):
+    def data(*args, **kwargs):
+        rows = _snapshot()
+        rows["connectors"] = [
+            {"source_id": "site-a", "charger_id": "cp", "connector_id": cid,
+             "status": "Available", "connected": True,
+             "observed_at": "2099-01-01T00:00:00Z", "location": "Site A",
+             "power_w": None, "energy_wh": None}
+            for cid in (0, 1, 2)
+        ]
+        return rows
+
+    monkeypatch.setattr(web, "snapshot", data)
+    client = TestClient(web.create_app(tmp_path / "unused"))
+    for view in ("combined", "station", "individual"):
+        html = client.get("/?connector_view=" + view).text
+        assert 'class="operational-card operational-card--available" href="#connectors"><strong>1 (2)</strong>' in html
+        assert 'class="operational-card operational-card--charging" href="#connectors"><strong>0 (0)</strong>' in html
+        assert "Estaciones (conectores individuales)" in html
