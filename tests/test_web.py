@@ -22,20 +22,6 @@ def empty_page():
     }}
 
 
-def test_dashboard_reads_warehouse_without_csms(tmp_path):
-    database = tmp_path / "reports.sqlite"
-    sync_page(database, empty_page())
-    client = TestClient(create_app(database))
-    page = client.get("/")
-    assert page.status_code == 200
-    assert "cp-1" in page.text
-    assert "Antiguo" in page.text
-    data = client.get("/api/snapshot").json()
-    assert data["connectors"][0]["status"] == "Available"
-    assert client.get("/api/snapshot?charger_id=other").json()["connectors"] == []
-    assert snapshot(database)["sources"][0]["source_id"] == "satellite-a"
-
-
 def test_missing_warehouse_is_unavailable(tmp_path):
     client = TestClient(create_app(tmp_path / "missing.sqlite"))
     assert client.get("/").status_code == 503

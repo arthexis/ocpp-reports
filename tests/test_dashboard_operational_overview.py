@@ -78,12 +78,16 @@ def test_status_counts_do_not_double_count_station_zero():
 
 
 def test_status_cards_render_station_and_connector_totals(monkeypatch, tmp_path):
+    from datetime import datetime, timezone
+
     def data(*args, **kwargs):
         rows = _snapshot()
         rows["connectors"] = [
             {"source_id": "site-a", "charger_id": "cp", "connector_id": cid,
              "status": "Available", "connected": True,
-             "observed_at": "2099-01-01T00:00:00Z", "location": "Site A",
+             "observed_at": "2099-01-01T00:00:00Z",
+             "status_observed_at": datetime.now(timezone.utc).isoformat(),
+             "location": "Site A",
              "power_w": None, "energy_wh": None}
             for cid in (0, 1, 2)
         ]
@@ -96,3 +100,66 @@ def test_status_cards_render_station_and_connector_totals(monkeypatch, tmp_path)
         assert 'class="operational-card operational-card--available" href="#connectors"><strong>1 (2)</strong>' in html
         assert 'class="operational-card operational-card--charging" href="#connectors"><strong>0 (0)</strong>' in html
         assert "Estaciones (conectores individuales)" in html
+
+
+def test_status_provenance_does_not_freshen_with_snapshots(monkeypatch, tmp_path):
+    """A new export cannot overwrite the age of an unchanged fault."""
+    from datetime import datetime, timedelta, timezone
+    from copy import deepcopy
+
+    now = datetime.now(timezone.utc)
+    original = (now - timedelta(hours=3)).isoformat()
+    snapshot_time = now.isoformat()
+    data = {
+        "sources": [{"source_id": "site-a", "cursor": 3,
+                     "last_ingested_at": None,
+                     "last_replication_received_at": snapshot_time}],
+        "connectors": [{
+            "source_id": "site-a", "charger_id": "cp-a",
+            "connector_id": 1, "location": "Garage",
+            "status": "Faulted", "connected": True,
+            "observed_at": snapshot_time,
+            "status_observed_at": original,
+            "power_w": None, "energy_wh": None,
+        }],
+        "transactions": [], "events": [],
+    }
+    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
+    client = TestClient(web.create_app(tmp_path / "unused", allowed_source_ids=("site-a",)))
+    html = client.get("/").text
+    assert "Estado antiguo" in html
+    assert "Fecha desconocida" not in html
+    assert web.display_date(original, "UTC") in html
+    assert web.display_date(snapshot_time, "UTC") in html
+    assert "Recepción de réplica" in html
+    assert '0 (0)</strong><span>Disponibles' in html
+    assert '1 (1)</strong><span>Falla' in html
+    assert '1 (1)</strong><span>Datos antiguos' in html
+    # Presentation-only age classification does not alter authoritative API evidence.
+    raw = client.get("/api/snapshot").json()["connectors"][0]
+    assert raw["status_observed_at"] == original
+    assert raw["observed_at"] == snapshot_time
+
+
+def test_missing_or_invalid_original_status_time_is_unknown(monkeypatch, tmp_path):
+    from datetime import datetime, timezone
+    from copy import deepcopy
+
+    current = datetime.now(timezone.utc).isoformat()
+    source = _snapshot()
+    source["connectors"] = [{
+        "source_id": "site-a", "charger_id": "old-producer",
+        "connector_id": 1, "location": "Garage",
+        "status": "Available", "connected": True,
+        "observed_at": current, "status_observed_at": None,
+        "power_w": None, "energy_wh": None,
+    }]
+    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(source))
+    client = TestClient(web.create_app(tmp_path / "unused", allowed_source_ids=("site-a",)))
+    html = client.get("/").text
+    assert "Fecha desconocida" in html
+    assert '0 (0)</strong><span>Disponibles' in html
+    assert '1 (1)</strong><span>Datos antiguos' in html
+    for bad in ("not-a-time", "2026-10-29T15:35:00"):
+        source["connectors"][0]["status_observed_at"] = bad
+        assert "Fecha desconocida" in client.get("/").text

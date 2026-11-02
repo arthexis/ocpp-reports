@@ -340,11 +340,20 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             event_has_next = False
         now = datetime.now(timezone.utc)
         for connector in data["connectors"]:
-            try:
-                observed = datetime.fromisoformat(connector["observed_at"].replace("Z", "+00:00"))
-                connector["stale"] = (now - observed).total_seconds() > 30
-            except (ValueError, AttributeError, TypeError):
-                connector["stale"] = True
+            # A refreshed export is not evidence of a new StatusNotification.
+            # Never substitute snapshot time for unknown status provenance.
+            status_at = connector.get("status_observed_at")
+            connector["status_time_unknown"] = True
+            connector["stale"] = True
+            if isinstance(status_at, str):
+                try:
+                    observed = datetime.fromisoformat(status_at.replace("Z", "+00:00"))
+                    if observed.tzinfo is not None:
+                        age = (now - observed.astimezone(timezone.utc)).total_seconds()
+                        connector["status_time_unknown"] = False
+                        connector["stale"] = not 0 <= age <= 30
+                except ValueError:
+                    pass
         operational_counts = _operational_status_counts(data["connectors"])
         # Presentation-only selection. Operational cards count all scoped physical connectors,
         # and /api/snapshot preserves the complete source-scoped evidence.
