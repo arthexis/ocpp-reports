@@ -45,6 +45,40 @@ these instances persistent across Watchtower/control deployment:
 ]
 ```
 
+For an operator dashboard that includes **every current and future ingested source**,
+add a third independent instance to the same inventory (retain the Audi and
+Porsche entries):
+
+```json
+{"name": "dashboard-admin", "title": "Gelectriic Administration",
+ "hostname": "customer.gelectriic.com", "port": 8083,
+ "source_ids": "*",
+ "htpasswd": "/etc/ocpp-reports/dashboard-admin.htpasswd"}
+```
+
+The literal `"*"` is an explicit **all-sources** scope. The dashboard runs
+without `--source-id` filters and therefore automatically includes newly
+ingested sources. Customer dashboards must continue using nonempty source-ID
+arrays; `[]`, omitted `source_ids`, and other wildcard strings are invalid.
+The admin dashboard must have its **own** authentication file, independent of
+the customer password files. All dashboards share the existing collector
+warehouse, without separate ingestion or replication credentials.
+
+Before deployment, point the DNS record at Watchtower, obtain the hostname
+certificate, and provision the admin credentials interactively:
+
+```sh
+sudo certbot certonly --nginx -d customer.gelectriic.com
+sudo install -o root -g www-data -m 0640 /dev/null /etc/ocpp-reports/dashboard-admin.htpasswd
+sudo htpasswd -B /etc/ocpp-reports/dashboard-admin.htpasswd admin
+sudo ansible-playbook -i localhost, ansible/dashboard-instances.yml
+```
+
+Validate admin access to all sources and both customer scopes (including the
+snapshot API); after another source starts forwarding, it must appear only in
+the admin dashboard unless explicitly added to a customer allowlist.
+The `"*"` scope is privileged: do not assign it to a customer-facing instance.
+
 Provision certificates at `/etc/letsencrypt/live/<hostname>/` and each password
 file first. The dashboard playbook does not generate credentials or certificates.
 Existing base-unit regeneration cannot remove the source restrictions because
