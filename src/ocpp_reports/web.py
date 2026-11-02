@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from .warehouse_queries import snapshot
+from .warehouse.transaction_detail import transaction_detail
 from .warehouse.event_groups import event_groups_page, event_group_details
 import sqlite3
 
@@ -425,6 +426,34 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             raise HTTPException(422, str(exc)) from exc
         except (OSError, sqlite3.Error) as exc:
             raise HTTPException(503, "Event history unavailable") from exc
+
+    @app.get("/transactions/{source_id}/{charger_id}/{transaction_id}", response_class=HTMLResponse)
+    def transaction_page(request: Request, source_id: str, charger_id: str,
+                         transaction_id: int, tz: str | None = None):
+        selected_zone = tz or zones[0]
+        if selected_zone not in zones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
+        # Return the same 404 for missing and inaccessible transactions.
+        if allowed_source_ids is not None and source_id not in allowed_source_ids:
+            raise HTTPException(404, "Transaction not found")
+        try:
+            transaction = transaction_detail(
+                warehouse, source_id=source_id, charger_id=charger_id,
+                transaction_id=transaction_id, allowed_source_ids=allowed_source_ids,
+            )
+        except (FileNotFoundError, OSError, sqlite3.Error, ValueError) as exc:
+            raise HTTPException(503, "Warehouse unavailable") from exc
+        if transaction is None:
+            raise HTTPException(404, "Transaction not found")
+        active = (bool(transaction.get("active"))
+                  and transaction.get("state") in ("open", "active", "charging")
+                  and transaction.get("energy_wh") is None)
+        return templates.TemplateResponse(
+            request, "transaction_detail.html.j2",
+            {"title": title, "transaction": transaction, "timezone": selected_zone,
+             "timezones": zones, "refresh_active": active},
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/api/snapshot")
     def api_snapshot(source_id: str | None = None, charger_id: str | None = None,
