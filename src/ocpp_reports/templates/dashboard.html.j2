@@ -106,23 +106,14 @@ header{align-items:start;gap:.65rem}
 <input type="hidden" name="connector_view" value="{{ connector_view }}">
 </form>
 </header><main id="content">
-{% set counts = namespace(faults=0, charging=0, available=0, uncertain=0) %}
-{% for c in data.connectors %}
-  {% set state = (c.status or '')|lower %}
-  {% if state in ['faulted', 'unavailable'] %}{% set counts.faults = counts.faults + 1 %}{% endif %}
-  {% if c.stale or not c.status %}{% set counts.uncertain = counts.uncertain + 1 %}
-  {% elif state == 'charging' %}{% set counts.charging = counts.charging + 1 %}
-  {% elif state == 'available' %}{% set counts.available = counts.available + 1 %}
-  {% elif state not in ['faulted', 'unavailable'] %}{% set counts.uncertain = counts.uncertain + 1 %}{% endif %}
-{% endfor %}
 <section class="operations" aria-labelledby="operations-heading">
 <h2 id="operations-heading">Estado de los cargadores</h2>
-<p class="muted note">Último estado informado, no conectividad en tiempo real. Una falla antigua también puede contarse como dato antiguo.</p>
+<p class="muted note">Estaciones (conectores individuales). Se cuenta cada estación una sola vez por estado; C0 es un resumen y no se duplica. Último estado informado, no conectividad en tiempo real; una falla antigua también puede contarse como dato antiguo.</p>
 <div class="cards operations-cards">
-<a class="operational-card operational-card--available" href="#connectors"><strong>{{ counts.available }}</strong><span>Disponibles</span></a>
-<a class="operational-card operational-card--charging" href="#connectors"><strong>{{ counts.charging }}</strong><span>Cargando</span></a>
-<a class="operational-card operational-card--fault" href="#connectors"><strong>{{ counts.faults }}</strong><span>Falla / no disponible (último estado)</span></a>
-<a class="operational-card operational-card--uncertain" href="#connectors"><strong>{{ counts.uncertain }}</strong><span>Datos antiguos / otros</span></a>
+<a class="operational-card operational-card--available" href="#connectors"><strong>{{ operational_counts.available.stations }} ({{ operational_counts.available.connectors }})</strong><span>Disponibles</span></a>
+<a class="operational-card operational-card--charging" href="#connectors"><strong>{{ operational_counts.charging.stations }} ({{ operational_counts.charging.connectors }})</strong><span>Cargando</span></a>
+<a class="operational-card operational-card--fault" href="#connectors"><strong>{{ operational_counts.faults.stations }} ({{ operational_counts.faults.connectors }})</strong><span>Falla / no disponible (último estado)</span></a>
+<a class="operational-card operational-card--uncertain" href="#connectors"><strong>{{ operational_counts.uncertain.stations }} ({{ operational_counts.uncertain.connectors }})</strong><span>Datos antiguos / otros</span></a>
 </div></section>
 
 <div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading"><h2>Conectores</h2>
