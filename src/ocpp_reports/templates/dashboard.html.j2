@@ -102,6 +102,12 @@ header{align-items:start;gap:.65rem}
 .panel-help-text{display:none;position:absolute;z-index:30;top:calc(100% + .2rem);left:0;width:min(360px,calc(100vw - 2rem));max-height:min(60vh,400px);overflow:auto;padding:.75rem .85rem;border:1px solid var(--line);border-radius:.55rem;background:var(--surface);color:var(--ink);font-size:.84rem;font-weight:400;line-height:1.45;box-shadow:0 8px 24px #0003;text-align:left;white-space:normal}
 .panel-help:hover .panel-help-text,.panel-help:focus-within .panel-help-text,.panel-help.is-open .panel-help-text{display:block}
 @media(hover:none){.panel-help:hover:not(:focus-within):not(.is-open) .panel-help-text{display:none}}
+/* Touch-sized viewports: anchor help to the viewport, not to an inline
+   icon whose horizontal offset otherwise pushes the 328px bubble offscreen.
+   Insets include the border/padding through automatic width calculation. */
+@media(max-width:700px){
+  .panel-help-text{position:fixed;left:12px;right:12px;top:12vh;width:auto;max-width:none;max-height:70vh;box-sizing:border-box;overflow:auto;overscroll-behavior:contain}
+}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand"><h1>{{ title }}</h1>
 <div class="muted">Estado de cargadores · Solo lectura · Página actualizada cada 15 s ·
