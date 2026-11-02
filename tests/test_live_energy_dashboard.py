@@ -28,7 +28,7 @@ def test_forwarded_live_energy_and_finalization(tmp_path):
     environment.filters["display_date"] = display_date
     environment.filters["session_duration"] = session_duration
     template = environment.get_template("dashboard.html.j2")
-    html = template.render(data=data, connector_rows=data['connectors'], connector_view='combined', source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1},
+    html = template.render(data=data, operational_counts=__import__('ocpp_reports.web', fromlist=['_operational_status_counts'])._operational_status_counts(data['connectors']), connector_rows=data['connectors'], connector_view='combined', source_id="", charger_id="", timezone="UTC", timezones=("UTC",), event_groups=[], transaction_counts={"success": 0, "failed": 0, "all": 1},
                            tx_page=1, tx_pages=1, tx_total=1, event_page=1, event_has_next=False)
     assert "34.75" in html and "en vivo" in html
     with sqlite3.connect(dbpath) as db:
