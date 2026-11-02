@@ -201,7 +201,7 @@ def test_transaction_energy_filter_defaults_to_positive_final_energy(monkeypatch
     assert "Todas (4)" in failed.text
     all_rows = client.get("/?tx_view=all")
     assert all_rows.status_code == 200
-    assert all(f">{id}</td>" in all_rows.text for id in (21, 22, 23, 24))
+    assert all(f">{id}</a></td>" in all_rows.text for id in (21, 22, 23, 24))
     assert "Exitosas (1)" in all_rows.text and "Fallidas (1)" in all_rows.text
     assert "Todas (4)" in all_rows.text
     assert client.get("/?tx_view=other").status_code == 422
