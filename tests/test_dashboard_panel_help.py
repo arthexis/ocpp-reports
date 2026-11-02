@@ -41,3 +41,23 @@ def test_five_panel_explanations_are_in_accessible_popovers(monkeypatch, tmp_pat
     assert 'Conectado*</th>' not in html
     assert 'Conectado</th>' in html
     assert 'role="region" aria-label="Tabla de conectores"' in html
+
+
+def test_mobile_help_is_viewport_anchored_without_horizontal_page_growth(monkeypatch, tmp_path):
+    """Regression: at 360px the inline info icon's x-offset must not shift the help box."""
+    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: {
+        "sources": [], "connectors": [], "transactions": [], "events": [],
+    })
+    page = TestClient(web.create_app(tmp_path / "unused")).get("/")
+    assert page.status_code == 200
+    css = page.text.split("<style>", 1)[1].split("</style>", 1)[0]
+    mobile = css.split("@media(max-width:700px){\n  .panel-help-text", 1)[1].split("\n}", 1)[0]
+    assert "position:fixed" in mobile
+    assert "left:12px;right:12px" in mobile
+    assert "width:auto;max-width:none" in mobile
+    assert "box-sizing:border-box" in mobile
+    assert "max-height:70vh" in mobile
+    # Existing input semantics and desktop hover must remain available.
+    assert 'trigger.addEventListener("click"' in page.text
+    assert ".panel-help:hover .panel-help-text" in css
+    assert 'event.key === "Escape"' in page.text
