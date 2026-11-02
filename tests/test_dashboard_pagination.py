@@ -58,7 +58,7 @@ def test_tabs_preserve_counts_but_page_after_filter(monkeypatch, tmp_path):
     assert failed.status_code == 200
     assert 'Mostrando 1–1 de 1' in failed.text
     assert 'aria-current="page">1</span>' in failed.text
-    assert '>50</td>' in failed.text
+    assert '>50</a></td>' in failed.text
     assert 'rel="next"' not in failed.text
 
 
