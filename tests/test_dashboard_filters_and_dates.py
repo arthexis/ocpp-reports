@@ -182,10 +182,10 @@ def test_transaction_energy_filter_defaults_to_positive_final_energy(monkeypatch
     client = TestClient(web.create_app(tmp_path / "unused", allowed_source_ids=("node-a",)))
     success = client.get("/")
     assert success.status_code == 200
-    assert ">21</td>" in success.text
-    assert ">22</td>" not in success.text
-    assert ">23</td>" not in success.text
-    assert ">24</td>" not in success.text
+    assert ">21</a></td>" in success.text
+    assert ">22</a></td>" not in success.text
+    assert ">23</a></td>" not in success.text
+    assert ">24</a></td>" not in success.text
     assert 'data-tx-view="success" aria-pressed="true"' in success.text
     assert 'data-tx-view="failed" aria-pressed="false"' in success.text
     assert 'name="tx_view" value="success"' in success.text
@@ -193,9 +193,9 @@ def test_transaction_energy_filter_defaults_to_positive_final_energy(monkeypatch
         assert label in success.text
     failed = client.get("/?tx_view=failed")
     assert failed.status_code == 200
-    assert ">22</td>" in failed.text
-    assert ">21</td>" not in failed.text
-    assert ">23</td>" not in failed.text
+    assert ">22</a></td>" in failed.text
+    assert ">21</a></td>" not in failed.text
+    assert ">23</a></td>" not in failed.text
     assert 'data-tx-view="failed" aria-pressed="true"' in failed.text
     assert "Exitosas (1)" in failed.text and "Fallidas (1)" in failed.text
     assert "Todas (4)" in failed.text
