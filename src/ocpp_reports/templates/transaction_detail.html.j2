@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+{% if refresh_active %}<meta http-equiv="refresh" content="15">{% endif %}
+<title>Transacción #{{ transaction.id }} · {{ title }}</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color-scheme:light dark}
+body{margin:0;background:Canvas;color:CanvasText;line-height:1.5}
+main{max-width:850px;margin:auto;padding:1rem}
+a{color:LinkText}header{margin:1rem 0 1.5rem}
+h1{margin:.5rem 0;font-size:1.7rem;overflow-wrap:anywhere}
+.note{color:GrayText;font-size:.88rem}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
+.card{border:1px solid GrayText;border-radius:.65rem;padding:1rem;min-width:0;overflow-wrap:anywhere}
+.big{font-size:1.8rem;font-weight:750;font-variant-numeric:tabular-nums}
+dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem}
+dt{font-size:.85rem;color:GrayText}dd{margin:.15rem 0 0;font-weight:600;overflow-wrap:anywhere}
+@media(max-width:540px){.grid,dl{grid-template-columns:1fr}.big{font-size:1.5rem}}
+</style></head><body><main>
+<header><a href="/">← Volver al dashboard</a>
+<h1>Transacción #{{ transaction.id }}</h1>
+<p class="note">{{ transaction.location }} · {{ transaction.charger_id }} · Conector {{ transaction.connector_id if transaction.connector_id is defined and transaction.connector_id is not none else "desconocido" }}</p>
+<p><strong>Estado: {{ transaction.state or "Desconocido" }}</strong>
+{% if refresh_active %} · En curso, página actualizada cada 15 s{% endif %}</p>
+</header>
+<div class="grid">
+<section class="card" aria-label="Energía de sesión"><div class="note">Energía de sesión</div>
+{% if transaction.energy_wh is defined and transaction.energy_wh is not none %}
+<div class="big">{{ "%.2f"|format(transaction.energy_wh / 1000) }} kWh</div>
+<div class="note">Final · medición al cierre</div>
+{% elif refresh_active and transaction.live_energy_wh is defined and transaction.live_energy_wh is not none %}
+<div class="big">{{ "%.2f"|format(transaction.live_energy_wh / 1000) }} kWh</div>
+<div class="note">Estimada{% if transaction.live_energy_stale %} · medición antigua / no verificada{% else %} · medición reciente{% endif %}</div>
+<div class="note">Última medición: {{ transaction.live_energy_observed_at|display_date(timezone) if transaction.live_energy_observed_at else "Desconocida" }}</div>
+{% elif refresh_active %}
+<div class="big">—</div><div class="note">Energía final pendiente · estimación no disponible</div>
+{% else %}
+<div class="big">—</div><div class="note">Sin energía final verificada</div>
+{% endif %}
+</section>
+<section class="card" aria-label="Estado de carga"><div class="note">Estado de carga (SoC)</div>
+<div class="big">{{ (transaction.soc_end|string ~ "%") if transaction.soc_end is defined and transaction.soc_end is not none else "—" }}</div>
+<div class="note">Última lectura reportada; no necesariamente al cierre</div>
+<div class="note">Inicial: {{ (transaction.soc_start|string ~ "%") if transaction.soc_start is defined and transaction.soc_start is not none else "Desconocido" }}</div>
+</section></div>
+<section class="card" style="margin-top:1rem"><h2>Datos de la sesión</h2><dl>
+<div><dt>Origen</dt><dd>{{ transaction.source_id }}</dd></div>
+<div><dt>Cargador</dt><dd>{{ transaction.charger_id }}</dd></div>
+<div><dt>Inicio</dt><dd>{{ transaction.started_at|display_date(timezone) }}</dd></div>
+<div><dt>Fin</dt><dd>{{ transaction.stopped_at|display_date(timezone) if transaction.stopped_at else "Activa / sin cierre" }}</dd></div>
+<div><dt>Duración final</dt><dd>{{ transaction.started_at|session_duration(transaction.stopped_at) if transaction.stopped_at else "En curso" }}</dd></div>
+<div><dt>Zona horaria</dt><dd>{{ timezone }}</dd></div>
+</dl></section>
+<p class="note">Solo lectura. La actualización de la página no significa que se recibieron datos nuevos del cargador. Las estimaciones no son energía final facturable.</p>
+</main></body></html>
