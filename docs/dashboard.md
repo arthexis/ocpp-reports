@@ -53,8 +53,13 @@ Porsche entries):
 {"name": "dashboard-admin", "title": "Gelectriic Administration",
  "hostname": "customer.gelectriic.com", "port": 8083,
  "source_ids": "*",
+ "timezones": ["America/Monterrey", "UTC"],
  "htpasswd": "/etc/ocpp-reports/dashboard-admin.htpasswd"}
 ```
+
+The first `timezones` entry sets the default for this dashboard. The
+Watchtower's existing admin inventory must be updated separately after merging;
+a code deployment alone does not modify its persistent `dashboards.json`.
 
 The literal `"*"` is an explicit **all-sources** scope. The dashboard runs
 without `--source-id` filters and therefore automatically includes newly
