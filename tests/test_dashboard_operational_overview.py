@@ -132,7 +132,8 @@ def test_status_provenance_does_not_freshen_with_snapshots(monkeypatch, tmp_path
     assert "Estado antiguo" in html
     assert "Fecha desconocida" not in html
     assert web.display_date(original, "UTC") in html
-    assert web.display_date(snapshot_time, "UTC") not in html
+    assert 'data-label="Snapshot recibido"' not in html
+    assert '<th>Snapshot recibido</th>' not in html
     assert "Recepción de réplica" in html
     assert '0 (0)</strong><span>Disponibles' in html
     assert '1 (1)</strong><span>Falla' in html
