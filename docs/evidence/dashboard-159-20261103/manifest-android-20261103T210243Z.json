@@ -1,0 +1,34 @@
+{
+  "captures": [
+    {
+      "site": "audi",
+      "mode": "android",
+      "origin": "https://audi.gelectriic.com",
+      "captured_at": "2026-11-03T21:02:50.856132+00:00",
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "audi-android-20261103T210243Z.png",
+      "sha256": "fb49c088868fbd515ca7d19b94e5e513c79991fa2f26df0c86eb04abe568b2e6"
+    },
+    {
+      "site": "porsche",
+      "mode": "android",
+      "origin": "https://porsche.gelectriic.com",
+      "captured_at": "2026-11-03T21:02:58.018532+00:00",
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "porsche-android-20261103T210243Z.png",
+      "sha256": "38bcf51a17a02e2de4f7f95875f9bd76b1916a9707b1a0ed9c155c29c859b3a2"
+    }
+  ]
+}

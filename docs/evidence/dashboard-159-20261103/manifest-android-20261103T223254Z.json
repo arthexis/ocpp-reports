@@ -1,0 +1,19 @@
+{
+  "captures": [
+    {
+      "site": "admin",
+      "mode": "android",
+      "origin": "https://customer.gelectriic.com",
+      "captured_at": "2026-11-03T22:33:04.450004+00:00",
+      "viewport": {
+        "width": 360,
+        "height": 612,
+        "dpr": 3
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "admin-android-20261103T223254Z.png",
+      "sha256": "db917198df17760b61e22a69a71e7b5b0187d4a633df5bac795ca2e58da6b8c2"
+    }
+  ]
+}

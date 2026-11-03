@@ -1,0 +1,19 @@
+{
+  "captures": [
+    {
+      "site": "admin",
+      "mode": "desktop",
+      "origin": "https://customer.gelectriic.com",
+      "captured_at": "2026-11-03T22:31:57.319033+00:00",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "admin-desktop-20261103T223146Z.png",
+      "sha256": "5a2ae50c0fa34154486ed7c554d7d40d481080af76eb66dddb523b9b8fda3bda"
+    }
+  ]
+}

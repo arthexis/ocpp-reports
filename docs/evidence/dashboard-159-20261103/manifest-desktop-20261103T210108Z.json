@@ -1,0 +1,34 @@
+{
+  "captures": [
+    {
+      "site": "audi",
+      "mode": "desktop",
+      "origin": "https://audi.gelectriic.com",
+      "captured_at": "2026-11-03T21:01:49.886688+00:00",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "audi-desktop-20261103T210108Z.png",
+      "sha256": "42e57de639a3a561f884466818dda2839566bdc727368c53172db3727839db9d"
+    },
+    {
+      "site": "porsche",
+      "mode": "desktop",
+      "origin": "https://porsche.gelectriic.com",
+      "captured_at": "2026-11-03T21:01:58.601348+00:00",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "source_scope_verified": true,
+      "tls_verification": true,
+      "file": "porsche-desktop-20261103T210108Z.png",
+      "sha256": "ace882bb0b843b67016031ac76340d96f8a265a103c8456392f5565f0f7253bf"
+    }
+  ]
+}
