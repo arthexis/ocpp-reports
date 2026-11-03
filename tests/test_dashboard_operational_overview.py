@@ -43,7 +43,8 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
     for name, border in zip(card_classes, ("#19975b", "#dba520", "#b94d4d", "#8994a3")):
         assert "." + name + "{border-left:4px solid " + border + "}" in html
     assert 'href="#connectors"' in html
-    assert 'data-label="Snapshot recibido"' in html
+    assert 'data-label="Snapshot recibido"' not in html
+    assert '<th>Snapshot recibido</th>' not in html
     assert 'Estado reportado' not in html
     assert html.index('class="transactions-panel"') < html.index('id="synchronization"')
     assert "cp-fault" in html and "Faulted" in html
@@ -51,6 +52,21 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
     assert "Una falla antigua también puede contarse como dato antiguo" in html
     assert "grid-template-columns:repeat(2,minmax(0,1fr))" in html
     assert "connectors-panel td::before" in html
+
+
+
+def test_empty_connector_table_spans_eight_columns(monkeypatch, tmp_path):
+    def empty_connectors(*args, **kwargs):
+        data = _snapshot()
+        data["connectors"] = []
+        return data
+
+    monkeypatch.setattr(web, "snapshot", empty_connectors)
+    client = TestClient(web.create_app(tmp_path / "unused"))
+    html = client.get("/").text
+    assert 'colspan="8">Sin conectores registrados' in html
+    assert '<th>Snapshot recibido</th>' not in html
+
 
 
 def test_existing_source_scope_still_rejected(monkeypatch, tmp_path):
@@ -130,7 +146,8 @@ def test_status_provenance_does_not_freshen_with_snapshots(monkeypatch, tmp_path
     assert "Estado antiguo" in html
     assert "Fecha desconocida" not in html
     assert web.display_date(original, "UTC") in html
-    assert web.display_date(snapshot_time, "UTC") in html
+    assert 'data-label="Snapshot recibido"' not in html
+    assert '<th>Snapshot recibido</th>' not in html
     assert "Recepción de réplica" in html
     assert '0 (0)</strong><span>Disponibles' in html
     assert '1 (1)</strong><span>Falla' in html
