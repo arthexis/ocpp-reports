@@ -54,14 +54,14 @@ def test_dashboard_configured_timezones_and_persistent_selector(monkeypatch, tmp
     def data(*args, **kwargs):
         return {
             "sources": [{"source_id": "site-a", "cursor": 3}],
-            "connectors": [{"source_id": "site-a", "charger_id": "cp-a", "location": "Audi Calzada",
+            "connectors": [{"source_id": "site-a", "charger_id": "cp-a", "location": "West Calzada",
                             "connector_id": 1, "status": "Available", "connected": True,
                             "observed_at": at, "power_w": None, "energy_wh": None}],
-            "transactions": [{"source_id": "site-a", "charger_id": "cp-a", "location": "Audi Calzada",
+            "transactions": [{"source_id": "site-a", "charger_id": "cp-a", "location": "West Calzada",
                               "id": 4, "state": "stopped", "started_at": at,
                               "stopped_at": at, "soc_start": 20, "soc_end": 82,
                               "energy_wh": 15000}],
-            "events": [{"source_id": "site-a", "charger_id": "cp-a", "location": "Audi Calzada",
+            "events": [{"source_id": "site-a", "charger_id": "cp-a", "location": "West Calzada",
                         "id": 9, "action": "Heartbeat", "at": at}],
         }
     monkeypatch.setattr(web, "snapshot", data)
@@ -88,11 +88,11 @@ def test_dashboard_text_status_location_and_date_filters(monkeypatch, tmp_path):
         "sources": [{"source_id": "node-a", "cursor": 1},
                     {"source_id": "node-b", "cursor": 2}],
         "connectors": [{"source_id": "node-a", "charger_id": "cp-a",
-                        "location": "Audi Calzada", "connector_id": 1,
+                        "location": "West Calzada", "connector_id": 1,
                         "status": "Available", "connected": True, "observed_at": at,
                         "power_w": None, "energy_wh": None},
                        {"source_id": "node-b", "charger_id": "cp-b",
-                        "location": "Porsche", "connector_id": 1,
+                        "location": "East", "connector_id": 1,
                         "status": "Faulted", "connected": False, "observed_at": at,
                         "power_w": None, "energy_wh": None}],
         "transactions": [],
@@ -100,7 +100,7 @@ def test_dashboard_text_status_location_and_date_filters(monkeypatch, tmp_path):
     }
     monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: data)
     client = TestClient(web.create_app(tmp_path / "unused", timezones=("America/Monterrey",)))
-    filtered = client.get("/?filter=audi&location=calzada&status=available"
+    filtered = client.get("/?filter=west&location=calzada&status=available"
                           "&date_from=2026-10-30&date_to=2026-10-30&tz=America/Monterrey")
     assert filtered.status_code == 200
     assert "cp-a" in filtered.text and "cp-b" not in filtered.text
@@ -110,7 +110,7 @@ def test_dashboard_text_status_location_and_date_filters(monkeypatch, tmp_path):
     assert "cp-b" in by_status.text and "cp-a" not in by_status.text
     by_source = client.get("/?filter=node-b")
     assert "cp-b" in by_source.text and "cp-a" not in by_source.text
-    not_matching = client.get("/?filter=audi&status=faulted")
+    not_matching = client.get("/?filter=west&status=faulted")
     assert "Sin conectores registrados" in not_matching.text
     assert client.get("/?date_from=2026-10-31&date_to=2026-10-30").status_code == 422
     assert client.get("/?date_from=oops").status_code == 422
