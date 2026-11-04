@@ -16,7 +16,9 @@ def dashboard_state(release_changed, scope_changes, base_changes, index):
     source = DASHBOARD.read_text()
     expression = re.search(r"state: >-\n\s+({{ 'restarted'.*?}})", source, re.S)
     assert expression, "dashboard state decision missing"
-    template = Environment().from_string(expression.group(1))
+    environment = Environment()
+    environment.filters["bool"] = bool  # Ansible provides this filter; plain Jinja does not.
+    template = environment.from_string(expression.group(1))
     return template.render(
         reports_release_changed=release_changed,
         reports_dashboard_scopes={"results": [{"changed": changed} for changed in scope_changes]},
