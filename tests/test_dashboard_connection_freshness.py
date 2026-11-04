@@ -2,6 +2,7 @@
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 
 from ocpp_reports import web
@@ -87,3 +88,43 @@ def test_timestamp_validation_and_pipeline_freshness_are_distinct():
         "last_replication_received_at": fresh,
     }, now) == "fresh"
     assert web._freshness("2026-10-29T15:35:00", now) == "unknown"
+
+
+@pytest.mark.parametrize(
+    ("raw_flag", "badge", "status_class", "available_count", "uncertain_count"),
+    [
+        (1, "Sí", "status--ok", "1 (1)", "0 (0)"),
+        (0, "No", "status--historic", "0 (0)", "1 (1)"),
+        (None, "Sin datos", "status--historic", "0 (0)", "1 (1)"),
+        ("1", "Sin datos", "status--historic", "0 (0)", "1 (1)"),
+        (2, "Sin datos", "status--historic", "0 (0)", "1 (1)"),
+    ],
+)
+def test_sqlite_connection_flags_drive_badges_and_counts(
+        monkeypatch, tmp_path, raw_flag, badge, status_class,
+        available_count, uncertain_count):
+    # Model the SQLite snapshot's integer column rather than a boolean fixture.
+    data = _data(connected=raw_flag)
+    html = _html(monkeypatch, tmp_path, data)
+    assert f'status {status_class}">Available</span>' in html
+    assert f'>{badge}</span>' in html
+    assert f'{available_count}</strong><span>Disponibles' in html
+    assert f'{uncertain_count}</strong><span>Datos antiguos' in html
+    assert web.display_date(data["connectors"][0]["status_observed_at"], "UTC") in html
+
+
+@pytest.mark.parametrize(
+    ("raw_flag", "expected"),
+    [(True, True), (False, False), (1, True), (0, False),
+     (None, None), ("1", None), (2, None)],
+)
+def test_connection_flag_normalization_is_strict(raw_flag, expected):
+    assert web._connection_flag(raw_flag) is expected
+
+
+def test_sqlite_snapshot_api_retains_raw_connection_flag(monkeypatch, tmp_path):
+    data = _data(connected=1)
+    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
+    client = TestClient(web.create_app(tmp_path / "warehouse"))
+    assert client.get("/").status_code == 200
+    assert client.get("/api/snapshot").json()["connectors"][0]["connected"] == 1
