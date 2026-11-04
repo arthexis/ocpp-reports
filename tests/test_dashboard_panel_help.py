@@ -31,7 +31,7 @@ def test_five_panel_explanations_are_in_accessible_popovers(monkeypatch, tmp_pat
     assert 'event.target.closest(".panel-help")' in html
     # Existing caveats have not disappeared; only their display is collapsed.
     for note in (
-        "Una falla antigua también puede contarse como dato antiguo.",
+        "Una falla con origen atrasado también puede contarse como dato incierto.",
         "No sumar C0 nuevamente en totales.",
         "SoC: primera y última medición reportada",
         "La recarga de la página no confirma datos nuevos del cargador.",
