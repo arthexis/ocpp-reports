@@ -1,0 +1,83 @@
+{
+  "installed_sha": "10385dc3dac89a0f1fb4f249d6731c4378530df6",
+  "captures": [
+    {
+      "file": "admin-desktop.png",
+      "sha256": "c91afad1daa9255059df930b9755483c7f9e1d17c375f66babaf9dff12ee0140",
+      "captured_at_utc": "2026-11-04T04:14:57.958592+00:00",
+      "site": "admin",
+      "device": "desktop",
+      "browser": "Chromium 154.0.8037.92",
+      "viewport_css": {
+        "width": 1440,
+        "height": 1000
+      },
+      "note": "location, charger ID and meter values redacted in DOM before capture"
+    },
+    {
+      "file": "audi-desktop.png",
+      "sha256": "afc166b1af97be08ceb84c2469c787d7fcce12d4269f20ddfe79c9301d9ca6bc",
+      "captured_at_utc": "2026-11-04T04:14:54.086587+00:00",
+      "site": "audi",
+      "device": "desktop",
+      "browser": "Chromium 154.0.8037.92",
+      "viewport_css": {
+        "width": 1440,
+        "height": 1000
+      },
+      "note": "location, charger ID and meter values redacted in DOM before capture"
+    },
+    {
+      "file": "porsche-desktop.png",
+      "sha256": "2bcc669969c63e7dc4732ad86fa81397d34a46f0701a6c5bfea6f10cd6ca86ca",
+      "captured_at_utc": "2026-11-04T04:15:08.718605+00:00",
+      "site": "porsche",
+      "device": "desktop",
+      "browser": "Chromium 154.0.8037.92",
+      "viewport_css": {
+        "width": 1440,
+        "height": 1000
+      },
+      "note": "location, charger ID and meter values redacted in DOM before capture"
+    },
+    {
+      "file": "admin-android.png",
+      "sha256": "087df728776b29a8a7de4375fa20ca03a09605f039bdd0415a7c5fd9975842a0",
+      "captured_at_utc": "2026-11-04T04:16:20.978699+00:00",
+      "site": "admin",
+      "device": "Samsung SM-G950F Android 9",
+      "browser": "Chrome 101.0.4951.61",
+      "viewport_css": {
+        "width": 360,
+        "height": 612
+      },
+      "note": "Android physical screenshot scrolled; location, charger ID and meter values redacted in DOM before capture"
+    },
+    {
+      "file": "audi-android.png",
+      "sha256": "68e9a1a77f3e8204801f71528d207606e17434e6b2b96a866101f977ec092857",
+      "captured_at_utc": "2026-11-04T04:15:43.354649+00:00",
+      "site": "audi",
+      "device": "Samsung SM-G950F Android 9",
+      "browser": "Chrome 101.0.4951.61",
+      "viewport_css": {
+        "width": 360,
+        "height": 612
+      },
+      "note": "Android physical screenshot scrolled; location, charger ID and meter values redacted in DOM before capture"
+    },
+    {
+      "file": "porsche-android.png",
+      "sha256": "7458ec90b1ea5871147f57f622c0d0edb1e953a2dc73890e3946267b70369b5c",
+      "captured_at_utc": "2026-11-04T04:15:54.598664+00:00",
+      "site": "porsche",
+      "device": "Samsung SM-G950F Android 9",
+      "browser": "Chrome 101.0.4951.61",
+      "viewport_css": {
+        "width": 360,
+        "height": 612
+      },
+      "note": "Android physical screenshot scrolled; location, charger ID and meter values redacted in DOM before capture"
+    }
+  ]
+}
