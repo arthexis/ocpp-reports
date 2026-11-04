@@ -184,6 +184,15 @@ def _source_freshness(source: dict, now: datetime) -> str:
     return "old" if "old" in states else "unknown"
 
 
+def _connection_flag(value: object) -> bool | None:
+    """Normalize SQLite-backed 0/1 flags without guessing unknown values."""
+    if type(value) is bool:
+        return value
+    if type(value) is int and value in (0, 1):
+        return bool(value)
+    return None
+
+
 def _operational_status_counts(connectors: list[dict]) -> dict[str, dict[str, int]]:
     """Count distinct stations and physical connectors, without counting C0 twice.
 
@@ -380,11 +389,15 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             connector["source_freshness"] = source_freshness.get(
                 connector.get("source_id"), "unknown"
             )
+            # SQLite snapshots export 0/1 rather than JSON booleans. Normalize
+            # presentation values for both badges and operational counts; the
+            # raw /api/snapshot response remains untouched.
+            connector["connected"] = _connection_flag(connector.get("connected"))
             # The observed connection flag comes from the source's last
             # CSMS status snapshot; it is only actionable with recent source data.
             connector["connection_fresh"] = (
                 connector["source_freshness"] == "fresh"
-                and type(connector.get("connected")) is bool
+                and connector["connected"] is not None
             )
             connector["stale"] = (
                 connector["source_freshness"] != "fresh"
