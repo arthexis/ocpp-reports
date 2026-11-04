@@ -41,13 +41,13 @@ def test_bad_connector_rolls_back_cursor_and_evidence(tmp_path):
 
 def test_forward_identity_binding_rejects_unplanned_migration(tmp_path):
     state = tmp_path / "forward.sqlite3"
-    verify_source_binding(state, "gway-005", "uuid-old")
-    verify_source_binding(state, "gway-005", "uuid-old")
+    verify_source_binding(state, "source-b", "uuid-old")
+    verify_source_binding(state, "source-b", "uuid-old")
     with pytest.raises(ValueError, match="explicit maintenance migration"):
-        verify_source_binding(state, "gway-005", "gway-005")
+        verify_source_binding(state, "source-b", "source-b")
     with sqlite3.connect(state) as db:
         assert db.execute(
-            "SELECT evidence_source FROM source_bindings WHERE node_id='gway-005'"
+            "SELECT evidence_source FROM source_bindings WHERE node_id='source-b'"
         ).fetchone()[0] == "uuid-old"
 
 
@@ -55,7 +55,7 @@ def test_conflicting_collector_replay_preserves_cursor(tmp_path):
     db = tmp_path / "collector.sqlite3"
     def batch(value):
         return Batch.model_validate({
-            "schema": "ocpp-reports/replication/v1", "source_id": "gway-005",
+            "schema": "ocpp-reports/replication/v1", "source_id": "source-b",
             "after": 0, "next": 1, "more": False,
             "changes": [{"sequence": 1, "kind": "event",
                          "record_key": "1", "payload": {"value": value}}],
