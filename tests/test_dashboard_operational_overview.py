@@ -143,8 +143,8 @@ def test_status_provenance_does_not_freshen_with_snapshots(monkeypatch, tmp_path
     monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
     client = TestClient(web.create_app(tmp_path / "unused", allowed_source_ids=("site-a",)))
     html = client.get("/").text
-    assert "Estado antiguo" in html
-    assert "Fecha desconocida" not in html
+    assert ">Antiguo</span>" in html
+    assert ">Sin fecha</span>" not in html
     assert web.display_date(original, "UTC") in html
     assert 'data-label="Snapshot recibido"' not in html
     assert '<th>Snapshot recibido</th>' not in html
@@ -174,9 +174,9 @@ def test_missing_or_invalid_original_status_time_is_unknown(monkeypatch, tmp_pat
     monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(source))
     client = TestClient(web.create_app(tmp_path / "unused", allowed_source_ids=("site-a",)))
     html = client.get("/").text
-    assert "Fecha desconocida" in html
+    assert ">Sin fecha</span>" in html
     assert '0 (0)</strong><span>Disponibles' in html
     assert '1 (1)</strong><span>Datos antiguos' in html
     for bad in ("not-a-time", "2026-10-29T15:35:00"):
         source["connectors"][0]["status_observed_at"] = bad
-        assert "Fecha desconocida" in client.get("/").text
+        assert ">Sin fecha</span>" in client.get("/").text
