@@ -193,6 +193,22 @@ def _connection_flag(value: object) -> bool | None:
     return None
 
 
+def _single_connector_disagreements(connectors: list[dict]) -> set[tuple]:
+    """C0 Available contradicts the only physical connector's Faulted state."""
+    groups = {}
+    for row in connectors:
+        groups.setdefault((row.get("source_id"), row.get("charger_id")), []).append(row)
+    result = set()
+    for (source, charger), rows in groups.items():
+        physical = [r for r in rows if r.get("connector_id") not in (0, None)]
+        station = [r for r in rows if r.get("connector_id") == 0]
+        if (len(physical) == len(station) == 1
+                and (station[0].get("status") or "").lower() == "available"
+                and (physical[0].get("status") or "").lower() == "faulted"):
+            result.add((source, charger, physical[0]["connector_id"]))
+    return result
+
+
 def _operational_status_counts(connectors: list[dict]) -> dict[str, dict[str, int]]:
     """Count distinct stations and physical connectors, without counting C0 twice.
 
@@ -206,7 +222,8 @@ def _operational_status_counts(connectors: list[dict]) -> dict[str, dict[str, in
         groups.setdefault(key, []).append(row)
     counts = {name: {"stations": 0, "connectors": 0}
               for name in ("available", "charging", "faults", "uncertain")}
-    for rows in groups.values():
+    warnings = _single_connector_disagreements(connectors)
+    for (source, charger), rows in groups.items():
         physical = [row for row in rows if row.get("connector_id") not in (0, None)]
         selected = physical or [row for row in rows if row.get("connector_id") == 0]
         active_states: set[str] = set()
@@ -227,6 +244,9 @@ def _operational_status_counts(connectors: list[dict]) -> dict[str, dict[str, in
             if physical:
                 for category in states:
                     counts[category]["connectors"] += 1
+        if physical and (source, charger, physical[0].get("connector_id")) in warnings:
+            active_states.discard("faults")
+            active_states.add("available")
         for category in active_states:
             counts[category]["stations"] += 1
     return counts
@@ -306,7 +326,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
               status: str = "", location: str = "",
               date_from: str = "", date_to: str = "", tz: str | None = None,
               tx_view: str = "success", tx_page: int = Query(1, ge=1),
-              event_page: int = Query(1, ge=1), connector_view: str = "combined"):
+              event_page: int = Query(1, ge=1), connector_view: str = "individual"):
         tz = tz or zones[0]
         if tz not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
@@ -408,12 +428,17 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         operational_counts = _operational_status_counts(data["connectors"])
         # Presentation-only selection. Operational cards count all scoped physical connectors,
         # and /api/snapshot preserves the complete source-scoped evidence.
+        disagreement_keys = _single_connector_disagreements(data["connectors"])
         connector_rows = [
             connector for connector in data["connectors"]
             if connector_view == "combined"
             or (connector_view == "station" and connector.get("connector_id") == 0)
             or (connector_view == "individual" and connector.get("connector_id") != 0)
         ]
+        for connector in connector_rows:
+            connector["status_disagreement"] = (
+                connector.get("source_id"), connector.get("charger_id"),
+                connector.get("connector_id")) in disagreement_keys
         template_started = perf_counter()
         response = templates.TemplateResponse(request, "dashboard.html.j2",
                                           {"data": data, "connector_rows": connector_rows,

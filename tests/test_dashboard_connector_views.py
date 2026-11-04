@@ -54,16 +54,19 @@ def _ids(html):
     return parser.rows
 
 
-def test_default_combined_and_station_individual(monkeypatch, tmp_path):
+def test_default_individual_and_explicit_combined_station(monkeypatch, tmp_path):
     monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(_snapshot()))
     client = TestClient(web.create_app(tmp_path / "unused"))
-    combined = client.get("/")
-    assert combined.status_code == 200
+    default = client.get("/")
+    assert default.status_code == 200
+    assert _ids(default.text) == [1, 2, 1]
+    assert 'data-connector-view="individual" aria-pressed="true"' in default.text
+    assert 'data-connector-view="station" aria-pressed="false"' in default.text
+    assert 'data-connector-view="combined" aria-pressed="false"' in default.text
+    assert 'name="connector_view" value="individual"' in default.text
+    combined = client.get("/?connector_view=combined")
     assert _ids(combined.text) == [0, 1, 2, 0, 1]
     assert 'data-connector-view="combined" aria-pressed="true"' in combined.text
-    assert 'data-connector-view="station" aria-pressed="false"' in combined.text
-    assert 'data-connector-view="individual" aria-pressed="false"' in combined.text
-    assert 'name="connector_view" value="combined"' in combined.text
     station = client.get("/?connector_view=station")
     assert _ids(station.text) == [0, 0]
     assert 'data-connector-view="station" aria-pressed="true"' in station.text
