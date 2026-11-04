@@ -10,17 +10,19 @@ TEMPLATE = (Path(__file__).resolve().parents[1] /
 def test_mobile_historical_labels_are_short_but_keep_freshness():
     source = TEMPLATE.read_text()
     Environment().parse(source)
-    assert ".connector-mobile-text{display:none}" in source
-    assert ".connector-desktop-text{display:none}" in source
-    assert 'class="connector-mobile-text">Antiguo</span>' in source
-    assert 'class="connector-mobile-text">Sin fecha</span>' in source
-    assert '"antiguo" if c.stale else ("sin fecha" if c.status_time_unknown else "observado")' in source
+    assert "Último: " not in source
+    assert "último registro" not in source
+    assert "Estado antiguo</span>" not in source
+    assert "Antiguo</span>" in source
+    assert "Sin fecha</span>" in source
+    assert 'data-label="Conectado"' in source
+    assert '{{ "Sí" if c.connected else "No" }}' in source
     assert "c.stale or c.status_time_unknown %}status--historic" in source
 
 
 def test_scroll_hint_appears_only_for_overflowing_desktop_table():
     source = TEMPLATE.read_text()
-    assert 'id="connector-scroll-hint" hidden' in source
+    assert 'id="connector-scroll-hint" hidden>→ Más columnas' in source
     assert 'aria-describedby="connector-scroll-hint"' in source
     assert "connectorRegion.scrollWidth > connectorRegion.clientWidth + 2" in source
     assert "window.innerWidth > 520 && overflows && !atEnd" in source
