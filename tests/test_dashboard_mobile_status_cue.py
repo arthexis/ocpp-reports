@@ -13,11 +13,11 @@ def test_mobile_historical_labels_are_short_but_keep_freshness():
     assert "Último: " not in source
     assert "último registro" not in source
     assert "Estado antiguo</span>" not in source
-    assert "Antiguo</span>" in source
-    assert "Sin fecha</span>" in source
+    assert "Origen atrasado</span>" in source
+    assert "Estado sin fecha</span>" in source
     assert 'data-label="Conectado"' in source
-    assert '{{ "Sí" if c.connected else "No" }}' in source
-    assert "c.stale or c.status_time_unknown %}status--historic" in source
+    assert 'c.connected is sameas true' in source
+    assert "c.source_freshness != 'fresh'" in source
 
 
 def test_scroll_hint_appears_only_for_overflowing_desktop_table():
