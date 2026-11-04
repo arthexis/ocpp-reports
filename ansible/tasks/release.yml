@@ -101,7 +101,8 @@
   when: not reports_existing_release.stat.exists
 - name: Capture reusable dependency environment
   ansible.builtin.set_fact:
-    reports_dependency_venv: "{{ reports_root }}/dependencies/{{ (reports_dependency_plan.stdout | from_json).key }}-py{{ reports_python_minor | replace('.', '') }}/venv"
+    reports_dependency_venv: >-
+      {{ reports_root }}/dependencies/{{ (reports_dependency_plan.stdout | from_json).key }}-py{{ reports_python_minor | replace('.', '') }}/venv
     reports_dependency_requirements: "{{ (reports_dependency_plan.stdout | from_json).requirements }}"
   when: not reports_existing_release.stat.exists
 - name: Create reusable dependency environment
