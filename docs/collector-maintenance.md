@@ -20,9 +20,9 @@ For issue #97 specifically, wait for `FORWARDING_HELD` and `GWAY005_READY` from
 Agent A. Then, on Watchtower:
 
 ```sh
-sudo ocpp-reports collector hold --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005
-sudo ocpp-reports collector status --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005
-sudo ocpp-reports collector reset --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005 --backup /private/issue97/collector-before-reset.sqlite
+sudo ocpp-reports collector hold --database /var/lib/ocpp-reports/warehouse.sqlite --source source-b
+sudo ocpp-reports collector status --database /var/lib/ocpp-reports/warehouse.sqlite --source source-b
+sudo ocpp-reports collector reset --database /var/lib/ocpp-reports/warehouse.sqlite --source source-b --backup /private/issue97/collector-before-reset.sqlite
 ```
 
 The hold shares SQLite's writer lock with batch acceptance. Successful acquisition
@@ -48,7 +48,7 @@ post `WATCHTOWER_READY` with sanitized counts, release and backup path. **Leave
 the hold in place.** Only after a coordinator posts `RELEASE_FORWARDING`:
 
 ```sh
-sudo ocpp-reports collector release --database /var/lib/ocpp-reports/warehouse.sqlite --source gway-005
+sudo ocpp-reports collector release --database /var/lib/ocpp-reports/warehouse.sqlite --source source-b
 ```
 
 Agent A starts its forwarder using the existing credential. Verify its first
