@@ -6,9 +6,9 @@ Run `ocpp-reports ingest --follow --data-dir /path/to/csms/schemas/8 --database 
 ocpp-reports serve --database /var/lib/ocpp-reports/reports.sqlite --host 127.0.0.1 --port 8080
 ```
 
-Open http://127.0.0.1:8080/ locally. The dashboard reads **only** Reports-owned SQLite, using a read-only connection. It does not import CSMS Python modules or contact chargers. It displays last-known state with an observation age warning after 30 seconds, plus latest transactions, events and source cursors. Filter by source or charger. A JSON read-only endpoint is available at `/api/snapshot`.
+Open http://127.0.0.1:8080/ locally. The dashboard reads **only** Reports-owned SQLite, using a read-only connection. It does not import CSMS Python modules or contact chargers. It displays last-known connector state separately from source ingestion freshness, plus transactions, events and source cursors. Filter by source or charger. A JSON read-only endpoint is available at `/api/snapshot`.
 
-Security: `serve` rejects non-loopback binds. It has no user accounts or authentication; do not expose it publicly. M4 will add nginx HTTPS, authentication, and Ansible services. The browser refreshes every 15 seconds; no WebSockets. M2 does not require forwarder or collector.
+Security: `serve` rejects non-loopback binds. It has no user accounts or authentication; do not expose it publicly. M4 will add nginx HTTPS, authentication, and Ansible services. The browser updates data in place every 15 seconds without reloading the page; no WebSockets. M2 does not require forwarder or collector.
 
 **Field validation:** install on customer vendor dedicated host; verify warehouse is populated, dashboard shows live/stale connector state, active and stopped transactions, and survives stopped ingest with visibly old timestamps. This PR does not claim that field validation has occurred.
 
@@ -18,9 +18,9 @@ Run one loopback process per customer against the same collector warehouse:
 
 ```sh
 ocpp-reports serve --database /var/lib/ocpp-reports/warehouse.sqlite --port 8080 \
-  --title 'Porsche OCPP Reports' --source-id gway-005 --source-id porsche-abb-1
+  --title 'Customer B OCPP Reports' --source-id source-b --source-id source-c
 ocpp-reports serve --database /var/lib/ocpp-reports/warehouse.sqlite --port 8082 \
-  --title 'Audi OCPP Reports' --source-id gway-002
+  --title 'Customer A OCPP Reports' --source-id source-a
 ```
 
 Repeated `--source-id` arguments are an enforced allowlist for the HTML page,
@@ -34,24 +34,24 @@ these instances persistent across Watchtower/control deployment:
 
 ```json
 [
-  {"name": "dashboard", "title": "Porsche OCPP Reports",
-   "hostname": "porsche.gelectriic.com", "port": 8080,
-   "source_ids": ["gway-005", "porsche-abb-1"],
+  {"name": "dashboard", "title": "Customer B OCPP Reports",
+   "hostname": "customer-b.example.com", "port": 8080,
+   "source_ids": ["source-b", "source-c"],
    "htpasswd": "/etc/ocpp-reports/dashboard.htpasswd"},
-  {"name": "dashboard-audi", "title": "Audi OCPP Reports",
-   "hostname": "audi.gelectriic.com", "port": 8082,
-   "source_ids": ["gway-002"],
-   "htpasswd": "/etc/ocpp-reports/dashboard-audi.htpasswd"}
+  {"name": "dashboard-client-a", "title": "Customer A OCPP Reports",
+   "hostname": "customer-a.example.com", "port": 8082,
+   "source_ids": ["source-a"],
+   "htpasswd": "/etc/ocpp-reports/dashboard-client-a.htpasswd"}
 ]
 ```
 
 For an operator dashboard that includes **every current and future ingested source**,
-add a third independent instance to the same inventory (retain the Audi and
-Porsche entries):
+add a third independent instance to the same inventory (retain the Customer A and
+Customer B entries):
 
 ```json
-{"name": "dashboard-admin", "title": "Gelectriic Administration",
- "hostname": "customer.gelectriic.com", "port": 8083,
+{"name": "dashboard-admin", "title": "Operator Administration",
+ "hostname": "customer.example.com", "port": 8083,
  "source_ids": "*",
  "timezones": ["America/Monterrey", "UTC"],
  "htpasswd": "/etc/ocpp-reports/dashboard-admin.htpasswd"}
@@ -73,7 +73,7 @@ Before deployment, point the DNS record at Watchtower, obtain the hostname
 certificate, and provision the admin credentials interactively:
 
 ```sh
-sudo certbot certonly --nginx -d customer.gelectriic.com
+sudo certbot certonly --nginx -d customer.example.com
 sudo install -o root -g www-data -m 0640 /dev/null /etc/ocpp-reports/dashboard-admin.htpasswd
 sudo htpasswd -B /etc/ocpp-reports/dashboard-admin.htpasswd admin
 sudo ansible-playbook -i localhost, ansible/dashboard-instances.yml
@@ -110,7 +110,7 @@ credentials are separate and must never be used as dashboard passwords.
 On the customer host, add a user or change their password interactively:
 
 ```sh
-sudo htpasswd -B /etc/ocpp-reports/dashboard-audi.htpasswd USERNAME
+sudo htpasswd -B /etc/ocpp-reports/dashboard-client-a.htpasswd USERNAME
 sudo htpasswd -B /etc/ocpp-reports/dashboard.htpasswd USERNAME
 ```
 
