@@ -32,7 +32,7 @@ There are separate clocks. `sources.last_ingested_at` is **local ingest time**. 
 
 The new collector receipt table is additive and created by the existing collector schema initializer at first accepted batch. Historical receipts are **unknown** until a new sequence arrives; do not backfill from cursor positions or current wall clock. Existing connector rows lacking provenance remain unknown, and new exports may populate the timestamp from CSMS persisted original events. The schema and source IDs of CSMS are untouched. No database reset, source rekey, ACK reset, or manual historical rewrite is required.
 
-Deploy the additive CSMS export producer change before expecting a reliable status age on newly ingested connector snapshots. Deploy Reports to the satellite (ingestion), then to Watchtower (collector and dashboard), preserving normal role assignments and existing customer source allowlists. During production validation, compare the same source/connector at two naturally separated export intervals: last status receipt remains fixed while the snapshot time advances. A genuine StatusNotification must update the original receipt time. Check Porsche shows remote receipt freshness for GWay-005 and ABB local ingestion freshness; Audi must remain scoped to GWay-002.
+Deploy the additive CSMS export producer change before expecting a reliable status age on newly ingested connector snapshots. Deploy Reports to the satellite (ingestion), then to Watchtower (collector and dashboard), preserving normal role assignments and existing customer source allowlists. During production validation, compare the same source/connector at two naturally separated export intervals: last status receipt remains fixed while the snapshot time advances. A genuine StatusNotification must update the original receipt time. Check Customer B shows remote receipt freshness for GWay-005 and ABB local ingestion freshness; Customer A must remain scoped to GWay-002.
 
 For rollback, restore the previous application release. Retain the additive `collector_receipts` table and payload metadata: older versions ignore them. Do not reset replication data, customer credentials, source mappings, or charger state. A fault, including EmergencyStop, is still the last known observation until superseded by actual newer evidence. Physical emergency-stop status requires an independent on-site check.
 
@@ -54,9 +54,9 @@ warehouse:
 
 ```sh
 ocpp-reports locations list
-ocpp-reports locations set --source gway-002 --charger CHARGER_ID \
-  --name 'Audi San Pedro'
-ocpp-reports locations remove --source gway-002 --charger CHARGER_ID
+ocpp-reports locations set --source source-a --charger CHARGER_ID \
+  --name 'Customer A San Pedro'
+ocpp-reports locations remove --source source-a --charger CHARGER_ID
 ```
 
 
@@ -66,8 +66,8 @@ collector's local/replicated charger inventory (or its persisted location
 assignments). For example:
 
 ```sh
-ocpp-reports locations set --charger CHARGER_ID --name 'Audi San Pedro'
-ocpp-reports locations remove --source gway-002
+ocpp-reports locations set --charger CHARGER_ID --name 'Customer A San Pedro'
+ocpp-reports locations remove --source source-a
 ```
 
 At least one identifier must be provided. If an identifier is missing or
@@ -104,11 +104,11 @@ on multiple rows.
 ocpp-reports locations list
 ocpp-reports locations list --set          # assigned names only
 ocpp-reports locations list --unset        # missing names, including source-only
-ocpp-reports locations list --source gway-002
+ocpp-reports locations list --source source-a
 ocpp-reports locations list --json         # array of {source_id, charger_id, location, assigned}
-ocpp-reports locations set --source gway-002 --name "Audi Calzada"
-ocpp-reports locations set --source gway-002 --name "Audi Calzada" --json
-ocpp-reports locations remove --source gway-002 --json
+ocpp-reports locations set --source source-a --name "Customer A Calzada"
+ocpp-reports locations set --source source-a --name "Customer A Calzada" --json
+ocpp-reports locations remove --source source-a --json
 ```
 
 `--set` and `--unset` are mutually exclusive. The machine-readable
@@ -167,13 +167,13 @@ and restarts only the selected dashboard systemd service:
 
 ```sh
 sudo ocpp-reports serve --update --timezone America/Monterrey --timezone UTC
-# If the customer dashboard's inventory name is dashboard-audi:
-sudo ocpp-reports serve --update --instance dashboard-audi --timezone America/Monterrey --timezone UTC
+# If the customer dashboard's inventory name is dashboard-client-a:
+sudo ocpp-reports serve --update --instance dashboard-client-a --timezone America/Monterrey --timezone UTC
 ```
 
 The default instance is `dashboard` (`ocpp-reports-dashboard.service`).
 Other instance names correspond to `dashboards.json` entries, e.g.
-`dashboard-audi`, and **must be selected explicitly**; the command does not
+`dashboard-client-a`, and **must be selected explicitly**; the command does not
 modify every customer dashboard. Deploy the updated service templates once
 before the first `--update`: the command refuses a service that does not
 already reference its persistent timezone file. No collector/CSMS service,
