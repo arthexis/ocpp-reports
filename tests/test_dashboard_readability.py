@@ -9,10 +9,10 @@ TEMPLATE = (Path(__file__).resolve().parents[1] /
 
 def test_stale_observations_never_look_live():
     source = TEMPLATE.read_text()
-    assert "c.stale or c.status_time_unknown %}status--historic" in source
+    assert "c.source_freshness != 'fresh'" in source
     assert "Último: " not in source
     assert "último registro" not in source
-    assert "Antiguo</span>" in source
+    assert "Origen atrasado</span>" in source
     assert ".status--historic" in source
     Environment().parse(source)
 
