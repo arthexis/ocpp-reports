@@ -22,13 +22,13 @@ def snapshots(tmp_path):
     paths = init(tmp_path)
     collector = tmp_path / "collector.sqlite3"
     page = changes_page(paths[1], "uuid-old")
-    page["source_id"] = "gway-005"
+    page["source_id"] = "source-b"
     accept_batch(collector, Batch.model_validate(page))
     return (*paths, collector)
 
 
 def check(paths):
-    return check_snapshots(*paths, "uuid-old", "gway-005", "gway-005")
+    return check_snapshots(*paths, "uuid-old", "source-b", "source-b")
 
 
 def test_read_only_preflight_and_cli(tmp_path):
@@ -42,7 +42,7 @@ def test_read_only_preflight_and_cli(tmp_path):
     command = [sys.executable, "-m", "ocpp_reports.source_preflight"]
     for option, path in zip(("csms", "warehouse", "forwarder", "collector"), paths):
         command += ["--" + option, str(path)]
-    command += ["--old", "uuid-old", "--new", "gway-005", "--node", "gway-005"]
+    command += ["--old", "uuid-old", "--new", "source-b", "--node", "source-b"]
     result = subprocess.run(command, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == report
@@ -61,7 +61,7 @@ def test_read_only_preflight_and_cli(tmp_path):
     (2, "DELETE FROM source_bindings", "durable source binding"),
     (2, "DELETE FROM forward_cursors", "receipt required"),
     (3, "DELETE FROM collector_cursors", "receipt required"),
-    (1, "INSERT INTO sources VALUES ('gway-005',0)", "expected old source"),
+    (1, "INSERT INTO sources VALUES ('source-b',0)", "expected old source"),
     (0, "UPDATE appliance_metadata SET value='other'", "CSMS identity"),
 ])
 def test_refuses_unsynchronized_or_unrelated_histories(tmp_path, database, sql, error):
@@ -98,7 +98,7 @@ def test_cli_failure_is_nonzero_and_does_not_create_missing_inputs(tmp_path):
     command = [sys.executable, "-m", "ocpp_reports.source_preflight"]
     for option in ("csms", "warehouse", "forwarder", "collector"):
         command += ["--" + option, str(missing)]
-    command += ["--old", "uuid-old", "--new", "gway-005", "--node", "gway-005"]
+    command += ["--old", "uuid-old", "--new", "source-b", "--node", "source-b"]
     result = subprocess.run(command, capture_output=True, text=True)
     assert result.returncode == 1
     assert "must exist" in result.stderr
@@ -109,9 +109,9 @@ def test_cli_failure_is_nonzero_and_does_not_create_missing_inputs(tmp_path):
 def test_conversion_then_forwarding_has_no_replay_or_gap(tmp_path):
     paths = snapshots(tmp_path)
     check(paths)
-    files = migrate_copies(*paths[:3], tmp_path / "converted", "uuid-old", "gway-005", "gway-005")
+    files = migrate_copies(*paths[:3], tmp_path / "converted", "uuid-old", "source-b", "source-b")
     warehouse, state = map(Path, (files["warehouse"], files["forwarder"]))
-    receiver = TestClient(create_collector(paths[3], {"gway-005": "existing-token"}))
+    receiver = TestClient(create_collector(paths[3], {"source-b": "existing-token"}))
     sent = []
 
     def receive(request):
@@ -122,12 +122,12 @@ def test_conversion_then_forwarding_has_no_replay_or_gap(tmp_path):
 
     with httpx.Client(transport=httpx.MockTransport(receive)) as client:
         def forward():
-            return forward_once(warehouse, state, "gway-005", "https://collector/api/replication",
+            return forward_once(warehouse, state, "source-b", "https://collector/api/replication",
                                 "existing-token", client=client)
         assert forward() == 73
         assert not sent
         with sqlite3.connect(warehouse) as db:
-            db.execute("INSERT INTO replication_changes VALUES (74,'gway-005','event','24','{}')")
+            db.execute("INSERT INTO replication_changes VALUES (74,'source-b','event','24','{}')")
         assert forward() == 74
         assert forward() == 74
     assert len(sent) == 1
