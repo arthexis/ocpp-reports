@@ -136,7 +136,7 @@
 - name: Enable and start configured service
   ansible.builtin.systemd_service:
     name: "ocpp-reports-{{ reports_service }}.service"
-    daemon_reload: true
+    daemon_reload: "{{ reports_unit.changed }}"
     enabled: true
     state: "{{ 'restarted' if (reports_unit.changed or reports_release_changed | bool) else 'started' }}"
   become: true
