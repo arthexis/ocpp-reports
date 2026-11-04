@@ -416,10 +416,16 @@ header{align-items:start;gap:.65rem}
         ".operations-cards",
         ".connectors-panel tbody",
         ".transactions-panel tbody",
-        ".transaction-filters",
         ".transactions-panel .transaction-pagination",
         ".sync-panel tbody"
       ]) update(selector);
+      // Update transaction counts without replacing the filter buttons: their
+      // click listeners and current selection must survive every poll.
+      for (const button of document.querySelectorAll(".transaction-filters [data-tx-view]")) {
+        const view = button.dataset.txView;
+        const next = fresh.querySelector('.transaction-filters [data-tx-view="' + view + '"]');
+        if (next && button.textContent !== next.textContent) button.textContent = next.textContent;
+      }
       const eventRegion = document.getElementById("live-event-groups");
       // Reading a group can involve lazy-loaded event rows; never discard them.
       if (eventRegion && !eventRegion.querySelector("details[open]") &&
