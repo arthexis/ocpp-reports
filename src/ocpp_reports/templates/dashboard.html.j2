@@ -216,6 +216,7 @@ header{align-items:start;gap:.65rem}
 {% if tx_page < tx_pages %}<a rel="next" href="{{ request.url.include_query_params(tx_page=tx_page+1) }}#transactions" aria-label="Página siguiente">Siguiente</a>{% else %}<span class="page-disabled" aria-disabled="true">Siguiente</span>{% endif %}
 </div></nav>
 </section>
+{% if is_admin | default(true) %}
 <section class="sync-panel" id="synchronization"><div class="panel-heading"><h2>Sincronización</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Sincronización" aria-controls="help-synchronization" aria-expanded="false" aria-describedby="help-synchronization">ⓘ</button></span><span class="panel-help-text" id="help-synchronization" role="tooltip">Ingestión local y recepción de réplica son distintas. La recarga de la página no confirma datos nuevos del cargador.</span></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
 {% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at|display_date(timezone) if s.last_ingested_at else "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at|display_date(timezone) if s.last_replication_received_at else "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
@@ -245,7 +246,8 @@ header{align-items:start;gap:.65rem}
 {% if event_has_next %}<a href="{{ request.url.include_query_params(event_page=event_page+1) }}#events" rel="next">Siguiente</a>{% else %}<span class="page-disabled">Siguiente</span>{% endif %}
 </div></nav>
 </div>
-</section></div></main>
+</section>
+{% endif %}</div></main>
 
 <script>
 (() => {
