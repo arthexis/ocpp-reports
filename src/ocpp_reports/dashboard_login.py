@@ -5,6 +5,7 @@ import secrets
 import sqlite3
 import time
 from urllib.parse import parse_qs
+from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from .dashboard_auth import Permission, Principal, Role, authorized
 
@@ -42,7 +43,7 @@ def attach_login(app, *, path, tenant):
     @app.get("/login")
     async def login_page(): return HTMLResponse(HTML,headers={"Cache-Control":"no-store"})
     @app.post("/login")
-    async def login(request):
+    async def login(request: Request):
         if request.headers.get("origin") != "https://"+request.headers.get("host",""):
             return JSONResponse({"detail":"Invalid origin"},status_code=403)
         if request.headers.get("content-type","").split(";")[0]!="application/x-www-form-urlencoded":
@@ -68,7 +69,7 @@ def attach_login(app, *, path, tenant):
         response.headers["Cache-Control"]="no-store"
         return response
     @app.post("/logout")
-    async def logout(request):
+    async def logout(request: Request):
         if request.headers.get("origin")!="https://"+request.headers.get("host",""):
             return JSONResponse({"detail":"Invalid origin"},status_code=403)
         token=request.cookies.get(COOKIE)
