@@ -89,11 +89,11 @@ def test_update_preserves_original_config_after_failed_restart(tmp_path, monkeyp
 
 def test_scoped_dashboard_targeting_and_invalid_input(tmp_path, monkeypatch):
     path, commands, _ = prepare(tmp_path, monkeypatch)
-    customer = updates.timezone_file("dashboard-audi")
+    customer = updates.timezone_file("dashboard-client-a")
     monkeypatch.setattr(updates, "_run", lambda args: completed(
-        output=f"ExecStart=serve --source-id audi --timezone-file {customer}"
+        output=f"ExecStart=serve --source-id west --timezone-file {customer}"
     ))
-    result = runner.invoke(app, ["serve", "--update", "--instance", "dashboard-audi",
+    result = runner.invoke(app, ["serve", "--update", "--instance", "dashboard-client-a",
                                  "--timezone", "America/Monterrey"])
     assert result.exit_code == 0, result.output
     assert json.loads(customer.read_text()) == ["America/Monterrey", "UTC"]
