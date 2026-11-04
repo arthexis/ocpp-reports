@@ -8,15 +8,24 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "ocpp_reports"
 
 
-def test_no_branded_identifiers_in_shipped_python_modules():
-    # Construct terms to keep the guard itself free of brand references.
-    names = ("au" + "di", "por" + "sche", "a" + "bb")
-    expression = re.compile(r"(?<![A-Za-z])(?:" + "|".join(names) + r")(?![A-Za-z])", re.I)
+def test_no_customer_identifiers_in_runtime_or_deployment_files():
+    # Construct names so this guard remains free of the customer strings itself.
+    names = ("au" + "di", "por" + "sche", "a" + "bb",
+             "gele" + "ctriic", "gway-" + "002", "gway-" + "005",
+             "por" + "sche-abb-1")
+    expression = re.compile(r"(?<![A-Za-z0-9])(?:" +
+                            "|".join(re.escape(name) for name in names) +
+                            r")(?![A-Za-z0-9])", re.I)
     violations = []
-    for path in SOURCE.rglob("*.py"):
-        if expression.search(path.name) or expression.search(path.read_text(encoding="utf-8")):
-            violations.append(str(path.relative_to(SOURCE)))
-    assert not violations, f"Vendor-specific source modules: {violations}"
+    roots = (SOURCE, ROOT / "ansible", ROOT / "scripts", ROOT / ".github" / "workflows")
+    for folder in roots:
+        for path in folder.rglob("*"):
+            if not path.is_file() or path.suffix not in (
+                    ".py", ".yml", ".yaml", ".j2", ".sh", ".service", ".timer", ".conf", ".json"):
+                continue
+            if expression.search(path.name) or expression.search(path.read_text(encoding="utf-8")):
+                violations.append(str(path.relative_to(ROOT)))
+    assert not violations, f"Customer/vendor-specific runtime files: {violations}"
 
 
 def test_generic_vendor_layout_and_removed_brand_aliases():
