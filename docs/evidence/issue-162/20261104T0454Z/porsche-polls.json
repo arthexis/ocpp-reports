@@ -1,0 +1,93 @@
+{
+  "site": "porsche",
+  "initial": {
+    "y": 509.6666564941406,
+    "x": 0,
+    "width": 360,
+    "pageWidth": 360,
+    "status": "Available",
+    "statusClass": "status status--ok",
+    "connected": "S\u00ed",
+    "connectedClass": "status status--ok",
+    "date": "2026-11-03 08:00",
+    "navCount": 1
+  },
+  "cycles": [
+    {
+      "utc": "2026-11-04T04:52:46.515034+00:00",
+      "http": 200,
+      "state": {
+        "y": 509.6666564941406,
+        "x": 0,
+        "width": 360,
+        "pageWidth": 360,
+        "status": "Available",
+        "statusClass": "status status--ok",
+        "connected": "S\u00ed",
+        "connectedClass": "status status--ok",
+        "date": "2026-11-03 08:00",
+        "navCount": 1
+      }
+    },
+    {
+      "utc": "2026-11-04T04:53:01.503516+00:00",
+      "http": 200,
+      "state": {
+        "y": 509.6666564941406,
+        "x": 0,
+        "width": 360,
+        "pageWidth": 360,
+        "status": "Available",
+        "statusClass": "status status--ok",
+        "connected": "S\u00ed",
+        "connectedClass": "status status--ok",
+        "date": "2026-11-03 08:00",
+        "navCount": 1
+      }
+    },
+    {
+      "utc": "2026-11-04T04:53:16.478352+00:00",
+      "http": 200,
+      "state": {
+        "y": 509.6666564941406,
+        "x": 0,
+        "width": 360,
+        "pageWidth": 360,
+        "status": "Available",
+        "statusClass": "status status--ok",
+        "connected": "S\u00ed",
+        "connectedClass": "status status--ok",
+        "date": "2026-11-03 08:00",
+        "navCount": 1
+      }
+    },
+    {
+      "utc": "2026-11-04T04:53:31.495430+00:00",
+      "http": 200,
+      "state": {
+        "y": 509.6666564941406,
+        "x": 0,
+        "width": 360,
+        "pageWidth": 360,
+        "status": "Available",
+        "statusClass": "status status--ok",
+        "connected": "S\u00ed",
+        "connectedClass": "status status--ok",
+        "date": "2026-11-03 08:00",
+        "navCount": 1
+      }
+    }
+  ],
+  "post_swipe": {
+    "y": 796.6666870117188,
+    "x": 0,
+    "width": 360,
+    "pageWidth": 360,
+    "status": "Available",
+    "statusClass": "status status--ok",
+    "connected": "S\u00ed",
+    "connectedClass": "status status--ok",
+    "date": "2026-11-03 08:00",
+    "navCount": 1
+  }
+}

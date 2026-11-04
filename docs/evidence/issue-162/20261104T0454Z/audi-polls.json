@@ -1,0 +1,93 @@
+{
+  "site": "audi",
+  "initial": {
+    "y": 495,
+    "x": 0,
+    "width": 360,
+    "pageWidth": 360,
+    "status": "Available",
+    "statusClass": "status status--ok",
+    "connected": "S\u00ed",
+    "connectedClass": "status status--ok",
+    "date": "2026-10-30 03:57 UTC",
+    "navCount": 1
+  },
+  "cycles": [
+    {
+      "utc": "2026-11-04T04:51:40.640745+00:00",
+      "http": 200,
+      "state": {
+        "y": 495,
+        "x": 0,
+        "width": 360,
+        "pageWidth": 360,
+        "status": "Available",
+        "statusClass": "status status--ok",
+        "connected": "S\u00ed",
+        "connectedClass": "status status--ok",
+        "date": "2026-10-30 03:57 UTC",
+        "navCount": 1
+      }
+    },
+    {
+      "utc": "2026-11-04T04:51:55.693748+00:00",
+      "http": 200,
+      "state": {
+        "y": 495,
+        "x": 0,
+        "width": 360,
+        "pageWidth": 360,
+        "status": "Available",
+        "statusClass": "status status--ok",
+        "connected": "S\u00ed",
+        "connectedClass": "status status--ok",
+        "date": "2026-10-30 03:57 UTC",
+        "navCount": 1
+      }
+    },
+    {
+      "utc": "2026-11-04T04:52:10.737672+00:00",
+      "http": 200,
+      "state": {
+        "y": 495,
+        "x": 0,
+        "width": 360,
+        "pageWidth": 360,
+        "status": "Available",
+        "statusClass": "status status--ok",
+        "connected": "S\u00ed",
+        "connectedClass": "status status--ok",
+        "date": "2026-10-30 03:57 UTC",
+        "navCount": 1
+      }
+    },
+    {
+      "utc": "2026-11-04T04:52:25.706799+00:00",
+      "http": 200,
+      "state": {
+        "y": 495,
+        "x": 0,
+        "width": 360,
+        "pageWidth": 360,
+        "status": "Available",
+        "statusClass": "status status--ok",
+        "connected": "S\u00ed",
+        "connectedClass": "status status--ok",
+        "date": "2026-10-30 03:57 UTC",
+        "navCount": 1
+      }
+    }
+  ],
+  "post_swipe": {
+    "y": 782,
+    "x": 0,
+    "width": 360,
+    "pageWidth": 360,
+    "status": "Available",
+    "statusClass": "status status--ok",
+    "connected": "S\u00ed",
+    "connectedClass": "status status--ok",
+    "date": "2026-10-30 03:57 UTC",
+    "navCount": 1
+  }
+}

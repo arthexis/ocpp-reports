@@ -1,0 +1,108 @@
+{
+  "installed_sha": "13fdae4fe8400b283dc32f398cd15e2dd01993bc",
+  "redaction": "CSS masks location, charger ID and meter fields throughout; desktop screenshots are restricted to connector region",
+  "polling": "real automatic refresh; not suppressed or mocked",
+  "notes": "admin mobile report uses the internal site label audi for the admin origin; see admin capture filenames",
+  "files": [
+    {
+      "file": "admin-before.png",
+      "sha256": "5eb7066f6af5dd5405da8b8f4215217188d2fd3dd4265ca69183acddabbce5e3",
+      "captured_utc": "2026-11-04T04:50:19.565717+00:00",
+      "device": "physical Samsung SM-G950F Android 9 Chrome 101.0.4951.61",
+      "viewport_css": [
+        360,
+        612
+      ]
+    },
+    {
+      "file": "admin-after.png",
+      "sha256": "d4624444c11c1af1b927c8184b69529bdb1ae4c5abc84368d3af0ab4cb14d70b",
+      "captured_utc": "2026-11-04T04:51:13.389907+00:00",
+      "device": "physical Samsung SM-G950F Android 9 Chrome 101.0.4951.61",
+      "viewport_css": [
+        360,
+        612
+      ]
+    },
+    {
+      "file": "audi-before.png",
+      "sha256": "5c081ed9e78ed358a76cb0729e028580a23415b77e703a1bb2add00a2402e678",
+      "captured_utc": "2026-11-04T04:51:31.137969+00:00",
+      "device": "physical Samsung SM-G950F Android 9 Chrome 101.0.4951.61",
+      "viewport_css": [
+        360,
+        612
+      ]
+    },
+    {
+      "file": "audi-after.png",
+      "sha256": "b11488df50c50db6d97173ea9cd11204553bf94f64f949725186cef5be312c3c",
+      "captured_utc": "2026-11-04T04:52:26.494159+00:00",
+      "device": "physical Samsung SM-G950F Android 9 Chrome 101.0.4951.61",
+      "viewport_css": [
+        360,
+        612
+      ]
+    },
+    {
+      "file": "porsche-before.png",
+      "sha256": "9f69692c6afe3d328e4b30636c5ee7437a22c3088a2670cd4c8f094fdc0e862c",
+      "captured_utc": "2026-11-04T04:52:38.094199+00:00",
+      "device": "physical Samsung SM-G950F Android 9 Chrome 101.0.4951.61",
+      "viewport_css": [
+        360,
+        612
+      ]
+    },
+    {
+      "file": "porsche-after.png",
+      "sha256": "705962ea37729de9e7c141bfe8b478ab205fb83fb415973c8d1c317a3e505ddc",
+      "captured_utc": "2026-11-04T04:53:32.246381+00:00",
+      "device": "physical Samsung SM-G950F Android 9 Chrome 101.0.4951.61",
+      "viewport_css": [
+        360,
+        612
+      ]
+    },
+    {
+      "file": "desktop-before.png",
+      "sha256": "1fa92edef3af2710dd9f29934771af64224bf5359ac82baa1856b8a8d8590e71",
+      "captured_utc": "2026-11-04T04:52:56.486261+00:00",
+      "device": "desktop Chromium 154.0.8037.92",
+      "viewport_css": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "desktop-after.png",
+      "sha256": "1fa92edef3af2710dd9f29934771af64224bf5359ac82baa1856b8a8d8590e71",
+      "captured_utc": "2026-11-04T04:53:35.942394+00:00",
+      "device": "desktop Chromium 154.0.8037.92",
+      "viewport_css": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "file": "admin-polls.json",
+      "sha256": "c21b6594fc7aa0fc0f40c6b76058979c788dbd4ad8539236c0bcef4c6b48bea2",
+      "captured_utc": "2026-11-04T04:51:15.401914+00:00"
+    },
+    {
+      "file": "audi-polls.json",
+      "sha256": "0a9c3b0f6e74b2f41b0e9f11dcffe910ea97aa3ed8657b5956de849948597640",
+      "captured_utc": "2026-11-04T04:52:28.510166+00:00"
+    },
+    {
+      "file": "porsche-polls.json",
+      "sha256": "1458f52d3962bea5e1f02cf8a707dd4085c83f7d15999b8dc1ec7a808ae7f719",
+      "captured_utc": "2026-11-04T04:53:34.318388+00:00"
+    },
+    {
+      "file": "desktop-polls.json",
+      "sha256": "3d90ca2c06d369d48938a12d365cf8b3f859974d58290792c44f623e1adb88b1",
+      "captured_utc": "2026-11-04T04:53:35.946394+00:00"
+    }
+  ]
+}
