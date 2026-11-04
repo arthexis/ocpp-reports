@@ -4,7 +4,7 @@ The `source_migration` utility creates **candidate copies only**. It never updat
 
 1. Verify the effective CSMS node configuration (hostname or explicit `/etc/ocpp-csms/node.toml`) will advertise the chosen canonical source ID after restart. Verify collector credentials are already keyed by the stable forwarding **node ID**, not by an evidence UUID.
 2. Capture a validated rollback snapshot of CSMS schema-8 SQLite (including WAL state), Reports warehouse and Forwarder state. Record their source identity, source event cursor, changefeed sequence and acknowledged forward cursor. Confirm collector acknowledgement matches the forwarder and that pending changes are fully drained. Do not migrate while acknowledgements are pending.
-3. On database **copies**, run `python -m ocpp_reports.source_migration --csms CSMS_SQLITE --warehouse WAREHOUSE_SQLITE --forwarder FORWARDER_SQLITE --output OUTPUT_DIRECTORY --old OLD_UUID --new gway-005 --node gway-005`. Outputs must not already exist.
+3. On database **copies**, run `python -m ocpp_reports.source_migration --csms CSMS_SQLITE --warehouse WAREHOUSE_SQLITE --forwarder FORWARDER_SQLITE --output OUTPUT_DIRECTORY --old OLD_UUID --new source-b --node source-b`. Outputs must not already exist.
 4. Compare copied database row counts, event IDs, transaction identity/revisions, warehouse source cursor, replication sequence and forward acknowledgements against the originals. Confirm no destination-ID collision at the collector, and compare the collector's existing identity/cursor separately; this tool intentionally does not write collector state.
 5. **Explicit operator authorization required for a real cutover.** Production replacement is not performed by the utility. Coordinate transactional replacement, rollback snapshots, matching configuration, and collector/CSMS acceptance with the local agent; all services stay stopped until verified.
 6. Restart under operator supervision, verify no replay gaps or duplicate transactions, then verify collector and Reports report generation. Roll back all affected files/configuration together on mismatch. Never silently migrate or delete historical CSMS schemas on an ordinary deploy.
@@ -20,13 +20,13 @@ Run this read-only command before the copy conversion:
 python -m ocpp_reports.source_preflight \
   --csms CSMS_SNAPSHOT --warehouse REPORTS_SNAPSHOT \
   --forwarder FORWARDER_SNAPSHOT --collector COLLECTOR_SNAPSHOT \
-  --old OLD_UUID --new gway-005 --node gway-005
+  --old OLD_UUID --new source-b --node source-b
 ```
 
 The command requires the existing source binding, durable node-keyed ACK and
 collector receipt. It rejects legacy collector UUID references, mismatched
 cursors, pending replication, and missing or conflicting retained change records.
-Collector `gway-005` history must exactly match the local UUID's history; it must
+Collector `source-b` history must exactly match the local UUID's history; it must
 never be merged with unrelated history merely because cursor numbers match.
 JSON payload formatting differences are allowed because the collector canonicalizes
 payloads. Missing or pruned history requires separate review, not an assumed pass.
