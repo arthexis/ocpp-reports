@@ -26,9 +26,9 @@ def _seed(dbpath, *, local=61, remote=42):
         db.execute("INSERT INTO sources(source_id,cursor) VALUES (?,?)", ("local", 0))
         db.execute("INSERT INTO collector_cursors(source_id,sequence) VALUES (?,?)", ("remote", 1))
         db.execute("INSERT INTO collector_charger_locations VALUES (?,?,?)",
-                   ("remote", "cp-remote", "Audi Calzada"))
+                   ("remote", "cp-remote", "West Calzada"))
         db.execute("INSERT INTO collector_charger_locations VALUES (?,?,?)",
-                   ("local", "cp-local", "Porsche"))
+                   ("local", "cp-local", "East"))
         for n in range(1, local + 1):
             payload = json.dumps(_record(n, energy=0 if n % 10 == 0 else 1000),
                                  sort_keys=True)
@@ -69,29 +69,29 @@ def test_all_history_is_counted_and_only_page_records_loaded(tmp_path):
 def test_filter_and_count_before_offset_and_source_isolation(tmp_path):
     dbpath = tmp_path / "warehouse.sqlite"
     _seed(dbpath, local=25, remote=42)
-    remote = _page(dbpath, location="audi", view="failed")
+    remote = _page(dbpath, location="west", view="failed")
     assert remote["transaction_pagination"]["counts"] == {
         "all": 42, "success": 38, "failed": 4
     }
     assert [r["id"] for r in remote["transactions"]] == [40, 30, 20, 10]
-    matching = _page(dbpath, term="PORSCHE", view="success", page=2)
+    matching = _page(dbpath, term="EAST", view="success", page=2)
     assert matching["transaction_pagination"]["counts"]["all"] == 25
     assert matching["transaction_pagination"]["counts"]["success"] == 23
     assert len(matching["transactions"]) == 3
-    porsche = snapshot(dbpath, allowed_source_ids=("local",),
+    east = snapshot(dbpath, allowed_source_ids=("local",),
                        transaction_pagination={
                            "term": "", "status": "", "location": "",
                            "date_from": "", "date_to": "", "zone": "UTC",
                            "view": "all", "page": 1,
                        })
-    assert porsche["transaction_pagination"]["total"] == 25
-    assert all(r["source_id"] == "local" for r in porsche["transactions"])
+    assert east["transaction_pagination"]["total"] == 25
+    assert all(r["source_id"] == "local" for r in east["transactions"])
     client = TestClient(create_app(dbpath, allowed_source_ids=("remote",), timezones=("UTC",)))
     assert client.get("/?source_id=local").status_code == 403
     response = client.get("/?tx_view=all&tx_page=2")
     assert response.status_code == 200
     assert "Mostrando 21–40 de 42" in response.text
-    assert "Porsche" not in response.text
+    assert "East" not in response.text
 
 
 def test_date_intersection_and_unknown_energy_semantics(tmp_path):

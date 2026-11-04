@@ -19,7 +19,7 @@ def local_page():
 def test_local_and_forwarded_chargers_share_dashboard_without_identity_collision(tmp_path):
     database = tmp_path / "warehouse.sqlite"
     sync_page(database, local_page())
-    collector = TestClient(create_collector(database, {"gway-005": "token-005"}))
+    collector = TestClient(create_collector(database, {"source-b": "token-005"}))
     changes = [
         {"sequence": 1, "kind": "connector", "record_key": "etron:1",
          "payload": {"charger_id": "etron", "connector_id": 1,
@@ -31,7 +31,7 @@ def test_local_and_forwarded_chargers_share_dashboard_without_identity_collision
         {"sequence": 3, "kind": "event", "record_key": "1",
          "payload": {"id": 1, "charger_id": "etron", "action": "StartTransaction"}},
     ]
-    batch = {"schema": "ocpp-reports/replication/v1", "source_id": "gway-005",
+    batch = {"schema": "ocpp-reports/replication/v1", "source_id": "source-b",
              "after": 0, "next": 3, "more": False, "changes": changes}
     headers = {"Authorization": "Bearer token-005"}
     assert collector.post("/api/replication", json=batch, headers=headers).json()["ack"] == 3
@@ -40,14 +40,14 @@ def test_local_and_forwarded_chargers_share_dashboard_without_identity_collision
     response = web.get("/api/snapshot")
     assert response.status_code == 200
     data = response.json()
-    assert {s["source_id"] for s in data["sources"]} == {"customer-vendor", "gway-005"}
+    assert {s["source_id"] for s in data["sources"]} == {"customer-vendor", "source-b"}
     assert {(c["source_id"], c["charger_id"]) for c in data["connectors"]} == {
-        ("customer-vendor", "vendor"), ("gway-005", "etron")}
-    assert len([t for t in data["transactions"] if t["source_id"] == "gway-005"]) == 1
-    assert len([e for e in data["events"] if e["source_id"] == "gway-005"]) == 1
-    assert len(web.get("/api/snapshot?source_id=gway-005").json()["connectors"]) == 1
-    assert web.get("/api/snapshot?source_id=gway-005&charger_id=vendor").json()["connectors"] == []
-    remote_connector = next(c for c in data["connectors"] if c["source_id"] == "gway-005")
+        ("customer-vendor", "vendor"), ("source-b", "etron")}
+    assert len([t for t in data["transactions"] if t["source_id"] == "source-b"]) == 1
+    assert len([e for e in data["events"] if e["source_id"] == "source-b"]) == 1
+    assert len(web.get("/api/snapshot?source_id=source-b").json()["connectors"]) == 1
+    assert web.get("/api/snapshot?source_id=source-b&charger_id=vendor").json()["connectors"] == []
+    remote_connector = next(c for c in data["connectors"] if c["source_id"] == "source-b")
     assert remote_connector["power_w"] is None
     assert remote_connector["energy_wh"] is None
     assert remote_connector["synced_at"] is None

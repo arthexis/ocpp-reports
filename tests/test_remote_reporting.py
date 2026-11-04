@@ -21,7 +21,7 @@ def transaction(ident=7, energy=4200):
 
 def send(db, sequence, tx, after=0):
     batch = Batch.model_validate({
-        "schema": "ocpp-reports/replication/v1", "source_id": "gway-005",
+        "schema": "ocpp-reports/replication/v1", "source_id": "source-b",
         "after": after, "next": sequence, "more": False,
         "changes": [{"sequence": sequence, "kind": "transaction",
                      "record_key": f"CP-1:{tx['id']}", "payload": tx}],
@@ -29,7 +29,7 @@ def send(db, sequence, tx, after=0):
     return accept_batch(db, batch)
 
 
-def report(db, source="gway-005"):
+def report(db, source="source-b"):
     return build_report_from_database(
         db, datetime(2026, 10, 1, tzinfo=timezone.utc),
         datetime(2026, 11, 1, tzinfo=timezone.utc), "UTC", source_id=source,

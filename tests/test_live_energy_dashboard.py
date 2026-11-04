@@ -14,13 +14,13 @@ def test_forwarded_live_energy_and_finalization(tmp_path):
     with sqlite3.connect(dbpath) as db:
         db.execute("CREATE TABLE collector_latest (source_id TEXT, kind TEXT, record_key TEXT, payload TEXT)")
         db.execute("CREATE TABLE collector_cursors (source_id TEXT, sequence INTEGER)")
-        db.execute("INSERT INTO collector_cursors VALUES ('gway-005', 1)")
+        db.execute("INSERT INTO collector_cursors VALUES ('source-b', 1)")
         item = {
             "id": 8, "charger_id": "test", "state": "open", "active": True,
             "energy_wh": None, "live_energy_wh": 34750,
             "live_energy_observed_at": datetime.now(timezone.utc).isoformat(),
         }
-        db.execute("INSERT INTO collector_latest VALUES ('gway-005','transaction','8',?)", (json.dumps(item),))
+        db.execute("INSERT INTO collector_latest VALUES ('source-b','transaction','8',?)", (json.dumps(item),))
     data = snapshot(dbpath)
     assert data["transactions"][0]["live_energy_stale"] is False
     environment = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parents[1] / "src/ocpp_reports/templates")))

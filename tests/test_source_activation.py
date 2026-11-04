@@ -30,17 +30,17 @@ def test_activation_preserves_history_and_initializes_binding(tmp_path, monkeypa
     csms, warehouse, state = _inputs(tmp_path)
     monkeypatch.setattr(activation, "require_stopped", lambda: None)
     receipt = activation.activate(csms, warehouse, state, tmp_path / "backup",
-                                  "uuid-old", "gway-002", "gway-002")
-    assert receipt["source_id"] == "gway-002"
+                                  "uuid-old", "source-a", "source-a")
+    assert receipt["source_id"] == "source-a"
     with sqlite3.connect(csms) as db:
-        assert db.execute("SELECT value FROM appliance_metadata").fetchone() == ("gway-002",)
+        assert db.execute("SELECT value FROM appliance_metadata").fetchone() == ("source-a",)
         assert db.execute("SELECT payload FROM events").fetchone() == ("retained",)
         assert db.execute("PRAGMA user_version").fetchone() == (8,)
     with sqlite3.connect(warehouse) as db:
-        assert db.execute("SELECT source_id,cursor FROM sources").fetchone() == ("gway-002", 1)
-        assert db.execute("SELECT sequence,source_id FROM replication_changes").fetchone() == (1, "gway-002")
+        assert db.execute("SELECT source_id,cursor FROM sources").fetchone() == ("source-a", 1)
+        assert db.execute("SELECT sequence,source_id FROM replication_changes").fetchone() == (1, "source-a")
     with sqlite3.connect(state) as db:
-        assert db.execute("SELECT * FROM source_bindings").fetchone() == ("gway-002", "gway-002")
+        assert db.execute("SELECT * FROM source_bindings").fetchone() == ("source-a", "source-a")
         assert db.execute("SELECT count(*) FROM forward_cursors").fetchone() == (0,)
     with sqlite3.connect(tmp_path / "backup" / "csms.sqlite3") as db:
         assert db.execute("SELECT value FROM appliance_metadata").fetchone() == ("uuid-old",)
@@ -57,7 +57,7 @@ def test_activation_failure_restores_first_replacement(tmp_path, monkeypatch):
     monkeypatch.setattr(activation.os, "replace", fail_warehouse)
     with pytest.raises(OSError, match="interrupted installation"):
         activation.activate(csms, warehouse, state, tmp_path / "backup",
-                            "uuid-old", "gway-002", "gway-002")
+                            "uuid-old", "source-a", "source-a")
     with sqlite3.connect(csms) as db:
         assert db.execute("SELECT value FROM appliance_metadata").fetchone() == ("uuid-old",)
         assert db.execute("SELECT payload FROM events").fetchone() == ("retained",)
@@ -71,7 +71,7 @@ def test_refuses_running_service_before_any_backup(tmp_path, monkeypatch):
     monkeypatch.setattr(activation, "require_stopped", lambda: (_ for _ in ()).throw(ValueError("running")))
     with pytest.raises(ValueError, match="running"):
         activation.activate(csms, warehouse, state, tmp_path / "backup",
-                            "uuid-old", "gway-002", "gway-002")
+                            "uuid-old", "source-a", "source-a")
     assert not (tmp_path / "backup").exists()
 
 
@@ -82,7 +82,7 @@ def test_refuses_active_transaction_before_any_backup(tmp_path, monkeypatch):
         db.execute("INSERT INTO transactions VALUES(1,NULL)")
     with pytest.raises(ValueError, match="Active CSMS transactions"):
         activation.activate(csms, warehouse, state, tmp_path / "backup",
-                            "uuid-old", "gway-002", "gway-002")
+                            "uuid-old", "source-a", "source-a")
     assert not (tmp_path / "backup").exists()
 
 

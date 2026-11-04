@@ -1,7 +1,7 @@
-# customer Watchtower + gway-005 satellite validation
+# customer Watchtower + source-b satellite validation
 
 This deployment joins the Watchtower's locally managed vendor charger and the
-customer-ev charger managed by gway-005 in one **read-only dashboard**. The two
+customer-ev charger managed by source-b in one **read-only dashboard**. The two
 CSMS instances stay independent. Collector traffic uses
 `https://collector.example.com/api/replication`; dashboard traffic uses
 `https://customer.example.com`.
@@ -10,17 +10,17 @@ CSMS instances stay independent. Collector traffic uses
 
 1. Verify both hosts have current `ocpp-csms.service`, preserve existing
    Reports role markers, and deploy Reports with their already selected roles
-   (`watchtower` for the customer server, `satellite` for gway-005).
+   (`watchtower` for the customer server, `satellite` for source-b).
    Do not uninstall to change a role during this test.
 2. On the customer host, configure `/etc/ocpp-reports/collector.toml`
-   via `ocpp-reports collector config` with a distinct token for `gway-005`:
-   `[sources]` followed by `gway-005 = "<secret>"`.
+   via `ocpp-reports collector config` with a distinct token for `source-b`:
+   `[sources]` followed by `source-b = "<secret>"`.
 3. Enable Watchtower local ingestion using
    `OCPP_REPORTS_LOCAL_INGEST_ENABLED=true` at deployment if not already
    enabled. Check its active CSMS schema data dir (default schema 8).
-4. On gway-005, edit `/etc/ocpp-reports/forwarder.toml` using
+4. On source-b, edit `/etc/ocpp-reports/forwarder.toml` using
    `ocpp-reports forwarder config`; set
-   `source_id = "gway-005"`, `endpoint =
+   `source_id = "source-b"`, `endpoint =
    "https://collector.example.com/api/replication"`, and the same token.
    Keep protected TOML files mode 0600 or 0640 as required by Ansible.
 5. On the customer host ensure the collector TLS certificate, dashboard TLS
@@ -31,7 +31,7 @@ CSMS instances stay independent. Collector traffic uses
 ## Acceptance
 
 - `systemctl is-active ocpp-reports-ingest.service` on both hosts.
-- `systemctl is-active ocpp-reports-forwarder.service` on gway-005.
+- `systemctl is-active ocpp-reports-forwarder.service` on source-b.
 - `systemctl is-active ocpp-reports-collector.service` and
   `systemctl is-active ocpp-reports-dashboard.service` on customer.
 - `ocpp-reports forwarder config --check` and

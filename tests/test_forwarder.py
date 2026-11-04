@@ -53,15 +53,15 @@ def test_forwarder_uses_node_name_with_distinct_local_evidence_uuid(tmp_path):
     def received(request):
         import json
         body = json.loads(request.content)
-        assert body["source_id"] == "gway-005"
+        assert body["source_id"] == "source-b"
         assert body["changes"]
-        return httpx.Response(200, json={"source_id": "gway-005", "ack": body["next"]})
+        return httpx.Response(200, json={"source_id": "source-b", "ack": body["next"]})
 
     with httpx.Client(transport=httpx.MockTransport(received)) as client:
-        assert forward_once(warehouse, state, "gway-005",
+        assert forward_once(warehouse, state, "source-b",
                             "https://collector.test/api/replication",
                             "secret", client=client) == 1
-    assert confirmed_cursor(state, "gway-005") == 1
+    assert confirmed_cursor(state, "source-b") == 1
     assert confirmed_cursor(state, source_page["data"]["source_id"]) == 0
 
 
@@ -76,6 +76,6 @@ def test_forwarder_refuses_ambiguous_local_sources(tmp_path):
     with pytest.raises(ValueError, match="exactly one"):
         local_evidence_source(warehouse)
     with pytest.raises(ValueError, match="exactly one"):
-        forward_once(warehouse, state, "gway-005",
+        forward_once(warehouse, state, "source-b",
                      "https://collector.test/api/replication", "secret")
     assert not state.exists()
