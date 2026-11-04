@@ -329,6 +329,10 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         snapshot_started = perf_counter()
         data = read(source_id, charger_id, 100, transaction_pagination=sql_page, skip_events=True)
         snapshot_duration_ms = (perf_counter() - snapshot_started) * 1000
+        # Preserve source freshness evidence before term filtering hides source rows.
+        now = datetime.now(timezone.utc)
+        source_freshness = {source["source_id"]: _source_freshness(source, now)
+                            for source in data["sources"]}
         paginated = data.get("transaction_pagination")
         # Keep connector/event filters in the established presentation path.
         rows = data["transactions"] if paginated is not None else None
@@ -376,9 +380,6 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         else:
             event_groups = _group_events(data["events"])[:10]
             event_has_next = False
-        now = datetime.now(timezone.utc)
-        source_freshness = {source["source_id"]: _source_freshness(source, now)
-                            for source in data["sources"]}
         for connector in data["connectors"]:
             # StatusNotification is change-driven: age of the last status change
             # does not measure connectivity. Do not use the export timestamp as
