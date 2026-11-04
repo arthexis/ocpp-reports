@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="15"><title>{{ title }}</title>
+<title>{{ title }}</title>
 <style>
 :root{color-scheme:light;--bg:#f5f7fa;--surface:#fff;--ink:#172437;--muted:#637286;--line:#e2e8f0;--nav:#203247;--accent:#1268c7;--warning:#a96700;font:16px system-ui,sans-serif}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.45}
@@ -153,7 +153,7 @@ header{align-items:start;gap:.65rem}
 }
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand"><h1>{{ title }}</h1>
-<div class="muted">Solo lectura · Actualiza cada 15 s ·
+<div class="muted">Solo lectura · Datos actualizados cada 15 s ·
 <details class="tz-picker"><summary id="timezone-display">{{ timezone }} ▾</summary>
 <label for="timezone-choice">Zona horaria</label>
 <select id="timezone-choice" aria-label="Zona horaria">{% for zone in timezones %}
@@ -220,6 +220,7 @@ header{align-items:start;gap:.65rem}
 {% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at|display_date(timezone) if s.last_ingested_at else "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at|display_date(timezone) if s.last_replication_received_at else "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
 <section class="events-panel" id="events"><div class="panel-heading"><h2>Eventos recientes</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Eventos recientes" aria-controls="help-events" aria-expanded="false" aria-describedby="help-events">ⓘ</button></span><span class="panel-help-text" id="help-events" role="tooltip">Eventos consecutivos de la misma acción y cargador se agrupan; abre un grupo para ver el detalle.</span></div>
+<div id="live-event-groups">
 {% for group in event_groups %}
 {% if group.first_event_id is defined %}
 <details class="event-group" data-source="{{ group.source_id }}" data-first-id="{{ group.first_event_id }}">
@@ -243,6 +244,7 @@ header{align-items:start;gap:.65rem}
 <span class="page-current" aria-current="page">{{ event_page }}</span>
 {% if event_has_next %}<a href="{{ request.url.include_query_params(event_page=event_page+1) }}#events" rel="next">Siguiente</a>{% else %}<span class="page-disabled">Siguiente</span>{% endif %}
 </div></nav>
+</div>
 </section></div></main>
 
 <script>
@@ -319,7 +321,8 @@ header{align-items:start;gap:.65rem}
   }
   // Opening a group requests at most 50 original events. No event payloads
   // are embedded in the initial HTML; all DOM fields use textContent.
-  for (const details of document.querySelectorAll(".event-group")) {
+  const setupEventGroups = (root = document) => {
+  for (const details of root.querySelectorAll(".event-group")) {
     const holder = details.querySelector(".event-detail");
     let offset = 0, exhausted = false, loading = false;
     const table = document.createElement("table");
@@ -370,6 +373,8 @@ header{align-items:start;gap:.65rem}
       if (details.open && offset === 0) load();
     });
   }
+  };
+  setupEventGroups();
   // Show a scroll affordance only when desktop connector columns actually overflow.
   const connectorRegion = document.querySelector(".connectors-panel .scroll");
   const connectorHint = document.getElementById("connector-scroll-hint");
@@ -383,6 +388,57 @@ header{align-items:start;gap:.65rem}
     window.addEventListener("resize", updateConnectorHint);
     updateConnectorHint();
   }
+  // Refresh data in place. Never navigate, replace table scroll containers,
+  // or disturb filters, focused controls, expanded event groups, or scroll positions.
+  // The existing GET route applies the same source permissions and URL filters.
+  let refreshing = false;
+  const refreshDashboard = async () => {
+    if (refreshing || document.hidden) return;
+    refreshing = true;
+    try {
+      const response = await fetch(window.location.pathname + window.location.search, {
+        credentials: "same-origin", cache: "no-store",
+        headers: {"Accept": "text/html"}
+      });
+      if (!response.ok) return; // Keep existing evidence on transient warehouse errors.
+      const fresh = new DOMParser().parseFromString(await response.text(), "text/html");
+      if (!fresh.querySelector("#live-event-groups")) return;
+      const update = (selector) => {
+        const current = document.querySelector(selector);
+        const next = fresh.querySelector(selector);
+        if (current && next && current.innerHTML !== next.innerHTML &&
+            !current.contains(document.activeElement)) {
+          current.innerHTML = next.innerHTML;
+        }
+      };
+      // Change only data surfaces, not panels or scrollable wrappers.
+      for (const selector of [
+        ".operations-cards",
+        ".connectors-panel tbody",
+        ".transactions-panel tbody",
+        ".transaction-filters",
+        ".transactions-panel .transaction-pagination",
+        ".sync-panel tbody"
+      ]) update(selector);
+      const eventRegion = document.getElementById("live-event-groups");
+      // Reading a group can involve lazy-loaded event rows; never discard them.
+      if (eventRegion && !eventRegion.querySelector("details[open]") &&
+          !eventRegion.contains(document.activeElement)) {
+        const next = fresh.getElementById("live-event-groups");
+        if (eventRegion.innerHTML !== next.innerHTML) {
+          eventRegion.innerHTML = next.innerHTML;
+          setupEventGroups(eventRegion);
+        }
+      }
+    } catch (_) {
+      // A failed poll must not interrupt the dashboard or reset the page.
+    } finally {
+      refreshing = false;
+    }
+  };
+  const refreshTimer = window.setInterval(refreshDashboard, 15000);
+  window.addEventListener("pagehide", () => window.clearInterval(refreshTimer));
+
   let timer;
   const apply = () => { clearTimeout(timer); form.requestSubmit(); };
   for (const input of form.querySelectorAll('input:not([type="hidden"])')) {
