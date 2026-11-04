@@ -21,23 +21,23 @@ def init(tmp_path):
     with sqlite3.connect(forwarder) as db:
         db.execute("CREATE TABLE forward_cursors (source_id TEXT PRIMARY KEY, sequence INTEGER)")
         db.execute("CREATE TABLE source_bindings (node_id TEXT PRIMARY KEY, evidence_source TEXT)")
-        db.execute("INSERT INTO forward_cursors VALUES ('gway-005', 73)")
-        db.execute("INSERT INTO source_bindings VALUES ('gway-005', 'uuid-old')")
+        db.execute("INSERT INTO forward_cursors VALUES ('source-b', 73)")
+        db.execute("INSERT INTO source_bindings VALUES ('source-b', 'uuid-old')")
     return csms, warehouse, forwarder
 
 
 def test_migrate_only_copies_without_losing_cursors(tmp_path):
     csms, warehouse, forwarder = init(tmp_path)
     dest = tmp_path / "candidates"
-    files = migrate_copies(csms, warehouse, forwarder, dest, "uuid-old", "gway-005", "gway-005")
+    files = migrate_copies(csms, warehouse, forwarder, dest, "uuid-old", "source-b", "source-b")
     with sqlite3.connect(files["csms"]) as db:
-        assert db.execute("SELECT value FROM appliance_metadata").fetchone() == ("gway-005",)
+        assert db.execute("SELECT value FROM appliance_metadata").fetchone() == ("source-b",)
     with sqlite3.connect(files["warehouse"]) as db:
-        assert db.execute("SELECT cursor FROM sources WHERE source_id='gway-005'").fetchone() == (135,)
-        assert db.execute("SELECT sequence FROM replication_changes WHERE source_id='gway-005'").fetchone() == (73,)
+        assert db.execute("SELECT cursor FROM sources WHERE source_id='source-b'").fetchone() == (135,)
+        assert db.execute("SELECT sequence FROM replication_changes WHERE source_id='source-b'").fetchone() == (73,)
     with sqlite3.connect(files["forwarder"]) as db:
         assert db.execute("SELECT sequence FROM forward_cursors").fetchone() == (73,)
-        assert db.execute("SELECT evidence_source FROM source_bindings").fetchone() == ("gway-005",)
+        assert db.execute("SELECT evidence_source FROM source_bindings").fetchone() == ("source-b",)
     with sqlite3.connect(csms) as db:
         assert db.execute("SELECT value FROM appliance_metadata").fetchone() == ("uuid-old",)
     with sqlite3.connect(warehouse) as db:
@@ -47,10 +47,10 @@ def test_migrate_only_copies_without_losing_cursors(tmp_path):
 def test_collision_refuses_and_removes_candidates(tmp_path):
     csms, warehouse, forwarder = init(tmp_path)
     with sqlite3.connect(warehouse) as db:
-        db.execute("INSERT INTO sources VALUES ('gway-005', 0)")
+        db.execute("INSERT INTO sources VALUES ('source-b', 0)")
     output = tmp_path / "candidates"
     with pytest.raises(ValueError, match="already exists"):
-        migrate_copies(csms, warehouse, forwarder, output, "uuid-old", "gway-005", "gway-005")
+        migrate_copies(csms, warehouse, forwarder, output, "uuid-old", "source-b", "source-b")
     assert not output.exists()
 
 
@@ -63,7 +63,7 @@ def test_schema_versions_and_ddl_are_unchanged(tmp_path):
             db.execute("PRAGMA user_version=8")
             before[name] = (db.execute("PRAGMA user_version").fetchone()[0],
                             db.execute("SELECT type,name,sql FROM sqlite_master ORDER BY type,name").fetchall())
-    files = migrate_copies(csms, warehouse, forwarder, tmp_path / "copies", "uuid-old", "gway-005", "gway-005")
+    files = migrate_copies(csms, warehouse, forwarder, tmp_path / "copies", "uuid-old", "source-b", "source-b")
     for name, path in files.items():
         with sqlite3.connect(path) as db:
             after = (db.execute("PRAGMA user_version").fetchone()[0],
@@ -78,5 +78,5 @@ def test_unknown_source_references_fail_closed(tmp_path):
         db.execute("INSERT INTO new_projection VALUES ('uuid-old', 1)")
     output = tmp_path / "copies"
     with pytest.raises(ValueError, match="Unrecognized source references"):
-        migrate_copies(csms, warehouse, forwarder, output, "uuid-old", "gway-005", "gway-005")
+        migrate_copies(csms, warehouse, forwarder, output, "uuid-old", "source-b", "source-b")
     assert not output.exists()
