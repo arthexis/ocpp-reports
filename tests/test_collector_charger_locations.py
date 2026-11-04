@@ -33,17 +33,17 @@ def test_fallback_and_source_scoped_duplicate_charger(tmp_path):
     assert {(c["source_id"], c["location"]) for c in initial["connectors"]} == {
         ("node-a", "node-a"), ("node-b", "node-b")}
     assert manage(db, "set", source="node-a", charger="charger-1",
-                  location="Audi San Pedro")["location"] == "Audi San Pedro"
+                  location="West San Pedro")["location"] == "West San Pedro"
     scoped = snapshot(db, allowed_source_ids=("node-a",))
     assert len(scoped["connectors"]) == 1
-    assert scoped["connectors"][0]["location"] == "Audi San Pedro"
+    assert scoped["connectors"][0]["location"] == "West San Pedro"
     assert snapshot(db, allowed_source_ids=("node-b",))["connectors"][0]["location"] == "node-b"
     assert len(manage(db, "list")) == 1
     assert manage(db, "list", source="node-b") == []
     client = TestClient(create_app(db, allowed_source_ids=("node-a",)))
-    assert "Audi San Pedro" in client.get("/").text
+    assert "West San Pedro" in client.get("/").text
     assert "Ubicación" in client.get("/").text
-    assert client.get("/api/snapshot").json()["connectors"][0]["location"] == "Audi San Pedro"
+    assert client.get("/api/snapshot").json()["connectors"][0]["location"] == "West San Pedro"
     assert client.get("/api/snapshot?source_id=node-b").status_code == 403
     manage(db, "remove", source="node-a", charger="charger-1")
     assert snapshot(db, allowed_source_ids=("node-a",))["connectors"][0]["location"] == "node-a"
@@ -358,9 +358,9 @@ def test_human_readable_inventory_and_set_unset_filters(tmp_path):
     assert next(r for r in rows if r["source_id"] == "source-no-charger")["charger_id"] is None
     assert runner.invoke(app, [*base, "--set"]).output == "No matching sources or chargers.\n"
     assignment = runner.invoke(app, ["locations", "set", "--database", str(db),
-                                     "--source", "node-a", "--name", "Audi Calzada"])
+                                     "--source", "node-a", "--name", "West Calzada"])
     assert assignment.exit_code == 0, assignment.output
-    assert "Named node-a / charger-a: Audi Calzada" in assignment.output
+    assert "Named node-a / charger-a: West Calzada" in assignment.output
     assert not assignment.output.startswith("{")
     assert "charger-a" in runner.invoke(app, [*base, "--set"]).output
     assert "charger-b" not in runner.invoke(app, [*base, "--set"]).output
@@ -369,7 +369,7 @@ def test_human_readable_inventory_and_set_unset_filters(tmp_path):
         ("node-b", "charger-b"), ("source-no-charger", None)}
     assert runner.invoke(app, [*base, "--set", "--unset"]).exit_code == 2
     filtered = json.loads(runner.invoke(app, [*base, "--source", "node-a", "--json"]).output)
-    assert len(filtered) == 1 and filtered[0]["location"] == "Audi Calzada"
+    assert len(filtered) == 1 and filtered[0]["location"] == "West Calzada"
     removed = runner.invoke(app, ["locations", "remove", "--database", str(db),
                                   "--source", "node-a"])
     assert removed.exit_code == 0, removed.output
