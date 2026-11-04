@@ -128,3 +128,37 @@ def test_sqlite_snapshot_api_retains_raw_connection_flag(monkeypatch, tmp_path):
     client = TestClient(web.create_app(tmp_path / "warehouse"))
     assert client.get("/").status_code == 200
     assert client.get("/api/snapshot").json()["connectors"][0]["connected"] == 1
+
+
+@pytest.mark.parametrize("search", ["Available", "Garage", "charger-a"])
+def test_connector_search_preserves_original_source_freshness(monkeypatch, tmp_path, search):
+    data = _data(connected=1)
+    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
+    client = TestClient(web.create_app(tmp_path / "warehouse"))
+    page = client.get("/", params={"filter": search, "connector_view": "individual", "tz": "UTC"})
+    assert page.status_code == 200
+    assert 'status status--ok">Available</span>' in page.text
+    assert 'status status--ok" title=' in page.text
+    assert '1 (1)</strong><span>Disponibles' in page.text
+    assert ">Origen sin fecha</span>" not in page.text
+    assert ">Origen atrasado</span>" not in page.text
+    assert web.display_date(data["connectors"][0]["status_observed_at"], "UTC") in page.text
+    assert "Sin orígenes" in page.text
+    assert client.get("/api/snapshot").json()["sources"][0]["source_id"] == "site-a"
+
+
+def test_filtered_connector_still_warns_about_old_source(monkeypatch, tmp_path):
+    data = _data(connected=1, source_age_seconds=3600)
+    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
+    html = TestClient(web.create_app(tmp_path / "warehouse")).get(
+        "/", params={"filter": "Available"}).text
+    assert ">Origen atrasado</span>" in html
+    assert 'status status--historic">Available</span>' in html
+
+
+def test_filtered_connector_does_not_widen_source_authorization(monkeypatch, tmp_path):
+    data = _data(connected=1)
+    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
+    client = TestClient(web.create_app(tmp_path / "warehouse", allowed_source_ids=("site-a",)))
+    assert client.get("/", params={"filter": "Available"}).status_code == 200
+    assert client.get("/", params={"source_id": "other", "filter": "Available"}).status_code == 403
