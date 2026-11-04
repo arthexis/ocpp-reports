@@ -54,6 +54,17 @@
         that:
           - reports_role is defined
           - reports_role in ['terminal', 'satellite', 'watchtower', 'control']
+    - name: Select supported Reports Python before changing installation state
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ playbook_dir }}/python_preflight.py"
+      register: reports_python_preflight
+      changed_when: false
+    - name: Capture selected Reports Python
+      ansible.builtin.set_fact:
+        reports_python: "{{ (reports_python_preflight.stdout | from_json).executable }}"
+        reports_python_minor: "{{ (reports_python_preflight.stdout | from_json).minor }}"
     - name: Validate optional local ingestion override
       ansible.builtin.assert:
         that:
