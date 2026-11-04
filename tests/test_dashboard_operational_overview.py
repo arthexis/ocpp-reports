@@ -49,7 +49,7 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
     assert html.index('class="transactions-panel"') < html.index('id="synchronization"')
     assert "cp-fault" in html and "Faulted" in html
     assert "Falla / no disponible (último estado)" in html
-    assert "Una falla antigua también puede contarse como dato antiguo" in html
+    assert "Una falla con origen atrasado también puede contarse como dato incierto" in html
     assert "grid-template-columns:repeat(2,minmax(0,1fr))" in html
     assert "connectors-panel td::before" in html
 
@@ -98,6 +98,7 @@ def test_status_cards_render_station_and_connector_totals(monkeypatch, tmp_path)
 
     def data(*args, **kwargs):
         rows = _snapshot()
+        rows["sources"][0]["last_ingested_at"] = datetime.now(timezone.utc).isoformat()
         rows["connectors"] = [
             {"source_id": "site-a", "charger_id": "cp", "connector_id": cid,
              "status": "Available", "connected": True,
@@ -143,15 +144,15 @@ def test_status_provenance_does_not_freshen_with_snapshots(monkeypatch, tmp_path
     monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
     client = TestClient(web.create_app(tmp_path / "unused", allowed_source_ids=("site-a",)))
     html = client.get("/").text
-    assert ">Antiguo</span>" in html
-    assert ">Sin fecha</span>" not in html
+    assert ">Origen atrasado</span>" not in html
+    assert ">Estado sin fecha</span>" not in html
     assert web.display_date(original, "UTC") in html
     assert 'data-label="Snapshot recibido"' not in html
     assert '<th>Snapshot recibido</th>' not in html
     assert "Recepción de réplica" in html
     assert '0 (0)</strong><span>Disponibles' in html
     assert '1 (1)</strong><span>Falla' in html
-    assert '1 (1)</strong><span>Datos antiguos' in html
+    assert '0 (0)</strong><span>Datos antiguos' in html
     # Presentation-only age classification does not alter authoritative API evidence.
     raw = client.get("/api/snapshot").json()["connectors"][0]
     assert raw["status_observed_at"] == original
@@ -174,9 +175,9 @@ def test_missing_or_invalid_original_status_time_is_unknown(monkeypatch, tmp_pat
     monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(source))
     client = TestClient(web.create_app(tmp_path / "unused", allowed_source_ids=("site-a",)))
     html = client.get("/").text
-    assert ">Sin fecha</span>" in html
+    assert ">Estado sin fecha</span>" in html
     assert '0 (0)</strong><span>Disponibles' in html
     assert '1 (1)</strong><span>Datos antiguos' in html
     for bad in ("not-a-time", "2026-10-29T15:35:00"):
         source["connectors"][0]["status_observed_at"] = bad
-        assert ">Sin fecha</span>" in client.get("/").text
+        assert ">Estado sin fecha</span>" in client.get("/").text
