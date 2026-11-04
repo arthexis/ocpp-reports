@@ -25,6 +25,32 @@ print the generated dashboard unit, service state, and recent journal.
 The full cross-repository contract test in CI additionally installs the
 `ocpp-csms` producer from `main`; operators can do the same locally if needed.
 
+## Deployment Python preflight
+
+The application requires Python **3.11 or newer**. Before Ansible changes
+installation state, it verifies a compatible interpreter with `venv` and
+`ensurepip`. The system default `python3` is preferred when supported;
+otherwise it tries `python3.13`, `python3.12`, then `python3.11`.
+To select a particular runtime (for example on Ubuntu 22.04):
+
+```sh
+OCPP_REPORTS_PYTHON=/usr/bin/python3.11 ./deploy.sh --watchtower
+```
+
+Install the matching venv package first (for example `python3.11-venv`).
+An unsupported explicit override fails rather than silently falling back.
+Release, dependency and wheel-building virtual environments all use the
+selected interpreter. Reusable environments are isolated by Python minor
+version, and incompatible or incomplete ones cause an explicit failure rather
+than being silently reused or deleted. Existing valid immutable releases remain
+unchanged; a no-op redeploy is not forced to rebuild environments.
+
+You can check host selection without deploying:
+
+```sh
+python3 ansible/python_preflight.py
+```
+
 ## Operator CLI
 
 The single executable is `ocpp-reports`; there is no singular `ocpp-report` alias. Invoking it without a subcommand displays help. The operations have distinct responsibilities:
