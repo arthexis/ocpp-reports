@@ -156,6 +156,34 @@ def _filter_transaction_energy(transactions: list[dict], view: str) -> list[dict
             and (value > 0 if view == "success" else value == 0)]
 
 
+# Ingestion cadence is normally 30 seconds; allow for forwarding/backoff jitter.
+# This is source-pipeline freshness, not proof of charger heartbeat or a new status.
+SOURCE_FRESHNESS_SECONDS = 180
+
+
+def _freshness(timestamp: object, now: datetime) -> str:
+    """Evaluate a timestamp without treating missing/unzoned evidence as current."""
+    if not isinstance(timestamp, str):
+        return "unknown"
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return "unknown"
+        age = (now - parsed.astimezone(timezone.utc)).total_seconds()
+        return "fresh" if 0 <= age <= SOURCE_FRESHNESS_SECONDS else "old"
+    except ValueError:
+        return "unknown"
+
+
+def _source_freshness(source: dict, now: datetime) -> str:
+    """Collector receipt and local ingestion are alternative pipeline observations."""
+    states = [_freshness(source.get(key), now)
+              for key in ("last_ingested_at", "last_replication_received_at")]
+    if "fresh" in states:
+        return "fresh"
+    return "old" if "old" in states else "unknown"
+
+
 def _operational_status_counts(connectors: list[dict]) -> dict[str, dict[str, int]]:
     """Count distinct stations and physical connectors, without counting C0 twice.
 
@@ -340,21 +368,29 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             event_groups = _group_events(data["events"])[:10]
             event_has_next = False
         now = datetime.now(timezone.utc)
+        source_freshness = {source["source_id"]: _source_freshness(source, now)
+                            for source in data["sources"]}
         for connector in data["connectors"]:
-            # A refreshed export is not evidence of a new StatusNotification.
-            # Never substitute snapshot time for unknown status provenance.
-            status_at = connector.get("status_observed_at")
-            connector["status_time_unknown"] = True
-            connector["stale"] = True
-            if isinstance(status_at, str):
-                try:
-                    observed = datetime.fromisoformat(status_at.replace("Z", "+00:00"))
-                    if observed.tzinfo is not None:
-                        age = (now - observed.astimezone(timezone.utc)).total_seconds()
-                        connector["status_time_unknown"] = False
-                        connector["stale"] = not 0 <= age <= 30
-                except ValueError:
-                    pass
+            # StatusNotification is change-driven: age of the last status change
+            # does not measure connectivity. Do not use the export timestamp as
+            # proof of a new status or a heartbeat from this charger.
+            connector["status_time_unknown"] = (
+                _freshness(connector.get("status_observed_at"), now) == "unknown"
+            )
+            connector["source_freshness"] = source_freshness.get(
+                connector.get("source_id"), "unknown"
+            )
+            # The observed connection flag comes from the source's last
+            # CSMS status snapshot; it is only actionable with recent source data.
+            connector["connection_fresh"] = (
+                connector["source_freshness"] == "fresh"
+                and type(connector.get("connected")) is bool
+            )
+            connector["stale"] = (
+                connector["source_freshness"] != "fresh"
+                or connector.get("connected") is not True
+                or not connector.get("status")
+            )
         operational_counts = _operational_status_counts(data["connectors"])
         # Presentation-only selection. Operational cards count all scoped physical connectors,
         # and /api/snapshot preserves the complete source-scoped evidence.
