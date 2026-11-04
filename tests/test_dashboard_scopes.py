@@ -12,7 +12,7 @@ from test_web import empty_page
 
 
 def populate(database):
-    for source in ('gway-002', 'gway-005', 'porsche-abb-1'):
+    for source in ('source-a', 'source-b', 'source-c'):
         page = empty_page()
         page['data']['source_id'] = source
         page['data']['status']['chargers'][0]['id'] = 'cp-' + source
@@ -24,13 +24,13 @@ def test_scopes_enforced_for_all_sections_and_query_filters(tmp_path):
     populate(database)
     import sqlite3
     with sqlite3.connect(database) as db:
-        for source in ('gway-002', 'gway-005', 'porsche-abb-1'):
+        for source in ('source-a', 'source-b', 'source-c'):
             payload = json.dumps({'id': 1, 'charger_id': 'cp-' + source})
             db.execute('INSERT INTO events VALUES (?,?,?)', (source, 1, payload))
             db.execute('INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)',
                        (source, 'cp-' + source, 1, 0, 0, '1', payload, '2026-01-01'))
-    for allowed, forbidden in [(('gway-002',), 'gway-005'),
-                               (('gway-005', 'porsche-abb-1'), 'gway-002')]:
+    for allowed, forbidden in [(('source-a',), 'source-b'),
+                               (('source-b', 'source-c'), 'source-a')]:
         client = TestClient(create_app(database, allowed_source_ids=allowed, title='Customer'))
         page = client.get('/')
         assert page.status_code == 200
@@ -57,7 +57,7 @@ def test_empty_scope_fails_closed(tmp_path):
 def test_replication_scopes(tmp_path):
     from test_collector import batch
     database = tmp_path / 'reports.sqlite'
-    for source in ('gway-002', 'gway-005'):
+    for source in ('source-a', 'source-b'):
         document = batch()
         document['source_id'] = source
         document['changes'][0]['payload']['connector_id'] = 1
@@ -70,12 +70,12 @@ def test_replication_scopes(tmp_path):
         collector = TestClient(create_collector(database, {source: 'test-token'}))
         assert collector.post('/api/replication', json=document,
                               headers={'Authorization': 'Bearer test-token'}).status_code == 200
-    client = TestClient(create_app(database, allowed_source_ids=('gway-002',)))
+    client = TestClient(create_app(database, allowed_source_ids=('source-a',)))
     data = client.get('/api/snapshot').json()
-    assert {r['source_id'] for r in data['sources']} == {'gway-002'}
+    assert {r['source_id'] for r in data['sources']} == {'source-a'}
     assert all(data.values())
     for rows in data.values():
-        assert all(r['source_id'] == 'gway-002' for r in rows)
+        assert all(r['source_id'] == 'source-a' for r in rows)
 
 
 def test_cli_repeated_sources_reach_the_served_app(tmp_path, monkeypatch):
@@ -86,9 +86,9 @@ def test_cli_repeated_sources_reach_the_served_app(tmp_path, monkeypatch):
     served = []
     monkeypatch.setattr('uvicorn.run', lambda application, **kwargs: served.append(application))
     result = CliRunner().invoke(app, ['serve', '--database', str(database),
-        '--source-id', 'gway-005', '--source-id', 'porsche-abb-1', '--title', 'Porsche'])
+        '--source-id', 'source-b', '--source-id', 'source-c', '--title', 'East'])
     assert result.exit_code == 0, result.output
     client = TestClient(served[0])
-    assert {row['source_id'] for row in client.get('/api/snapshot').json()['sources']} == {'gway-005', 'porsche-abb-1'}
-    assert client.get('/api/snapshot?source_id=gway-002').status_code == 403
-    assert '<h1>Porsche</h1>' in client.get('/').text
+    assert {row['source_id'] for row in client.get('/api/snapshot').json()['sources']} == {'source-b', 'source-c'}
+    assert client.get('/api/snapshot?source_id=source-a').status_code == 403
+    assert '<h1>East</h1>' in client.get('/').text
