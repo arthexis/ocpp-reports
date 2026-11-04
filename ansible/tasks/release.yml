@@ -3,6 +3,15 @@
     path: "{{ reports_release }}"
     follow: false
   register: reports_existing_release
+- name: Validate existing release interpreter before probing the application
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ playbook_dir }}/python_preflight.py"
+      - --check-venv
+      - "{{ reports_release }}/venv"
+  changed_when: false
+  when: reports_existing_release.stat.exists | default(false)
 - name: Verify installed Reports distribution and CLI
   ansible.builtin.command:
     argv:
@@ -48,8 +57,19 @@
   when: not reports_existing_release.stat.exists
 - name: Create isolated release virtual environment
   ansible.builtin.command:
-    cmd: "python3 -m venv {{ reports_release }}/venv"
+    cmd: "{{ reports_python }} -m venv {{ reports_release }}/venv"
   become: true
+  when: not reports_existing_release.stat.exists
+- name: Verify newly created release interpreter
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ playbook_dir }}/python_preflight.py"
+      - --check-venv
+      - "{{ reports_release }}/venv"
+      - --minor
+      - "{{ reports_python_minor }}"
+  changed_when: false
   when: not reports_existing_release.stat.exists
 - name: Create release-local package staging directory
   ansible.builtin.file:
@@ -72,7 +92,7 @@
 - name: Resolve effective runtime dependency set
   ansible.builtin.command:
     argv:
-      - python3
+      - "{{ reports_python }}"
       - "{{ playbook_dir }}/dependency_plan.py"
       - "{{ playbook_dir }}/../pyproject.toml"
       - "{{ reports_install_extra }}"
@@ -81,14 +101,26 @@
   when: not reports_existing_release.stat.exists
 - name: Capture reusable dependency environment
   ansible.builtin.set_fact:
-    reports_dependency_venv: "{{ reports_root }}/dependencies/{{ (reports_dependency_plan.stdout | from_json).key }}/venv"
+    reports_dependency_venv: >-
+      {{ reports_root }}/dependencies/{{ (reports_dependency_plan.stdout | from_json).key }}-py{{ reports_python_minor | replace('.', '') }}/venv
     reports_dependency_requirements: "{{ (reports_dependency_plan.stdout | from_json).requirements }}"
   when: not reports_existing_release.stat.exists
 - name: Create reusable dependency environment
   ansible.builtin.command:
-    cmd: "python3 -m venv {{ reports_dependency_venv }}"
+    cmd: "{{ reports_python }} -m venv {{ reports_dependency_venv }}"
     creates: "{{ reports_dependency_venv }}/bin/python"
   become: true
+  when: not reports_existing_release.stat.exists
+- name: Verify reusable dependency interpreter matches the release
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ playbook_dir }}/python_preflight.py"
+      - --check-venv
+      - "{{ reports_dependency_venv }}"
+      - --minor
+      - "{{ reports_python_minor }}"
+  changed_when: false
   when: not reports_existing_release.stat.exists
 - name: Converge reusable runtime dependencies
   ansible.builtin.pip:
@@ -134,22 +166,33 @@
   when: not reports_existing_release.stat.exists
 - name: Create reusable wheel build environment
   ansible.builtin.command:
-    cmd: "python3 -m venv {{ reports_root }}/build-venv"
-    creates: "{{ reports_root }}/build-venv/bin/python"
+    cmd: "{{ reports_python }} -m venv {{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}"
+    creates: "{{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}/bin/python"
   become: true
+  when: not reports_existing_release.stat.exists
+- name: Verify reusable build interpreter matches the release
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ playbook_dir }}/python_preflight.py"
+      - --check-venv
+      - "{{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}"
+      - --minor
+      - "{{ reports_python_minor }}"
+  changed_when: false
   when: not reports_existing_release.stat.exists
 - name: Converge wheel build tools
   ansible.builtin.pip:
     name:
       - "setuptools>=68"
       - wheel
-    virtualenv: "{{ reports_root }}/build-venv"
+    virtualenv: "{{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}"
   become: true
   when: not reports_existing_release.stat.exists
 - name: Build Reports application wheel
   ansible.builtin.command:
     argv:
-      - "{{ reports_root }}/build-venv/bin/python"
+      - "{{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}/bin/python"
       - -m
       - pip
       - wheel
