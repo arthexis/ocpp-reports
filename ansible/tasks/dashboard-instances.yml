@@ -103,14 +103,16 @@
     - name: Activate configured dashboard services
       ansible.builtin.systemd_service:
         name: "ocpp-reports-{{ item.name }}.service"
-        daemon_reload: true
+        daemon_reload: "{{ reports_dashboard_scopes.changed or reports_dashboard_bases.changed }}"
         enabled: true
         state: >-
           {{ 'restarted' if (reports_release_changed | default(false) | bool)
-             or (reports_dashboard_scopes.results | selectattr('item.name', 'equalto', item.name) | selectattr('changed') | list | length > 0)
-             or (reports_dashboard_bases.results | selectattr('item.name', 'equalto', item.name) | selectattr('changed') | list | length > 0)
+             or (reports_dashboard_scopes.results[dashboard_index].changed | default(false))
+             or (reports_dashboard_bases.results[dashboard_index].changed | default(false))
              else 'started' }}
       loop: "{{ reports_dashboard_instances }}"
+      loop_control:
+        index_var: dashboard_index
       become: true
 
     - name: Verify each dashboard HTTP endpoint
