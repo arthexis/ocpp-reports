@@ -1,0 +1,57 @@
+{
+  "installed_sha": "10385dc3dac89a0f1fb4f249d6731c4378530df6",
+  "device": "physical Samsung SM-G950F, Android 9",
+  "browser": "Chrome 101.0.4951.61",
+  "viewport_css": [
+    360,
+    612
+  ],
+  "redaction": "location, charger ID, and meter values replaced in DOM; vertical screenshots hide other sections and suppress automatic refresh in the tab",
+  "screenshots": [
+    {
+      "file": "audi-before.png",
+      "sha256": "f7f30eff0ddb04679dee9de67bb0c0840e764d6d672e505f8c120011956e0425",
+      "capture_utc": "2026-11-04T04:25:37.039647+00:00"
+    },
+    {
+      "file": "audi-after.png",
+      "sha256": "f7d639607d18978e26f1c9bd77fe7f7fa99b20d4223cc38607d4a36ac403f5e0",
+      "capture_utc": "2026-11-04T04:25:39.199652+00:00"
+    },
+    {
+      "file": "porsche-before.png",
+      "sha256": "d41384f98582ce3e612535a03b61d4c2f61c0488c2e02e70be466309560ad1d7",
+      "capture_utc": "2026-11-04T04:25:50.715674+00:00"
+    },
+    {
+      "file": "porsche-after.png",
+      "sha256": "d41384f98582ce3e612535a03b61d4c2f61c0488c2e02e70be466309560ad1d7",
+      "capture_utc": "2026-11-04T04:25:52.907678+00:00"
+    },
+    {
+      "file": "admin-before.png",
+      "sha256": "330ffd086ab0ba80178fbb180927486563d7c7a2a93cbeeaa2701b80c1af888f",
+      "capture_utc": "2026-11-04T04:26:15.495723+00:00"
+    },
+    {
+      "file": "admin-after.png",
+      "sha256": "330ffd086ab0ba80178fbb180927486563d7c7a2a93cbeeaa2701b80c1af888f",
+      "capture_utc": "2026-11-04T04:26:17.559727+00:00"
+    },
+    {
+      "file": "admin-down-1.png",
+      "sha256": "8917eedf66a89f1e5ed0600694d3f6f3088ccdcf791985e321c917eff29c6417",
+      "capture_utc": "2026-11-04T04:30:03.604183+00:00"
+    },
+    {
+      "file": "admin-down-2.png",
+      "sha256": "dcdfadc6a9c9fe57a8a65802b721b408df40c38153afbafb5daed412d826a621",
+      "capture_utc": "2026-11-04T04:30:05.944188+00:00"
+    },
+    {
+      "file": "admin-down-3.png",
+      "sha256": "29af6514bf34b52c9b19d7c9579af7ae60397d29512b76bccf6da94e0ab4d125",
+      "capture_utc": "2026-11-04T04:30:07.972192+00:00"
+    }
+  ]
+}
