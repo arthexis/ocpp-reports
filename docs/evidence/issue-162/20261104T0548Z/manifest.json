@@ -1,0 +1,28 @@
+{
+  "installed_sha": "49c5a918c0d709be574c19d56caac228d5c5ca58",
+  "pr_166_merge": "fa622bae55b940836aacbecfe31558bf3ad2335e",
+  "browser": "Chromium 154.0.8037.92",
+  "device": "desktop",
+  "viewport_css": [
+    1440,
+    1000
+  ],
+  "redaction": "CSS masks location, charger identifier and meter values in browser captures",
+  "files": [
+    {
+      "file": "filtered.png",
+      "sha256": "f77e99950cdc7d80ced275caae047e24aed2d880ff8051f0d179a3b445ebf07a",
+      "captured_at_utc": "2026-11-04T05:48:56.674693+00:00"
+    },
+    {
+      "file": "report.json",
+      "sha256": "8ebd621c6521632d9cfeb714385ebcdd86586a2dc882f4160cb1ae0ae7ed76c5",
+      "captured_at_utc": "2026-11-04T05:48:56.678693+00:00"
+    },
+    {
+      "file": "unfiltered.png",
+      "sha256": "959eb1da45f69cf2072ba1bbd65983b35f61b3b7857eecf62e96e2c390cf3ae0",
+      "captured_at_utc": "2026-11-04T05:48:53.750677+00:00"
+    }
+  ]
+}

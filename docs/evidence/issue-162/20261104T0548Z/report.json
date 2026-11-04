@@ -1,0 +1,155 @@
+{
+  "results": [
+    {
+      "label": "unfiltered",
+      "http": 200,
+      "at": "2026-11-04T05:48:53.755606+00:00",
+      "available_count": 4,
+      "rows": [
+        {
+          "connector": "1",
+          "state": "Available",
+          "statusClass": "status status--ok",
+          "connected": "S\u00ed",
+          "connectedClass": "status status--ok",
+          "date": "2026-10-30 03:57 UTC"
+        },
+        {
+          "connector": "2",
+          "state": "Available",
+          "statusClass": "status status--ok",
+          "connected": "S\u00ed",
+          "connectedClass": "status status--ok",
+          "date": "2026-10-30 03:57 UTC"
+        },
+        {
+          "connector": "1",
+          "state": "Available",
+          "statusClass": "status status--ok",
+          "connected": "S\u00ed",
+          "connectedClass": "status status--ok",
+          "date": "2026-11-03 14:00 UTC"
+        },
+        {
+          "connector": "2",
+          "state": "Available",
+          "statusClass": "status status--ok",
+          "connected": "S\u00ed",
+          "connectedClass": "status status--ok",
+          "date": "2026-11-03 14:00 UTC"
+        }
+      ],
+      "sources": [
+        {
+          "source_id": "gway-002",
+          "last_ingested_at": null,
+          "last_replication_received_at": "2026-11-04T05:47:51.603756+00:00"
+        },
+        {
+          "source_id": "gway-005",
+          "last_ingested_at": null,
+          "last_replication_received_at": "2026-11-04T05:48:30.556033+00:00"
+        },
+        {
+          "source_id": "porsche-abb-1",
+          "last_ingested_at": "2026-11-04T05:48:51.455249+00:00",
+          "last_replication_received_at": null
+        }
+      ],
+      "screenshot_sha256": "959eb1da45f69cf2072ba1bbd65983b35f61b3b7857eecf62e96e2c390cf3ae0",
+      "source_evidence": [
+        {
+          "source_id": "gway-002",
+          "connector": "1",
+          "status_observed_at": "2026-10-30T03:57:34.558617Z",
+          "observed_at": "2026-11-04T05:47:49.898411+00:00",
+          "connected": 1
+        },
+        {
+          "source_id": "gway-002",
+          "connector": "2",
+          "status_observed_at": "2026-10-30T03:57:35.100411Z",
+          "observed_at": "2026-11-04T05:47:49.898411+00:00",
+          "connected": 1
+        },
+        {
+          "source_id": "gway-005",
+          "connector": "1",
+          "status_observed_at": "2026-11-03T14:00:06.499399Z",
+          "observed_at": "2026-11-04T05:48:29.647944+00:00",
+          "connected": 1
+        },
+        {
+          "source_id": "gway-005",
+          "connector": "2",
+          "status_observed_at": "2026-11-03T14:00:07.147401Z",
+          "observed_at": "2026-11-04T05:48:29.647944+00:00",
+          "connected": 1
+        }
+      ]
+    },
+    {
+      "label": "filtered",
+      "http": 200,
+      "at": "2026-11-04T05:48:56.681128+00:00",
+      "available_count": 4,
+      "rows": [
+        {
+          "connector": "1",
+          "state": "Available",
+          "statusClass": "status status--ok",
+          "connected": "S\u00ed",
+          "connectedClass": "status status--ok",
+          "date": "2026-10-30 03:57 UTC"
+        },
+        {
+          "connector": "2",
+          "state": "Available",
+          "statusClass": "status status--ok",
+          "connected": "S\u00ed",
+          "connectedClass": "status status--ok",
+          "date": "2026-10-30 03:57 UTC"
+        },
+        {
+          "connector": "1",
+          "state": "Available",
+          "statusClass": "status status--ok",
+          "connected": "S\u00ed",
+          "connectedClass": "status status--ok",
+          "date": "2026-11-03 14:00 UTC"
+        },
+        {
+          "connector": "2",
+          "state": "Available",
+          "statusClass": "status status--ok",
+          "connected": "S\u00ed",
+          "connectedClass": "status status--ok",
+          "date": "2026-11-03 14:00 UTC"
+        }
+      ],
+      "sources": [
+        {
+          "source_id": "gway-002",
+          "last_ingested_at": null,
+          "last_replication_received_at": "2026-11-04T05:47:51.603756+00:00"
+        },
+        {
+          "source_id": "gway-005",
+          "last_ingested_at": null,
+          "last_replication_received_at": "2026-11-04T05:48:30.556033+00:00"
+        },
+        {
+          "source_id": "porsche-abb-1",
+          "last_ingested_at": "2026-11-04T05:48:51.455249+00:00",
+          "last_replication_received_at": null
+        }
+      ],
+      "screenshot_sha256": "f77e99950cdc7d80ced275caae047e24aed2d880ff8051f0d179a3b445ebf07a"
+    }
+  ],
+  "same_available_rows": true,
+  "viewport": [
+    1440,
+    1000
+  ]
+}
