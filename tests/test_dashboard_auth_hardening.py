@@ -72,3 +72,44 @@ def test_same_url_enforces_roles_and_tenant(tmp_path):
         assert client.get("/api/event-group").status_code == 403
         assert client.get("/api/unknown").status_code == 403
         assert client.post("/api/snapshot").status_code == 403
+
+
+def test_login_route_methods_and_transaction_shape(tmp_path):
+    path = str(tmp_path / "auth.sqlite")
+    provision(path, "operator", "a-secure-test-password", "operator", "tenant-a")
+    app = FastAPI()
+
+    @app.get("/transactions/{source}/{charger}/{transaction}")
+    def transaction(source: str, charger: str, transaction: str):
+        return {"ok": True}
+
+    attach_login(app, path=path, tenant="tenant-a")
+    with TestClient(app, base_url="https://reports.example.test") as client:
+        headers = {"origin": "https://reports.example.test"}
+        assert client.get("/login").status_code == 200
+        assert client.get("/logout").status_code == 403
+        assert client.put("/login").status_code == 403
+        assert client.post("/login", data={"username": "operator", "password": "a-secure-test-password"}, headers=headers, follow_redirects=False).status_code == 303
+        assert client.get("/transactions/source/charger/123").status_code == 200
+        assert client.get("/transactions/source/charger/123/extra").status_code == 403
+        assert client.get("/transactions/").status_code == 403
+        assert client.post("/logout", headers=headers, follow_redirects=False).status_code == 303
+        assert client.get("/transactions/source/charger/123").status_code == 403
+
+
+def test_invalid_database_role_fails_closed(tmp_path):
+    path = str(tmp_path / "auth.sqlite")
+    provision(path, "operator", "a-secure-test-password", "operator", "tenant-a")
+    app = FastAPI()
+
+    @app.get("/")
+    def dashboard():
+        return {"ok": True}
+
+    attach_login(app, path=path, tenant="tenant-a")
+    headers = {"origin": "https://reports.example.test"}
+    with TestClient(app, base_url="https://reports.example.test") as client:
+        assert client.post("/login", data={"username": "operator", "password": "a-secure-test-password"}, headers=headers, follow_redirects=False).status_code == 303
+        with sqlite3.connect(path) as db:
+            db.execute("UPDATE dashboard_users SET role='unexpected' WHERE user_id='operator'")
+        assert client.get("/").status_code == 403
