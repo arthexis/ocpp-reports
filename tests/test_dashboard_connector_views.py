@@ -130,22 +130,31 @@ def test_directional_discrepancy_badges_are_single_and_colored(monkeypatch, tmp_
             super().__init__()
             self.in_status = False
             self.primary_seen = False
+            self.in_primary_span = False
             self.badges = []
+
         def handle_starttag(self, tag, attrs):
             attrs = dict(attrs)
             if tag == "td" and attrs.get("data-label") == "Estado":
                 self.in_status = True
                 self.primary_seen = False
+                self.in_primary_span = False
             if self.in_status and not self.primary_seen and tag == "span" and "status" in attrs.get("class", "").split():
                 self.primary_seen = True
+                self.in_primary_span = True
                 self.badges.append({"class": attrs["class"], "title": attrs.get("title", ""),
                                     "aria": attrs.get("aria-label", ""), "text": ""})
+
         def handle_data(self, data):
-            if self.in_status and self.badges:
+            if self.in_primary_span:
                 self.badges[-1]["text"] += data
+
         def handle_endtag(self, tag):
+            if tag == "span" and self.in_primary_span:
+                self.in_primary_span = False
             if tag == "td":
                 self.in_status = False
+                self.in_primary_span = False
 
     parser = StatusCells()
     parser.feed(html)
