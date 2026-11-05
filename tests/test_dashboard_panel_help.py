@@ -1,3 +1,6 @@
+from fastapi.testclient import TestClient
+from ocpp_reports import web
+
 """Panel help is compact by default and accessible by pointer and keyboard."""
 
 def test_five_panel_explanations_are_in_accessible_popovers(empty_dashboard_html):
