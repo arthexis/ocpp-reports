@@ -93,6 +93,35 @@ def test_status_counts_do_not_double_count_station_zero():
     assert got["uncertain"] == {"stations": 1, "connectors": 1}
 
 
+def test_warning_connector_counts_as_available_without_hiding_reported_fault():
+    rows = [
+        {"source_id": source, "charger_id": charger,
+         "connector_id": cid, "status": status}
+        for source, charger, cid, status in (
+            ("a", "cp-a", 0, "Available"),
+            ("a", "cp-a", 1, "Available"),
+            ("a", "cp-a", 2, "Available"),
+            ("b", "cp-b", 0, "Available"),
+            ("b", "cp-b", 1, "Available"),
+            ("b", "cp-b", 2, "Available"),
+            ("c", "cp-c", 0, "Available"),
+            ("c", "cp-c", 1, "Faulted"),
+        )
+    ]
+    assert web._single_connector_discrepancy_badges(rows)[("c", "cp-c", 1)] == "Warning"
+    counts = web._operational_status_counts(rows)
+    assert counts["available"] == {"stations": 3, "connectors": 5}
+    assert counts["faults"] == {"stations": 0, "connectors": 1}
+
+    # The opposite disagreement must not be classified as available
+    # at station level merely because its sole connector reports Available.
+    reverse = [
+        {"source_id": "d", "charger_id": "cp-d", "connector_id": 0, "status": "Faulted"},
+        {"source_id": "d", "charger_id": "cp-d", "connector_id": 1, "status": "Available"},
+    ]
+    assert web._single_connector_discrepancy_badges(reverse)[("d", "cp-d", 1)] == "Failed"
+
+
 def test_status_cards_render_station_and_connector_totals(monkeypatch, tmp_path):
     from datetime import datetime, timezone
 
