@@ -159,6 +159,22 @@ def _filter_transaction_energy(transactions: list[dict], view: str) -> list[dict
 # Ingestion cadence is normally 30 seconds; allow for forwarding/backoff jitter.
 # This is source-pipeline freshness, not proof of charger heartbeat or a new status.
 SOURCE_FRESHNESS_SECONDS = 180
+CHARGER_ACTIVITY_SECONDS = 180
+
+
+def _charger_activity_freshness(timestamp: object, now: datetime) -> str:
+    """Charger-origin activity, distinct from ingestion and StatusNotification."""
+    if not isinstance(timestamp, str):
+        return "unknown"
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return "unknown"
+        age = (now - parsed.astimezone(timezone.utc)).total_seconds()
+        return "fresh" if 0 <= age <= CHARGER_ACTIVITY_SECONDS else "old"
+    except (ValueError, TypeError, OverflowError):
+        return "unknown"
+
 
 
 def _freshness(timestamp: object, now: datetime) -> str:
@@ -436,13 +452,21 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             connector["connected"] = _connection_flag(connector.get("connected"))
             # The observed connection flag comes from the source's last
             # CSMS status snapshot; it is only actionable with recent source data.
+            connector["activity_freshness"] = _charger_activity_freshness(
+                connector.get("last_activity_at"), now
+            )
+            # Charger-origin activity is distinct from the export timestamp.
+            # Legacy snapshots retain the connection flag semantics.
+            activity = connector["activity_freshness"]
             connector["connection_fresh"] = (
                 connector["source_freshness"] == "fresh"
                 and connector["connected"] is not None
+                and activity != "old"
             )
             connector["stale"] = (
                 connector["source_freshness"] != "fresh"
                 or connector.get("connected") is not True
+                or activity == "old"
                 or not connector.get("status")
             )
         operational_counts = _operational_status_counts(data["connectors"])
