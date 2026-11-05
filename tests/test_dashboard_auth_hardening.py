@@ -47,3 +47,28 @@ def test_prune_expired(tmp_path):
     with sqlite3.connect(path) as db:
         db.execute("INSERT INTO dashboard_sessions VALUES(?,?,?)", ("expired", "tester", 1))
     assert prune_expired_sessions(path, now=2) == 1
+
+def test_same_url_enforces_roles_and_tenant(tmp_path):
+    path = str(tmp_path / "auth.sqlite")
+    provision(path, "operator-a", "a-secure-test-password", "operator", "tenant-a")
+    provision(path, "admin-b", "a-secure-test-password", "admin", "tenant-b")
+    app = FastAPI()
+
+    @app.get("/")
+    def dashboard():
+        return {"ok": True}
+
+    @app.get("/api/event-group")
+    def events():
+        return {"ok": True}
+
+    attach_login(app, path=path, tenant="tenant-a")
+    headers = {"origin": "https://reports.example.test"}
+    with TestClient(app, base_url="https://reports.example.test") as client:
+        assert client.get("/").status_code == 403
+        assert client.post("/login", data={"username": "admin-b", "password": "a-secure-test-password"}, headers=headers).status_code == 401
+        assert client.post("/login", data={"username": "operator-a", "password": "a-secure-test-password"}, headers=headers, follow_redirects=False).status_code == 303
+        assert client.get("/").status_code == 200
+        assert client.get("/api/event-group").status_code == 403
+        assert client.get("/api/unknown").status_code == 403
+        assert client.post("/api/snapshot").status_code == 403
