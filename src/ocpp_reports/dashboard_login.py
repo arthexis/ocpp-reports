@@ -71,7 +71,7 @@ _ROUTE_PERMISSIONS = {
 def route_permission(path, method):
     if (path, method) in _ROUTE_PERMISSIONS:
         return _ROUTE_PERMISSIONS[(path, method)]
-    if method == "GET" and path.startswith("/transactions/"):
+    if method == "GET" and path.startswith("/transactions/") and len(path.split("/")) == 5 and all(path.split("/")[1:]):
         return Permission.TRANSACTIONS_VIEW
     return None
 
@@ -81,11 +81,17 @@ def attach_login(app, *, path, tenant):
     @app.middleware("http")
     async def protect(request, next_handler):
         route = request.url.path
-        if route in ("/login","/logout"): return await next_handler(request)
+        if (route == "/login" and request.method in ("GET", "POST")) or (route == "/logout" and request.method == "POST"):
+            return await next_handler(request)
         token = request.cookies.get(COOKIE,"")
         with sqlite3.connect(path) as db:
-            row = db.execute("""SELECT u.user_id,u.role,u.tenant_id FROM dashboard_sessions s JOIN dashboard_users u ON s.user_id=u.user_id WHERE s.token_hash=? AND s.expires>? AND u.active=1""",(hashlib.sha256(token.encode()).hexdigest(),int(time.time()))).fetchone() if token else None
-        principal = Principal(row[0],Role(row[1]),frozenset({row[2]})) if row else None
+            row = db.execute("""SELECT u.user_id,u.role,u.tenant_id FROM dashboard_sessions s JOIN dashboard_users u ON s.user_id=u.user_id WHERE s.token_hash=? AND s.expires>? AND u.active=1 AND u.tenant_id=?""",(hashlib.sha256(token.encode()).hexdigest(),int(time.time()),tenant)).fetchone() if token else None
+        principal = None
+        if row:
+            try:
+                principal = Principal(row[0], Role(row[1]), frozenset({row[2]}))
+            except ValueError:
+                pass
         request.state.principal = principal
         perm = route_permission(route, request.method)
         if perm is None or not authorized(principal,perm,tenant_id=tenant):
@@ -95,7 +101,7 @@ def attach_login(app, *, path, tenant):
     async def login_page(): return HTMLResponse(HTML,headers={"Cache-Control":"no-store"})
     @app.post("/login")
     async def login(request: Request):
-        if request.headers.get("origin") != "https://"+request.headers.get("host",""):
+        if request.url.scheme != "https" or request.headers.get("origin") != str(request.base_url).rstrip("/"):
             return JSONResponse({"detail":"Invalid origin"},status_code=403)
         if request.headers.get("content-type","").split(";")[0]!="application/x-www-form-urlencoded":
             return JSONResponse({"detail":"Unsupported content type"},status_code=415)
@@ -140,7 +146,7 @@ def attach_login(app, *, path, tenant):
         return response
     @app.post("/logout")
     async def logout(request: Request):
-        if request.headers.get("origin")!="https://"+request.headers.get("host",""):
+        if request.url.scheme != "https" or request.headers.get("origin") != str(request.base_url).rstrip("/"):
             return JSONResponse({"detail":"Invalid origin"},status_code=403)
         token=request.cookies.get(COOKIE)
         if token:
