@@ -123,7 +123,6 @@ def test_connector_search_preserves_original_source_freshness(dashboard_client_f
 
 def test_filtered_connector_still_warns_about_old_source(dashboard_client_factory, dashboard_snapshot_factory):
     data = dashboard_snapshot_factory(connected=1, source_age_seconds=3600)
-    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
     html = dashboard_client_factory(data).get(
         "/", params={"filter": "Available"}).text
     assert ">Origen atrasado</span>" in html
