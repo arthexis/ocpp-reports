@@ -97,3 +97,72 @@ def test_connector_mode_respects_other_filters_and_authorization(monkeypatch, tm
     assert client.get("/?source_id=site-b&connector_view=station").status_code == 403
     assert _ids(client.get("/?filter=garage%20a&connector_view=station").text) == [0]
     assert "Sin conectores registrados" in client.get("/?filter=missing&connector_view=station").text
+
+
+def test_directional_discrepancy_badges_are_single_and_colored(monkeypatch, tmp_path):
+    from html.parser import HTMLParser
+
+    data = _snapshot()
+    # Single-connector stations in both directions; no multi-connector inference.
+    data["connectors"] = [
+        {"source_id": "site-w", "charger_id": "cp-warning", "connector_id": 0,
+         "status": "Available", "connected": True, "source_freshness": "fresh"},
+        {"source_id": "site-w", "charger_id": "cp-warning", "connector_id": 1,
+         "status": "Faulted", "connected": True, "source_freshness": "fresh"},
+        {"source_id": "site-f", "charger_id": "cp-failed", "connector_id": 0,
+         "status": "Faulted", "connected": True, "source_freshness": "fresh"},
+        {"source_id": "site-f", "charger_id": "cp-failed", "connector_id": 1,
+         "status": "Available", "connected": True, "source_freshness": "fresh"},
+        {"source_id": "site-a", "charger_id": "cp-ok", "connector_id": 0,
+         "status": "Available", "connected": True, "source_freshness": "fresh"},
+        {"source_id": "site-a", "charger_id": "cp-ok", "connector_id": 1,
+         "status": "Available", "connected": True, "source_freshness": "fresh"},
+    ]
+    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
+    client = TestClient(web.create_app(tmp_path / "unused"))
+    html = client.get("/?connector_view=individual").text
+
+    class StatusCells(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.in_status = False
+            self.badges = []
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == "td" and attrs.get("data-label") == "Estado":
+                self.in_status = True
+            if self.in_status and tag == "span" and "status" in attrs.get("class", "").split():
+                self.badges.append({"class": attrs["class"], "title": attrs.get("title", ""),
+                                    "aria": attrs.get("aria-label", ""), "text": ""})
+        def handle_data(self, data):
+            if self.in_status and self.badges:
+                self.badges[-1]["text"] += data
+        def handle_endtag(self, tag):
+            if tag == "td":
+                self.in_status = False
+
+    parser = StatusCells()
+    parser.feed(html)
+    assert len(parser.badges) == 3
+    warning, failed, available = parser.badges
+    assert warning["text"] == "Warning" and "status--warn" in warning["class"]
+    assert "C0: Available" in warning["title"] and "C1: Faulted" in warning["title"]
+    assert "Warning" in warning["aria"]
+    assert failed["text"] == "Failed" and "status--off" in failed["class"]
+    assert "C0: Faulted" in failed["title"] and "C1: Available" in failed["title"]
+    assert available["text"] == "Available" and "status--ok" in available["class"]
+    assert "Discrepancia con estación" not in html
+    # API remains evidence-only; the presentation badge is not persisted.
+    assert all("status_discrepancy_badge" not in row
+               for row in client.get("/api/snapshot").json()["connectors"])
+
+
+def test_directional_badges_ignore_multiconnector_and_unknown_states():
+    rows = [
+        {"source_id": "s", "charger_id": "multi", "connector_id": 0, "status": "Faulted"},
+        {"source_id": "s", "charger_id": "multi", "connector_id": 1, "status": "Available"},
+        {"source_id": "s", "charger_id": "multi", "connector_id": 2, "status": "Faulted"},
+        {"source_id": "s", "charger_id": "other", "connector_id": 0, "status": "Unavailable"},
+        {"source_id": "s", "charger_id": "other", "connector_id": 1, "status": "Available"},
+    ]
+    assert web._single_connector_discrepancy_badges(rows) == {}
