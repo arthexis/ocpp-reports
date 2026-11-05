@@ -1,44 +1,20 @@
 """Status changes, connection observations, and collector freshness are separate."""
-from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi.testclient import TestClient
 
 from ocpp_reports import web
 
 
-def _data(*, status_age_hours=51, source_age_seconds=20,
-          connected=True, status="Available", status_timestamp=True):
-    now = datetime.now(timezone.utc)
-    data = {
-        "sources": [{"source_id": "site-a", "cursor": 100,
-                     "last_ingested_at": (now - timedelta(seconds=source_age_seconds)).isoformat()
-                     if source_age_seconds is not None else None}],
-        "connectors": [{
-            "source_id": "site-a", "charger_id": "charger-a",
-            "connector_id": 1, "location": "Garage", "status": status,
-            "connected": connected,
-            "status_observed_at": (now - timedelta(hours=status_age_hours)).isoformat()
-            if status_timestamp else None,
-            "observed_at": now.isoformat(),
-            "power_w": None, "energy_wh": None,
-        }],
-        "transactions": [], "events": [],
-    }
-    return data
-
-
-def _html(monkeypatch, tmp_path, data):
-    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
-    response = TestClient(web.create_app(tmp_path / "warehouse")).get("/")
+def _html(dashboard_client_factory, data):
+    response = dashboard_client_factory(data).get("/")
     assert response.status_code == 200
     return response.text
 
 
-def test_unchanged_51_hour_status_with_recent_source_and_connected_stays_available(monkeypatch, tmp_path):
-    data = _data()
-    html = _html(monkeypatch, tmp_path, data)
+def test_unchanged_51_hour_status_with_recent_source_and_connected_stays_available(dashboard_client_factory, dashboard_snapshot_factory):
+    data = dashboard_snapshot_factory()
+    html = _html(dashboard_client_factory, data)
     assert 'status status--ok">Available</span>' in html
     assert 'status status--ok" title=' in html
     assert ">Origen atrasado</span>" not in html
@@ -47,31 +23,31 @@ def test_unchanged_51_hour_status_with_recent_source_and_connected_stays_availab
     assert web.display_date(data["connectors"][0]["status_observed_at"], "UTC") in html
 
 
-def test_recent_source_with_observed_disconnection_is_not_available(monkeypatch, tmp_path):
-    html = _html(monkeypatch, tmp_path, _data(connected=False))
+def test_recent_source_with_observed_disconnection_is_not_available(dashboard_client_factory, dashboard_snapshot_factory):
+    html = _html(dashboard_client_factory, dashboard_snapshot_factory(connected=False))
     assert 'status status--historic">Available</span>' in html
     assert 'status status--off" title=' in html
     assert '0 (0)</strong><span>Disponibles' in html
     assert '1 (1)</strong><span>Datos antiguos' in html
 
 
-def test_old_source_stays_neutral_despite_last_connected_true(monkeypatch, tmp_path):
-    html = _html(monkeypatch, tmp_path, _data(source_age_seconds=3600))
+def test_old_source_stays_neutral_despite_last_connected_true(dashboard_client_factory, dashboard_snapshot_factory):
+    html = _html(dashboard_client_factory, dashboard_snapshot_factory(source_age_seconds=3600))
     assert 'status status--historic">Available</span>' in html
     assert 'status status--historic" title=' in html
     assert ">Origen atrasado</span>" in html
     assert '0 (0)</strong><span>Disponibles' in html
 
 
-def test_missing_status_timestamp_does_not_invent_new_status(monkeypatch, tmp_path):
-    html = _html(monkeypatch, tmp_path, _data(status_timestamp=False))
+def test_missing_status_timestamp_does_not_invent_new_status(dashboard_client_factory, dashboard_snapshot_factory):
+    html = _html(dashboard_client_factory, dashboard_snapshot_factory(status_timestamp=False))
     assert ">Estado sin fecha</span>" in html
     assert ">Origen atrasado</span>" not in html
     assert 'status status--ok">Available</span>' in html
 
 
-def test_absent_source_evidence_does_not_claim_live_connectivity(monkeypatch, tmp_path):
-    html = _html(monkeypatch, tmp_path, _data(source_age_seconds=None))
+def test_absent_source_evidence_does_not_claim_live_connectivity(dashboard_client_factory, dashboard_snapshot_factory):
+    html = _html(dashboard_client_factory, dashboard_snapshot_factory(source_age_seconds=None))
     assert ">Origen sin fecha</span>" in html
     assert 'status status--historic" title=' in html
 
@@ -101,11 +77,11 @@ def test_timestamp_validation_and_pipeline_freshness_are_distinct():
     ],
 )
 def test_sqlite_connection_flags_drive_badges_and_counts(
-        monkeypatch, tmp_path, raw_flag, badge, status_class,
+        dashboard_client_factory, dashboard_snapshot_factory, raw_flag, badge, status_class,
         available_count, uncertain_count):
     # Model the SQLite snapshot's integer column rather than a boolean fixture.
-    data = _data(connected=raw_flag)
-    html = _html(monkeypatch, tmp_path, data)
+    data = dashboard_snapshot_factory(connected=raw_flag)
+    html = _html(dashboard_client_factory, data)
     assert f'status {status_class}">Available</span>' in html
     assert f'>{badge}</span>' in html
     assert f'{available_count}</strong><span>Disponibles' in html
@@ -122,19 +98,17 @@ def test_connection_flag_normalization_is_strict(raw_flag, expected):
     assert web._connection_flag(raw_flag) is expected
 
 
-def test_sqlite_snapshot_api_retains_raw_connection_flag(monkeypatch, tmp_path):
-    data = _data(connected=1)
-    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
-    client = TestClient(web.create_app(tmp_path / "warehouse"))
+def test_sqlite_snapshot_api_retains_raw_connection_flag(dashboard_client_factory, dashboard_snapshot_factory):
+    data = dashboard_snapshot_factory(connected=1)
+    client = dashboard_client_factory(data)
     assert client.get("/").status_code == 200
     assert client.get("/api/snapshot").json()["connectors"][0]["connected"] == 1
 
 
 @pytest.mark.parametrize("search", ["Available", "Garage", "charger-a"])
-def test_connector_search_preserves_original_source_freshness(monkeypatch, tmp_path, search):
-    data = _data(connected=1)
-    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
-    client = TestClient(web.create_app(tmp_path / "warehouse"))
+def test_connector_search_preserves_original_source_freshness(dashboard_client_factory, dashboard_snapshot_factory, search):
+    data = dashboard_snapshot_factory(connected=1)
+    client = dashboard_client_factory(data)
     page = client.get("/", params={"filter": search, "connector_view": "individual", "tz": "UTC"})
     assert page.status_code == 200
     assert 'status status--ok">Available</span>' in page.text
@@ -147,19 +121,17 @@ def test_connector_search_preserves_original_source_freshness(monkeypatch, tmp_p
     assert client.get("/api/snapshot").json()["sources"][0]["source_id"] == "site-a"
 
 
-def test_filtered_connector_still_warns_about_old_source(monkeypatch, tmp_path):
-    data = _data(connected=1, source_age_seconds=3600)
-    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
-    html = TestClient(web.create_app(tmp_path / "warehouse")).get(
+def test_filtered_connector_still_warns_about_old_source(dashboard_client_factory, dashboard_snapshot_factory):
+    data = dashboard_snapshot_factory(connected=1, source_age_seconds=3600)
+    html = dashboard_client_factory(data).get(
         "/", params={"filter": "Available"}).text
     assert ">Origen atrasado</span>" in html
     assert 'status status--historic">Available</span>' in html
 
 
-def test_filtered_connector_does_not_widen_source_authorization(monkeypatch, tmp_path):
-    data = _data(connected=1)
-    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
-    client = TestClient(web.create_app(tmp_path / "warehouse", allowed_source_ids=("site-a",)))
+def test_filtered_connector_does_not_widen_source_authorization(dashboard_client_factory, dashboard_snapshot_factory):
+    data = dashboard_snapshot_factory(connected=1)
+    client = dashboard_client_factory(data, allowed_source_ids=("site-a",))
     assert client.get("/", params={"filter": "Available"}).status_code == 200
     assert client.get("/", params={"source_id": "other", "filter": "Available"}).status_code == 403
 
@@ -175,25 +147,25 @@ def test_charger_activity_allows_three_heartbeat_intervals(age_seconds, expected
     assert web._charger_activity_freshness(activity, now) == expected
 
 
-def test_charger_activity_does_not_use_status_notification_age(monkeypatch, tmp_path):
-    data = _data(status_age_hours=51)
+def test_charger_activity_does_not_use_status_notification_age(dashboard_client_factory, dashboard_snapshot_factory):
+    data = dashboard_snapshot_factory(status_age_hours=51)
     data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
-    html = _html(monkeypatch, tmp_path, data)
+    html = _html(dashboard_client_factory, data)
     assert 'status status--ok">Available</span>' in html
 
 
-def test_old_charger_activity_overrides_recent_pipeline(monkeypatch, tmp_path):
-    data = _data()
+def test_old_charger_activity_overrides_recent_pipeline(dashboard_client_factory, dashboard_snapshot_factory):
+    data = dashboard_snapshot_factory()
     data["connectors"][0]["last_activity_at"] = (
         datetime.now(timezone.utc) - timedelta(seconds=240)
     ).isoformat()
-    html = _html(monkeypatch, tmp_path, data)
+    html = _html(dashboard_client_factory, data)
     assert 'status status--historic">Available</span>' in html
     assert '0 (0)</strong><span>Disponibles' in html
 
 
-def test_missing_charger_activity_preserves_legacy_behavior(monkeypatch, tmp_path):
-    html = _html(monkeypatch, tmp_path, _data())
+def test_missing_charger_activity_preserves_legacy_behavior(dashboard_client_factory, dashboard_snapshot_factory):
+    html = _html(dashboard_client_factory, dashboard_snapshot_factory())
     assert 'status status--ok">Available</span>' in html
 
 
@@ -206,19 +178,18 @@ def test_charger_activity_without_valid_utc_evidence_is_unknown(timestamp):
     ) == "unknown"
 
 
-def test_recent_charger_activity_cannot_hide_stale_replication(monkeypatch, tmp_path):
-    data = _data(source_age_seconds=3600)
+def test_recent_charger_activity_cannot_hide_stale_replication(dashboard_client_factory, dashboard_snapshot_factory):
+    data = dashboard_snapshot_factory(source_age_seconds=3600)
     data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
-    html = _html(monkeypatch, tmp_path, data)
+    html = _html(dashboard_client_factory, data)
     assert 'status status--historic">Available</span>' in html
     assert '0 (0)</strong><span>Disponibles' in html
 
 
-def test_activity_metadata_does_not_change_raw_snapshot(monkeypatch, tmp_path):
-    data = _data()
+def test_activity_metadata_does_not_change_raw_snapshot(dashboard_client_factory, dashboard_snapshot_factory):
+    data = dashboard_snapshot_factory()
     data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
-    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
-    client = TestClient(web.create_app(tmp_path / "warehouse"))
+    client = dashboard_client_factory(data)
     connector = client.get("/api/snapshot").json()["connectors"][0]
     assert connector["last_activity_at"] == data["connectors"][0]["last_activity_at"]
     assert "activity_freshness" not in connector
