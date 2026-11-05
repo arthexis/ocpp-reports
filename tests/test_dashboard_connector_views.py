@@ -75,8 +75,6 @@ def test_connector_mode_respects_other_filters_and_authorization(monkeypatch, tm
 
 
 def test_directional_discrepancy_badges_are_single_and_colored(monkeypatch, tmp_path):
-    from html.parser import HTMLParser
-
     data = _snapshot()
     # Single-connector stations in both directions; no multi-connector inference.
     data["connectors"] = [
