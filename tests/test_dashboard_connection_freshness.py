@@ -4,52 +4,62 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from ocpp_reports import web
+from dashboard_html import DashboardHTML
+
+
+def _has_badge(page, cell, text=None, css=None, titled=False):
+    return any(
+        (text is None or badge["text"].strip() == text)
+        and (css is None or css in badge["attrs"].get("class", "").split())
+        and (not titled or bool(badge["attrs"].get("title")))
+        for badge in page.cell_badges(cell)
+    )
 
 
 def _html(dashboard_client_factory, data):
     response = dashboard_client_factory(data).get("/")
     assert response.status_code == 200
-    return response.text
+    return DashboardHTML(response.text)
 
 
 def test_unchanged_51_hour_status_with_recent_source_and_connected_stays_available(dashboard_client_factory, dashboard_snapshot_factory):
     data = dashboard_snapshot_factory()
     html = _html(dashboard_client_factory, data)
-    assert 'status status--ok">Available</span>' in html
-    assert 'status status--ok" title=' in html
-    assert ">Origen atrasado</span>" not in html
-    assert ">Estado sin fecha</span>" not in html
-    assert '1 (1)</strong><span>Disponibles' in html
-    assert web.display_date(data["connectors"][0]["status_observed_at"], "UTC") in html
+    assert _has_badge(html, "Estado", "Available", "status--ok")
+    assert _has_badge(html, "Conectado", css="status--ok", titled=True)
+    assert not _has_badge(html, "Estado", "Origen atrasado")
+    assert not _has_badge(html, "Estado", "Estado sin fecha")
+    assert html.count("Disponibles") == "1 (1)"
+    assert any(web.display_date(data["connectors"][0]["status_observed_at"], "UTC") in node["text"] for node in html.elements)
 
 
 def test_recent_source_with_observed_disconnection_is_not_available(dashboard_client_factory, dashboard_snapshot_factory):
     html = _html(dashboard_client_factory, dashboard_snapshot_factory(connected=False))
-    assert 'status status--historic">Available</span>' in html
-    assert 'status status--off" title=' in html
-    assert '0 (0)</strong><span>Disponibles' in html
-    assert '1 (1)</strong><span>Datos antiguos' in html
+    assert _has_badge(html, "Estado", "Available", "status--historic")
+    assert _has_badge(html, "Conectado", css="status--off", titled=True)
+    assert html.count("Disponibles") == "0 (0)"
+    assert html.count("Datos antiguos") == "1 (1)"
 
 
 def test_old_source_stays_neutral_despite_last_connected_true(dashboard_client_factory, dashboard_snapshot_factory):
     html = _html(dashboard_client_factory, dashboard_snapshot_factory(source_age_seconds=3600))
-    assert 'status status--historic">Available</span>' in html
-    assert 'status status--historic" title=' in html
-    assert ">Origen atrasado</span>" in html
-    assert '0 (0)</strong><span>Disponibles' in html
+    assert _has_badge(html, "Estado", "Available", "status--historic")
+    assert _has_badge(html, "Conectado", css="status--historic", titled=True)
+    assert _has_badge(html, "Estado", "Origen atrasado")
+    assert html.count("Disponibles") == "0 (0)"
 
 
 def test_missing_status_timestamp_does_not_invent_new_status(dashboard_client_factory, dashboard_snapshot_factory):
     html = _html(dashboard_client_factory, dashboard_snapshot_factory(status_timestamp=False))
-    assert ">Estado sin fecha</span>" in html
-    assert ">Origen atrasado</span>" not in html
-    assert 'status status--ok">Available</span>' in html
+    assert _has_badge(html, "Estado", "Estado sin fecha")
+    assert not _has_badge(html, "Estado", "Origen atrasado")
+    assert _has_badge(html, "Estado", "Available", "status--ok")
 
 
 def test_absent_source_evidence_does_not_claim_live_connectivity(dashboard_client_factory, dashboard_snapshot_factory):
     html = _html(dashboard_client_factory, dashboard_snapshot_factory(source_age_seconds=None))
-    assert ">Origen sin fecha</span>" in html
-    assert 'status status--historic" title=' in html
+    assert _has_badge(html, "Estado", "Origen sin fecha")
+    assert _has_badge(html, "Conectado", css="status--historic", titled=True)
 
 
 def test_timestamp_validation_and_pipeline_freshness_are_distinct():
@@ -82,11 +92,11 @@ def test_sqlite_connection_flags_drive_badges_and_counts(
     # Model the SQLite snapshot's integer column rather than a boolean fixture.
     data = dashboard_snapshot_factory(connected=raw_flag)
     html = _html(dashboard_client_factory, data)
-    assert f'status {status_class}">Available</span>' in html
-    assert f'>{badge}</span>' in html
-    assert f'{available_count}</strong><span>Disponibles' in html
-    assert f'{uncertain_count}</strong><span>Datos antiguos' in html
-    assert web.display_date(data["connectors"][0]["status_observed_at"], "UTC") in html
+    assert _has_badge(html, "Estado", "Available", status_class)
+    assert _has_badge(html, "Conectado", badge)
+    assert html.count("Disponibles") == available_count
+    assert html.count("Datos antiguos") == uncertain_count
+    assert any(web.display_date(data["connectors"][0]["status_observed_at"], "UTC") in node["text"] for node in html.elements)
 
 
 @pytest.mark.parametrize(
@@ -111,11 +121,11 @@ def test_connector_search_preserves_original_source_freshness(dashboard_client_f
     client = dashboard_client_factory(data)
     page = client.get("/", params={"filter": search, "connector_view": "individual", "tz": "UTC"})
     assert page.status_code == 200
-    assert 'status status--ok">Available</span>' in page.text
-    assert 'status status--ok" title=' in page.text
-    assert '1 (1)</strong><span>Disponibles' in page.text
-    assert ">Origen sin fecha</span>" not in page.text
-    assert ">Origen atrasado</span>" not in page.text
+    assert _has_badge(DashboardHTML(page.text), "Estado", "Available", "status--ok")
+    assert _has_badge(DashboardHTML(page.text), "Conectado", css="status--ok", titled=True)
+    assert DashboardHTML(page.text).count("Disponibles") == "1 (1)"
+    assert not _has_badge(DashboardHTML(page.text), "Estado", "Origen sin fecha")
+    assert not _has_badge(DashboardHTML(page.text), "Estado", "Origen atrasado")
     assert web.display_date(data["connectors"][0]["status_observed_at"], "UTC") in page.text
     assert "Sin orígenes" in page.text
     assert client.get("/api/snapshot").json()["sources"][0]["source_id"] == "site-a"
@@ -123,10 +133,10 @@ def test_connector_search_preserves_original_source_freshness(dashboard_client_f
 
 def test_filtered_connector_still_warns_about_old_source(dashboard_client_factory, dashboard_snapshot_factory):
     data = dashboard_snapshot_factory(connected=1, source_age_seconds=3600)
-    html = dashboard_client_factory(data).get(
-        "/", params={"filter": "Available"}).text
-    assert ">Origen atrasado</span>" in html
-    assert 'status status--historic">Available</span>' in html
+    html = DashboardHTML(dashboard_client_factory(data).get(
+        "/", params={"filter": "Available"}).text)
+    assert _has_badge(html, "Estado", "Origen atrasado")
+    assert _has_badge(html, "Estado", "Available", "status--historic")
 
 
 def test_filtered_connector_does_not_widen_source_authorization(dashboard_client_factory, dashboard_snapshot_factory):
@@ -151,7 +161,7 @@ def test_charger_activity_does_not_use_status_notification_age(dashboard_client_
     data = dashboard_snapshot_factory(status_age_hours=51)
     data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
     html = _html(dashboard_client_factory, data)
-    assert 'status status--ok">Available</span>' in html
+    assert _has_badge(html, "Estado", "Available", "status--ok")
 
 
 def test_old_charger_activity_overrides_recent_pipeline(dashboard_client_factory, dashboard_snapshot_factory):
@@ -160,13 +170,13 @@ def test_old_charger_activity_overrides_recent_pipeline(dashboard_client_factory
         datetime.now(timezone.utc) - timedelta(seconds=240)
     ).isoformat()
     html = _html(dashboard_client_factory, data)
-    assert 'status status--historic">Available</span>' in html
-    assert '0 (0)</strong><span>Disponibles' in html
+    assert _has_badge(html, "Estado", "Available", "status--historic")
+    assert html.count("Disponibles") == "0 (0)"
 
 
 def test_missing_charger_activity_preserves_legacy_behavior(dashboard_client_factory, dashboard_snapshot_factory):
     html = _html(dashboard_client_factory, dashboard_snapshot_factory())
-    assert 'status status--ok">Available</span>' in html
+    assert _has_badge(html, "Estado", "Available", "status--ok")
 
 
 @pytest.mark.parametrize("timestamp", [
@@ -182,8 +192,8 @@ def test_recent_charger_activity_cannot_hide_stale_replication(dashboard_client_
     data = dashboard_snapshot_factory(source_age_seconds=3600)
     data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
     html = _html(dashboard_client_factory, data)
-    assert 'status status--historic">Available</span>' in html
-    assert '0 (0)</strong><span>Disponibles' in html
+    assert _has_badge(html, "Estado", "Available", "status--historic")
+    assert html.count("Disponibles") == "0 (0)"
 
 
 def test_activity_metadata_does_not_change_raw_snapshot(dashboard_client_factory, dashboard_snapshot_factory):
