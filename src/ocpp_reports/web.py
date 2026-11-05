@@ -193,6 +193,26 @@ def _connection_flag(value: object) -> bool | None:
     return None
 
 
+def _single_connector_discrepancy_badges(connectors: list[dict]) -> dict[tuple, str]:
+    """Compact directional C0/C1 discrepancy labels for single-connector stations."""
+    groups: dict[tuple, list[dict]] = {}
+    for row in connectors:
+        groups.setdefault((row.get("source_id"), row.get("charger_id")), []).append(row)
+    labels: dict[tuple, str] = {}
+    for (source, charger), rows in groups.items():
+        physical = [row for row in rows if row.get("connector_id") not in (0, None)]
+        station = [row for row in rows if row.get("connector_id") == 0]
+        if len(physical) != 1 or len(station) != 1:
+            continue
+        c0 = (station[0].get("status") or "").lower()
+        c1 = (physical[0].get("status") or "").lower()
+        if c0 == "available" and c1 == "faulted":
+            labels[source, charger, physical[0]["connector_id"]] = "Warning"
+        elif c0 == "faulted" and c1 == "available":
+            labels[source, charger, physical[0]["connector_id"]] = "Failed"
+    return labels
+
+
 def _single_connector_disagreements(connectors: list[dict]) -> set[tuple]:
     """C0 Available contradicts the only physical connector's Faulted state."""
     groups = {}
@@ -428,7 +448,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         operational_counts = _operational_status_counts(data["connectors"])
         # Presentation-only selection. Operational cards count all scoped physical connectors,
         # and /api/snapshot preserves the complete source-scoped evidence.
-        disagreement_keys = _single_connector_disagreements(data["connectors"])
+        discrepancy_badges = _single_connector_discrepancy_badges(data["connectors"])
         connector_rows = [
             connector for connector in data["connectors"]
             if connector_view == "combined"
@@ -436,9 +456,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             or (connector_view == "individual" and connector.get("connector_id") != 0)
         ]
         for connector in connector_rows:
-            connector["status_disagreement"] = (
+            connector["status_discrepancy_badge"] = discrepancy_badges.get((
                 connector.get("source_id"), connector.get("charger_id"),
-                connector.get("connector_id")) in disagreement_keys
+                connector.get("connector_id")))
         template_started = perf_counter()
         response = templates.TemplateResponse(request, "dashboard.html.j2",
                                           {"data": data, "connector_rows": connector_rows,
