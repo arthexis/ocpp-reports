@@ -118,7 +118,9 @@ def attach_login(app, *, path, tenant):
                 except ValueError: pass
             if not valid:
                 return HTMLResponse(HTML.replace("<!--error-->","<p role='alert'>Credenciales incorrectas</p>"),status_code=401)
-            db.execute("DELETE FROM dashboard_login_attempts WHERE identity=?", (identity,))\n            db.execute("DELETE FROM dashboard_sessions WHERE expires<=?", (now,))\n            token=secrets.token_urlsafe(32)
+            db.execute("DELETE FROM dashboard_login_attempts WHERE identity=?", (identity,))
+            db.execute("DELETE FROM dashboard_sessions WHERE expires<=?", (now,))
+            token=secrets.token_urlsafe(32)
             db.execute("INSERT INTO dashboard_sessions VALUES(?,?,?)",(hashlib.sha256(token.encode()).hexdigest(),username,int(time.time())+43200))
         response=RedirectResponse("/",status_code=303)
         response.set_cookie(COOKIE,token,secure=True,httponly=True,samesite="lax",max_age=43200)
