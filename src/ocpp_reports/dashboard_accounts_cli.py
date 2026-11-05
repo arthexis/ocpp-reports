@@ -30,6 +30,23 @@ def _password() -> str:
     return password
 
 
+@app.command("init")
+def init(database: Path = typer.Option(..., "--database")) -> None:
+    """Initialize a new private authentication database."""
+    from .dashboard_login import initialize
+    try:
+        if database.exists():
+            raise ValueError("Database already exists")
+        if not database.parent.is_dir():
+            raise ValueError("Parent directory must exist")
+        initialize(str(database))
+        database.chmod(0o600)
+    except (ValueError, OSError) as exc:
+        typer.echo(f"Database initialization refused: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    typer.echo("Authentication database initialized")
+
+
 @app.command("create")
 def create(
     username: str = typer.Option(..., "--username"),
