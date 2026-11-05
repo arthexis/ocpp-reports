@@ -134,7 +134,7 @@ def test_directional_discrepancy_badges_are_single_and_colored(monkeypatch, tmp_
             attrs = dict(attrs)
             if tag == "td" and attrs.get("data-label") == "Estado":
                 self.in_status = True
-            if self.in_status and tag == "span" and "status" in attrs.get("class", "").split():
+            if self.in_status and tag == "span" and "status" in attrs.get("class", "").split() and attrs.get("title", "").startswith("Estación C0:"):
                 self.badges.append({"class": attrs["class"], "title": attrs.get("title", ""),
                                     "aria": attrs.get("aria-label", ""), "text": ""})
         def handle_data(self, data):
