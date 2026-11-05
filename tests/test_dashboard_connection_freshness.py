@@ -195,3 +195,31 @@ def test_old_charger_activity_overrides_recent_pipeline(monkeypatch, tmp_path):
 def test_missing_charger_activity_preserves_legacy_behavior(monkeypatch, tmp_path):
     html = _html(monkeypatch, tmp_path, _data())
     assert 'status status--ok">Available</span>' in html
+
+
+@pytest.mark.parametrize("timestamp", [
+    None, "", "not-a-date", "2026-11-05T03:00:00",
+])
+def test_charger_activity_without_valid_utc_evidence_is_unknown(timestamp):
+    assert web._charger_activity_freshness(
+        timestamp, datetime.now(timezone.utc)
+    ) == "unknown"
+
+
+def test_recent_charger_activity_cannot_hide_stale_replication(monkeypatch, tmp_path):
+    data = _data(source_age_seconds=3600)
+    data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
+    html = _html(monkeypatch, tmp_path, data)
+    assert 'status status--historic">Available</span>' in html
+    assert '0 (0)</strong><span>Disponibles' in html
+
+
+def test_activity_metadata_does_not_change_raw_snapshot(monkeypatch, tmp_path):
+    data = _data()
+    data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
+    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
+    client = TestClient(web.create_app(tmp_path / "warehouse"))
+    connector = client.get("/api/snapshot").json()["connectors"][0]
+    assert connector["last_activity_at"] == data["connectors"][0]["last_activity_at"]
+    assert "activity_freshness" not in connector
+    assert "stale" not in connector
