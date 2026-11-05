@@ -1,16 +1,7 @@
 """Panel help is compact by default and accessible by pointer and keyboard."""
-from fastapi.testclient import TestClient
 
-from ocpp_reports import web
-
-
-def test_five_panel_explanations_are_in_accessible_popovers(monkeypatch, tmp_path):
-    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: {
-        "sources": [], "connectors": [], "transactions": [], "events": [],
-    })
-    response = TestClient(web.create_app(tmp_path / "unused")).get("/")
-    assert response.status_code == 200
-    html = response.text
+def test_five_panel_explanations_are_in_accessible_popovers(empty_dashboard_html):
+    html = empty_dashboard_html
     for identifier, label in (
         ("operations", "Estado de los cargadores"),
         ("connectors", "Conectores"),
