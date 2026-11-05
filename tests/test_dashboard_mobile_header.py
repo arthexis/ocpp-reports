@@ -1,16 +1,7 @@
 """Regression checks for compact mobile navigation without losing search access."""
-from fastapi.testclient import TestClient
 
-from ocpp_reports import web
-
-
-def test_mobile_header_preserves_search_and_timezone_controls(monkeypatch, tmp_path):
-    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: {
-        "sources": [], "connectors": [], "transactions": [], "events": [],
-    })
-    response = TestClient(web.create_app(tmp_path / "unused")).get("/")
-    assert response.status_code == 200
-    html = response.text
+def test_mobile_header_preserves_search_and_timezone_controls(empty_dashboard_html):
+    html = empty_dashboard_html
     css = html.split("<style>", 1)[1].split("</style>", 1)[0]
     compact = css.split("/* Narrow phones:", 1)[1].split("\n}", 1)[0]
     assert "@media(max-width:520px)" in compact
