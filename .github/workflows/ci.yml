@@ -20,10 +20,10 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Install
         run: python -m pip install '.[test]'
-      - name: Install CSMS producer for cross-repository contract test
-        run: python -m pip install 'git+https://github.com/arthexis/ocpp-csms.git@main'
+      - name: Install pinned CSMS producer for cross-repository contract test
+        run: python -m pip install 'git+https://github.com/arthexis/ocpp-csms.git@9ae44f2fed6082dbf30848a48d616a2c07bcfd80'
       - name: Unit and contract tests with timings
-        run: python -m pytest -ra --durations=10
+        run: python -m pytest
       - name: CLI smoke
         run: |
           ocpp-reports --help
@@ -47,6 +47,14 @@ jobs:
         run: python3 -m pip install '.[test]' ansible-core ansible-lint
       - name: Fast preflight (rendered artifacts, shell, Ansible)
         run: bash scripts/preflight.sh --quick
+
+  systemd_integration:
+    name: systemd lifecycle integration
+    needs: static_validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
       - name: Isolated real-systemd local ingest lifecycle
         run: sudo python3 scripts/test_local_ingest_systemd.py
 
@@ -70,106 +78,13 @@ jobs:
           test -x deploy.sh || { echo '::error::deploy.sh is not executable'; exit 1; }
       - name: Install Ansible
         run: python3 -m pip install ansible-core
-      - name: Run real deploy.sh into isolated CI directory
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          # Always capture service evidence at the first failing command, even
-          # if the failure occurs before the final service assertions.
-          report_deploy_failure() {
-            local rc=$?
-            trap - ERR
-            echo "::error::Deployment integration failed (role: ${{ matrix.role }}, exit: $rc)"
-            if [ -f /etc/systemd/system/ocpp-reports-dashboard.service ]; then
-              echo "==> Rendered dashboard systemd unit"
-              systemctl cat ocpp-reports-dashboard.service || true
-              echo "==> Dashboard service state and recent journal"
-              systemctl status ocpp-reports-dashboard.service --no-pager -l || true
-              journalctl -u ocpp-reports-dashboard.service -n 80 --no-pager || true
-            fi
-            exit "$rc"
-          }
-          trap report_deploy_failure ERR
-          # Isolated runners cannot request public ACME certificates or provision credentials.
-          # Exercise the explicit HTTPS opt-out while keeping production default enabled.
-          export OCPP_REPORTS_NGINX_ENABLED=false
-          export OCPP_REPORTS_INSTALL_ROOT="/opt/ocpp-reports-ci"
-          export OCPP_REPORTS_CLI_LINK="/usr/local/bin/ocpp-reports-ci"
-          ./deploy.sh --${{ matrix.role }}
-          test -f "$OCPP_REPORTS_INSTALL_ROOT/role"
-          test "$(cat "$OCPP_REPORTS_INSTALL_ROOT/role")" = "${{ matrix.role }}"
-          test -x "$OCPP_REPORTS_CLI_LINK"
-          test -L "$OCPP_REPORTS_INSTALL_ROOT/current"
-          test "$(readlink "$OCPP_REPORTS_CLI_LINK")" = "$OCPP_REPORTS_INSTALL_ROOT/current/venv/bin/ocpp-reports"
-          test "$(readlink "$OCPP_REPORTS_INSTALL_ROOT/current")" = "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg"
-          # Fresh collector/dashboard installs have valid configuration but no
-          # collected warehouse yet. Validate JSON rather than assuming that
-          # the CLI's exit code represents installation success.
-          verify_installed_status() {
-            local result code=0
-            result="$(sudo -u ocpp-reports "$OCPP_REPORTS_CLI_LINK" status --json)" || code=$?
-            printf '%s\n' "$result"
-            printf 'Reports CLI status exit code: %s (role: %s)\n' "$code" "${{ matrix.role }}"
-            if [ "${{ matrix.role }}" = watchtower ] || [ "${{ matrix.role }}" = control ]; then
-              # Both zero and 'unconfigured' (3) are legitimate status exit
-              # codes across supported installations, but the JSON must prove
-              # this is *only* a missing, not corrupt, collector warehouse.
-              if [ "$code" -ne 0 ] && [ "$code" -ne 3 ]; then
-                echo "::error::Unexpected Reports status exit code $code" >&2
-                return 1
-              fi
-              printf '%s\n' "$result" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["state"] == "unconfigured"; assert d["config"]["state"] == "valid"; assert d["warehouse"]["state"] == "missing"'
-            else
-              test "$code" -eq 0
-            fi
-          }
-          verify_installed_status
-          test -x "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg/venv/bin/ocpp-reports"
-          bash deploy.sh
-          # Explicit role must always re-enter Ansible, even for an installed SHA.
-          ./deploy.sh --${{ matrix.role }} > /tmp/ocpp-reports-explicit-redeploy.log
-          ! grep -q 'skipped Ansible' /tmp/ocpp-reports-explicit-redeploy.log
-          grep -q 'PLAY RECAP' /tmp/ocpp-reports-explicit-redeploy.log
-          test -L "$OCPP_REPORTS_INSTALL_ROOT/current"
-          test ! -e "$OCPP_REPORTS_INSTALL_ROOT/previous"
-          verify_installed_status
-          test "$(cat "$OCPP_REPORTS_INSTALL_ROOT/role")" = "${{ matrix.role }}"
-          case "${{ matrix.role }}" in
-            terminal) ;;
-            satellite)
-              test -f /etc/systemd/system/ocpp-reports-forwarder.service
-              ! systemctl is-active --quiet ocpp-reports-forwarder.service
-              ;;
-            watchtower)
-              test -f /etc/systemd/system/ocpp-reports-collector.service
-              test -f /etc/systemd/system/ocpp-reports-dashboard.service
-              ! systemctl is-active --quiet ocpp-reports-collector.service
-              if ! systemctl is-active --quiet ocpp-reports-dashboard.service; then
-                echo "::error::Dashboard service failed to remain active after deploy"
-                systemctl status ocpp-reports-dashboard.service --no-pager -l || true
-                journalctl -u ocpp-reports-dashboard.service -n 80 --no-pager || true
-                exit 1
-              fi
-              ;;
-            control)
-              test -f /etc/systemd/system/ocpp-reports-forwarder.service
-              test -f /etc/systemd/system/ocpp-reports-collector.service
-              test -f /etc/systemd/system/ocpp-reports-dashboard.service
-              ! systemctl is-active --quiet ocpp-reports-forwarder.service
-              ! systemctl is-active --quiet ocpp-reports-collector.service
-              if ! systemctl is-active --quiet ocpp-reports-dashboard.service; then
-                echo "::error::Dashboard service failed to remain active after deploy"
-                systemctl status ocpp-reports-dashboard.service --no-pager -l || true
-                journalctl -u ocpp-reports-dashboard.service -n 80 --no-pager || true
-                exit 1
-              fi
-              ;;
-          esac
+      - name: Run isolated role deployment integration
+        run: bash scripts/ci_deploy_integration.sh ${{ matrix.role }}
 
   general:
     name: CI
     if: always()
-    needs: [test, static_validation, ansible_integration]
+    needs: [test, static_validation, systemd_integration, ansible_integration]
     runs-on: ubuntu-latest
     steps:
       - name: Require all test matrix jobs
@@ -177,7 +92,9 @@ jobs:
           RESULT: ${{ needs.test.result }}
           STATIC_RESULT: ${{ needs.static_validation.result }}
           ANSIBLE_RESULT: ${{ needs.ansible_integration.result }}
+          SYSTEMD_RESULT: ${{ needs.systemd_integration.result }}
         run: |
           test "$RESULT" = success
           test "$STATIC_RESULT" = success
           test "$ANSIBLE_RESULT" = success
+          test "$SYSTEMD_RESULT" = success

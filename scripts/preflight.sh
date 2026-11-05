@@ -32,9 +32,10 @@ step() { printf '\n==> %s\n' "$*"; }
 step "Shell syntax"
 bash -n scripts/preflight.sh
 bash -n deploy.sh
+bash -n scripts/ci_deploy_integration.sh
 
 step "Python compilation"
-python3 -m compileall -q src
+python3 -m compileall -q src tests scripts
 
 step "Template-rendering regression tests (Ansible trim_blocks)"
 python3 -m pytest -q tests/test_dashboard_service_template.py

@@ -159,6 +159,22 @@ def _filter_transaction_energy(transactions: list[dict], view: str) -> list[dict
 # Ingestion cadence is normally 30 seconds; allow for forwarding/backoff jitter.
 # This is source-pipeline freshness, not proof of charger heartbeat or a new status.
 SOURCE_FRESHNESS_SECONDS = 180
+CHARGER_ACTIVITY_SECONDS = 180
+
+
+def _charger_activity_freshness(timestamp: object, now: datetime) -> str:
+    """Charger-origin activity, distinct from ingestion and StatusNotification."""
+    if not isinstance(timestamp, str):
+        return "unknown"
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return "unknown"
+        age = (now - parsed.astimezone(timezone.utc)).total_seconds()
+        return "fresh" if 0 <= age <= CHARGER_ACTIVITY_SECONDS else "old"
+    except (ValueError, TypeError, OverflowError):
+        return "unknown"
+
 
 
 def _freshness(timestamp: object, now: datetime) -> str:
@@ -193,6 +209,42 @@ def _connection_flag(value: object) -> bool | None:
     return None
 
 
+def _single_connector_discrepancy_badges(connectors: list[dict]) -> dict[tuple, str]:
+    """Compact directional C0/C1 discrepancy labels for single-connector stations."""
+    groups: dict[tuple, list[dict]] = {}
+    for row in connectors:
+        groups.setdefault((row.get("source_id"), row.get("charger_id")), []).append(row)
+    labels: dict[tuple, str] = {}
+    for (source, charger), rows in groups.items():
+        physical = [row for row in rows if row.get("connector_id") not in (0, None)]
+        station = [row for row in rows if row.get("connector_id") == 0]
+        if len(physical) != 1 or len(station) != 1:
+            continue
+        c0 = (station[0].get("status") or "").lower()
+        c1 = (physical[0].get("status") or "").lower()
+        if c0 == "available" and c1 == "faulted":
+            labels[source, charger, physical[0]["connector_id"]] = "Warning"
+        elif c0 == "faulted" and c1 == "available":
+            labels[source, charger, physical[0]["connector_id"]] = "Failed"
+    return labels
+
+
+def _single_connector_disagreements(connectors: list[dict]) -> set[tuple]:
+    """C0 Available contradicts the only physical connector's Faulted state."""
+    groups = {}
+    for row in connectors:
+        groups.setdefault((row.get("source_id"), row.get("charger_id")), []).append(row)
+    result = set()
+    for (source, charger), rows in groups.items():
+        physical = [r for r in rows if r.get("connector_id") not in (0, None)]
+        station = [r for r in rows if r.get("connector_id") == 0]
+        if (len(physical) == len(station) == 1
+                and (station[0].get("status") or "").lower() == "available"
+                and (physical[0].get("status") or "").lower() == "faulted"):
+            result.add((source, charger, physical[0]["connector_id"]))
+    return result
+
+
 def _operational_status_counts(connectors: list[dict]) -> dict[str, dict[str, int]]:
     """Count distinct stations and physical connectors, without counting C0 twice.
 
@@ -206,7 +258,8 @@ def _operational_status_counts(connectors: list[dict]) -> dict[str, dict[str, in
         groups.setdefault(key, []).append(row)
     counts = {name: {"stations": 0, "connectors": 0}
               for name in ("available", "charging", "faults", "uncertain")}
-    for rows in groups.values():
+    warnings = _single_connector_disagreements(connectors)
+    for (source, charger), rows in groups.items():
         physical = [row for row in rows if row.get("connector_id") not in (0, None)]
         selected = physical or [row for row in rows if row.get("connector_id") == 0]
         active_states: set[str] = set()
@@ -227,6 +280,9 @@ def _operational_status_counts(connectors: list[dict]) -> dict[str, dict[str, in
             if physical:
                 for category in states:
                     counts[category]["connectors"] += 1
+        if physical and (source, charger, physical[0].get("connector_id")) in warnings:
+            active_states.discard("faults")
+            active_states.add("available")
         for category in active_states:
             counts[category]["stations"] += 1
     return counts
@@ -306,7 +362,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
               status: str = "", location: str = "",
               date_from: str = "", date_to: str = "", tz: str | None = None,
               tx_view: str = "success", tx_page: int = Query(1, ge=1),
-              event_page: int = Query(1, ge=1), connector_view: str = "combined"):
+              event_page: int = Query(1, ge=1), connector_view: str = "individual"):
         tz = tz or zones[0]
         if tz not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
@@ -400,24 +456,37 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             connector["connected"] = _connection_flag(connector.get("connected"))
             # The observed connection flag comes from the source's last
             # CSMS status snapshot; it is only actionable with recent source data.
+            connector["activity_freshness"] = _charger_activity_freshness(
+                connector.get("last_activity_at"), now
+            )
+            # Charger-origin activity is distinct from the export timestamp.
+            # Legacy snapshots retain the connection flag semantics.
+            activity = connector["activity_freshness"]
             connector["connection_fresh"] = (
                 connector["source_freshness"] == "fresh"
                 and connector["connected"] is not None
+                and activity != "old"
             )
             connector["stale"] = (
                 connector["source_freshness"] != "fresh"
                 or connector.get("connected") is not True
+                or activity == "old"
                 or not connector.get("status")
             )
         operational_counts = _operational_status_counts(data["connectors"])
         # Presentation-only selection. Operational cards count all scoped physical connectors,
         # and /api/snapshot preserves the complete source-scoped evidence.
+        discrepancy_badges = _single_connector_discrepancy_badges(data["connectors"])
         connector_rows = [
             connector for connector in data["connectors"]
             if connector_view == "combined"
             or (connector_view == "station" and connector.get("connector_id") == 0)
             or (connector_view == "individual" and connector.get("connector_id") != 0)
         ]
+        for connector in connector_rows:
+            connector["status_discrepancy_badge"] = discrepancy_badges.get((
+                connector.get("source_id"), connector.get("charger_id"),
+                connector.get("connector_id")))
         template_started = perf_counter()
         response = templates.TemplateResponse(request, "dashboard.html.j2",
                                           {"data": data, "is_admin": is_admin, "connector_rows": connector_rows,

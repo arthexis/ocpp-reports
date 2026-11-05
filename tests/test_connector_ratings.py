@@ -81,9 +81,12 @@ def test_dashboard_distinguishes_nominal_and_fresh_measured_power(monkeypatch, t
     ]
     monkeypatch.setattr(web, "snapshot", lambda *a, **k: {
         "sources": [], "connectors": rows, "events": [], "transactions": []})
-    response = TestClient(create_app(tmp_path / "unused")).get("/")
+    client = TestClient(create_app(tmp_path / "unused"))
+    response = client.get("/")
     assert response.status_code == 200
-    assert "50.00 kW" in response.text and "nominal" in response.text
+    assert "50.00 kW" not in response.text
+    combined = client.get("/?connector_view=combined")
+    assert "50.00 kW" in combined.text and "nominal" in combined.text
     assert "7.20 kW" in response.text and "medida" in response.text
     assert "11.00 kW" in response.text
     assert "3.40 kW" not in response.text
