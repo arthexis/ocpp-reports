@@ -162,3 +162,64 @@ def test_filtered_connector_does_not_widen_source_authorization(monkeypatch, tmp
     client = TestClient(web.create_app(tmp_path / "warehouse", allowed_source_ids=("site-a",)))
     assert client.get("/", params={"filter": "Available"}).status_code == 200
     assert client.get("/", params={"source_id": "other", "filter": "Available"}).status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("age_seconds", "expected"),
+    [(0, "fresh"), (59, "fresh"), (60, "fresh"),
+     (120, "fresh"), (180, "fresh"), (181, "old")],
+)
+def test_charger_activity_allows_three_heartbeat_intervals(age_seconds, expected):
+    now = datetime.now(timezone.utc)
+    activity = (now - timedelta(seconds=age_seconds)).isoformat()
+    assert web._charger_activity_freshness(activity, now) == expected
+
+
+def test_charger_activity_does_not_use_status_notification_age(monkeypatch, tmp_path):
+    data = _data(status_age_hours=51)
+    data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
+    html = _html(monkeypatch, tmp_path, data)
+    assert 'status status--ok">Available</span>' in html
+
+
+def test_old_charger_activity_overrides_recent_pipeline(monkeypatch, tmp_path):
+    data = _data()
+    data["connectors"][0]["last_activity_at"] = (
+        datetime.now(timezone.utc) - timedelta(seconds=240)
+    ).isoformat()
+    html = _html(monkeypatch, tmp_path, data)
+    assert 'status status--historic">Available</span>' in html
+    assert '0 (0)</strong><span>Disponibles' in html
+
+
+def test_missing_charger_activity_preserves_legacy_behavior(monkeypatch, tmp_path):
+    html = _html(monkeypatch, tmp_path, _data())
+    assert 'status status--ok">Available</span>' in html
+
+
+@pytest.mark.parametrize("timestamp", [
+    None, "", "not-a-date", "2026-11-05T03:00:00",
+])
+def test_charger_activity_without_valid_utc_evidence_is_unknown(timestamp):
+    assert web._charger_activity_freshness(
+        timestamp, datetime.now(timezone.utc)
+    ) == "unknown"
+
+
+def test_recent_charger_activity_cannot_hide_stale_replication(monkeypatch, tmp_path):
+    data = _data(source_age_seconds=3600)
+    data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
+    html = _html(monkeypatch, tmp_path, data)
+    assert 'status status--historic">Available</span>' in html
+    assert '0 (0)</strong><span>Disponibles' in html
+
+
+def test_activity_metadata_does_not_change_raw_snapshot(monkeypatch, tmp_path):
+    data = _data()
+    data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
+    monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
+    client = TestClient(web.create_app(tmp_path / "warehouse"))
+    connector = client.get("/api/snapshot").json()["connectors"][0]
+    assert connector["last_activity_at"] == data["connectors"][0]["last_activity_at"]
+    assert "activity_freshness" not in connector
+    assert "stale" not in connector
