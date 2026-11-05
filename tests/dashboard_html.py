@@ -43,3 +43,31 @@ class DashboardHTML(HTMLParser):
         matches = self.find(data_connector_view=view)
         assert len(matches) == 1, (view, matches)
         return matches[0]["attrs"].get("aria-pressed") == "true"
+
+    def cell_badges(self, label):
+        """Status badges within table cells identified by their semantic label."""
+        return [node for node in self.status_badges()
+                if self._ancestor(node, "td", "data-label", label)]
+
+    @staticmethod
+    def _ancestor(node, tag, attribute, value):
+        parent = node["parent"]
+        while parent is not None:
+            if parent["tag"] == tag and parent["attrs"].get(attribute) == value:
+                return True
+            parent = parent["parent"]
+        return False
+
+    def count(self, label):
+        """Operational station/connector count, looked up by visible card label."""
+        cards = self.find("a")
+        matches = [card for card in cards
+                   if "operational-card" in card["attrs"].get("class", "").split()
+                   and any(child["parent"] is card and child["tag"] == "span"
+                           and child["text"].strip().startswith(label)
+                           for child in self.elements)]
+        assert len(matches) == 1, (label, len(matches))
+        numbers = [child["text"].strip() for child in self.elements
+                   if child["parent"] is matches[0] and child["tag"] == "strong"]
+        assert len(numbers) == 1, (label, numbers)
+        return numbers[0]
