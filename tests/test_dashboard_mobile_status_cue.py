@@ -17,7 +17,7 @@ def test_mobile_historical_labels_are_short_but_keep_freshness():
     assert "Estado sin fecha</span>" in source
     assert 'data-label="Conectado"' in source
     assert 'c.connected is sameas true' in source
-    assert "c.source_freshness != 'fresh'" in source
+    assert "c.stale and state in ['available', 'finishing', 'charging']" in source
 
 
 def test_scroll_hint_appears_only_for_overflowing_desktop_table():

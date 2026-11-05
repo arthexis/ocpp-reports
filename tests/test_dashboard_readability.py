@@ -9,7 +9,7 @@ TEMPLATE = (Path(__file__).resolve().parents[1] /
 
 def test_stale_observations_never_look_live():
     source = TEMPLATE.read_text()
-    assert "c.source_freshness != 'fresh'" in source
+    assert "c.stale and state in ['available', 'finishing', 'charging']" in source
     assert "Último: " not in source
     assert "último registro" not in source
     assert "Origen atrasado</span>" in source
