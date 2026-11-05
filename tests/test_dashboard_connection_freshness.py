@@ -19,7 +19,7 @@ def _has_badge(page, cell, text=None, css=None, titled=False):
 def _html(dashboard_client_factory, data):
     response = dashboard_client_factory(data).get("/")
     assert response.status_code == 200
-    return DashboardHTML(response.text
+    return DashboardHTML(response.text)
 
 
 def test_unchanged_51_hour_status_with_recent_source_and_connected_stays_available(dashboard_client_factory, dashboard_snapshot_factory):
