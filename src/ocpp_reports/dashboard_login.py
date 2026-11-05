@@ -108,7 +108,7 @@ def attach_login(app, *, path, tenant):
             attempt = db.execute("SELECT failures,window_start,locked_until FROM dashboard_login_attempts WHERE identity=?", (identity,)).fetchone()
             if attempt and attempt[2] > now:
                 return HTMLResponse(HTML.replace("<!--error-->", "<p role='alert'>Intenta más tarde</p>"), status_code=429, headers={"Retry-After": str(attempt[2]-now), "Cache-Control": "no-store"})
-            row=db.execute("SELECT password_hash FROM dashboard_users WHERE user_id=? AND active=1",(username,)).fetchone()
+            row=db.execute("SELECT password_hash FROM dashboard_users WHERE user_id=? AND tenant_id=? AND active=1",(username,tenant)).fetchone()
             valid=False
             if row:
                 try:
