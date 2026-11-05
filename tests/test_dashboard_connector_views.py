@@ -4,6 +4,7 @@ from copy import deepcopy
 from fastapi.testclient import TestClient
 
 from ocpp_reports import web
+from dashboard_html import DashboardHTML
 
 
 def _snapshot():
@@ -25,33 +26,7 @@ def _snapshot():
 
 
 def _ids(html):
-    from html.parser import HTMLParser
-
-    class ConnectorTable(HTMLParser):
-        def __init__(self):
-            super().__init__()
-            self.inside = False
-            self.rows = []
-            self.active = False
-        def handle_starttag(self, tag, attrs):
-            attributes = dict(attrs)
-            if tag == "section" and attributes.get("id") == "connectors":
-                self.inside = True
-            if tag == "section" and self.inside and attributes.get("id") != "connectors":
-                self.inside = False
-            if self.inside and tag == "td" and attributes.get("data-label") == "Conector":
-                self.active = True
-        def handle_endtag(self, tag):
-            if tag == "td":
-                self.active = False
-            if tag == "section" and self.inside:
-                self.inside = False
-        def handle_data(self, data):
-            if self.inside and self.active:
-                self.rows.append(int(data.strip()))
-    parser = ConnectorTable()
-    parser.feed(html)
-    return parser.rows
+    return DashboardHTML(html).connector_ids()
 
 
 def test_default_individual_and_explicit_combined_station(monkeypatch, tmp_path):
@@ -60,19 +35,19 @@ def test_default_individual_and_explicit_combined_station(monkeypatch, tmp_path)
     default = client.get("/")
     assert default.status_code == 200
     assert _ids(default.text) == [1, 2, 1]
-    assert 'data-connector-view="individual" aria-pressed="true"' in default.text
-    assert 'data-connector-view="station" aria-pressed="false"' in default.text
-    assert 'data-connector-view="combined" aria-pressed="false"' in default.text
+    assert DashboardHTML(default.text).view_pressed("individual")
+    assert not DashboardHTML(default.text).view_pressed("station")
+    assert not DashboardHTML(default.text).view_pressed("combined")
     assert 'name="connector_view" value="individual"' in default.text
     combined = client.get("/?connector_view=combined")
     assert _ids(combined.text) == [0, 1, 2, 0, 1]
-    assert 'data-connector-view="combined" aria-pressed="true"' in combined.text
+    assert DashboardHTML(combined.text).view_pressed("combined")
     station = client.get("/?connector_view=station")
     assert _ids(station.text) == [0, 0]
-    assert 'data-connector-view="station" aria-pressed="true"' in station.text
+    assert DashboardHTML(station.text).view_pressed("station")
     individual = client.get("/?connector_view=individual")
     assert _ids(individual.text) == [1, 2, 1]
-    assert 'data-connector-view="individual" aria-pressed="true"' in individual.text
+    assert DashboardHTML(individual.text).view_pressed("individual")
     assert client.get("/?connector_view=other").status_code == 422
     # The API and the operational cards remain unfiltered.
     assert [c["connector_id"] for c in client.get("/api/snapshot").json()["connectors"]] == [0, 1, 2, 0, 1]
@@ -100,8 +75,6 @@ def test_connector_mode_respects_other_filters_and_authorization(monkeypatch, tm
 
 
 def test_directional_discrepancy_badges_are_single_and_colored(monkeypatch, tmp_path):
-    from html.parser import HTMLParser
-
     data = _snapshot()
     # Single-connector stations in both directions; no multi-connector inference.
     data["connectors"] = [
@@ -133,47 +106,16 @@ def test_directional_discrepancy_badges_are_single_and_colored(monkeypatch, tmp_
     client = TestClient(web.create_app(tmp_path / "unused"))
     html = client.get("/?connector_view=individual").text
 
-    class StatusCells(HTMLParser):
-        def __init__(self):
-            super().__init__()
-            self.in_status = False
-            self.primary_seen = False
-            self.in_primary_span = False
-            self.badges = []
-
-        def handle_starttag(self, tag, attrs):
-            attrs = dict(attrs)
-            if tag == "td" and attrs.get("data-label") == "Estado":
-                self.in_status = True
-                self.primary_seen = False
-                self.in_primary_span = False
-            if self.in_status and not self.primary_seen and tag == "span" and "status" in attrs.get("class", "").split():
-                self.primary_seen = True
-                self.in_primary_span = True
-                self.badges.append({"class": attrs["class"], "title": attrs.get("title", ""),
-                                    "aria": attrs.get("aria-label", ""), "text": ""})
-
-        def handle_data(self, data):
-            if self.in_primary_span:
-                self.badges[-1]["text"] += data
-
-        def handle_endtag(self, tag):
-            if tag == "span" and self.in_primary_span:
-                self.in_primary_span = False
-            if tag == "td":
-                self.in_status = False
-                self.in_primary_span = False
-
-    parser = StatusCells()
-    parser.feed(html)
-    assert len(parser.badges) == 3
-    warning, failed, available = parser.badges
-    assert warning["text"] == "Warning" and "status--warn" in warning["class"]
-    assert "C0: Available" in warning["title"] and "C1: Faulted" in warning["title"]
-    assert "Warning" in warning["aria"]
-    assert failed["text"] == "Failed" and "status--off" in failed["class"]
-    assert "C0: Faulted" in failed["title"] and "C1: Available" in failed["title"]
-    assert available["text"] == "Available" and "status--ok" in available["class"]
+    badges = [node for node in DashboardHTML(html).status_badges()
+              if node["text"].strip() in {"Warning", "Failed", "Available"}]
+    assert len(badges) == 3
+    warning, failed, available = badges
+    assert warning["text"].strip() == "Warning" and "status--warn" in warning["attrs"].get("class", "")
+    assert "C0: Available" in warning["attrs"].get("title", "") and "C1: Faulted" in warning["attrs"].get("title", "")
+    assert "Warning" in warning["attrs"].get("aria-label", "")
+    assert failed["text"].strip() == "Failed" and "status--off" in failed["attrs"].get("class", "")
+    assert "C0: Faulted" in failed["attrs"].get("title", "") and "C1: Available" in failed["attrs"].get("title", "")
+    assert available["text"].strip() == "Available" and "status--ok" in available["attrs"].get("class", "")
     assert "Discrepancia con estación" not in html
     # API remains evidence-only; the presentation badge is not persisted.
     assert all("status_discrepancy_badge" not in row
