@@ -276,6 +276,10 @@ def _operational_status_counts(connectors: list[dict]) -> dict[str, dict[str, in
                 states.add("available")
             elif state not in ("faulted", "unavailable"):
                 states.add("uncertain")
+            # A single connector with C0 Available / C1 Faulted remains a
+            # reported fault, but also contributes to operational availability.
+            if (source, charger, row.get("connector_id")) in warnings:
+                states.add("available")
             active_states.update(states)
             if physical:
                 for category in states:
