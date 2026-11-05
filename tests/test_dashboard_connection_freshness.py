@@ -1,9 +1,7 @@
 """Status changes, connection observations, and collector freshness are separate."""
-from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi.testclient import TestClient
 
 from ocpp_reports import web
 
@@ -16,7 +14,7 @@ def _html(dashboard_client_factory, data):
 
 def test_unchanged_51_hour_status_with_recent_source_and_connected_stays_available(dashboard_client_factory, dashboard_snapshot_factory):
     data = dashboard_snapshot_factory()
-    html = _html(dashboard_client_factory, dashboard_snapshot_factory, data)
+    html = _html(dashboard_client_factory, data)
     assert 'status status--ok">Available</span>' in html
     assert 'status status--ok" title=' in html
     assert ">Origen atrasado</span>" not in html
@@ -26,7 +24,7 @@ def test_unchanged_51_hour_status_with_recent_source_and_connected_stays_availab
 
 
 def test_recent_source_with_observed_disconnection_is_not_available(dashboard_client_factory, dashboard_snapshot_factory):
-    html = _html(dashboard_client_factory, dashboard_snapshot_factory, dashboard_snapshot_factory(connected=False))
+    html = _html(dashboard_client_factory, dashboard_snapshot_factory(connected=False))
     assert 'status status--historic">Available</span>' in html
     assert 'status status--off" title=' in html
     assert '0 (0)</strong><span>Disponibles' in html
@@ -34,7 +32,7 @@ def test_recent_source_with_observed_disconnection_is_not_available(dashboard_cl
 
 
 def test_old_source_stays_neutral_despite_last_connected_true(dashboard_client_factory, dashboard_snapshot_factory):
-    html = _html(dashboard_client_factory, dashboard_snapshot_factory, dashboard_snapshot_factory(source_age_seconds=3600))
+    html = _html(dashboard_client_factory, dashboard_snapshot_factory(source_age_seconds=3600))
     assert 'status status--historic">Available</span>' in html
     assert 'status status--historic" title=' in html
     assert ">Origen atrasado</span>" in html
@@ -42,14 +40,14 @@ def test_old_source_stays_neutral_despite_last_connected_true(dashboard_client_f
 
 
 def test_missing_status_timestamp_does_not_invent_new_status(dashboard_client_factory, dashboard_snapshot_factory):
-    html = _html(dashboard_client_factory, dashboard_snapshot_factory, dashboard_snapshot_factory(status_timestamp=False))
+    html = _html(dashboard_client_factory, dashboard_snapshot_factory(status_timestamp=False))
     assert ">Estado sin fecha</span>" in html
     assert ">Origen atrasado</span>" not in html
     assert 'status status--ok">Available</span>' in html
 
 
 def test_absent_source_evidence_does_not_claim_live_connectivity(dashboard_client_factory, dashboard_snapshot_factory):
-    html = _html(dashboard_client_factory, dashboard_snapshot_factory, dashboard_snapshot_factory(source_age_seconds=None))
+    html = _html(dashboard_client_factory, dashboard_snapshot_factory(source_age_seconds=None))
     assert ">Origen sin fecha</span>" in html
     assert 'status status--historic" title=' in html
 
@@ -83,7 +81,7 @@ def test_sqlite_connection_flags_drive_badges_and_counts(
         available_count, uncertain_count):
     # Model the SQLite snapshot's integer column rather than a boolean fixture.
     data = dashboard_snapshot_factory(connected=raw_flag)
-    html = _html(dashboard_client_factory, dashboard_snapshot_factory, data)
+    html = _html(dashboard_client_factory, data)
     assert f'status {status_class}">Available</span>' in html
     assert f'>{badge}</span>' in html
     assert f'{available_count}</strong><span>Disponibles' in html
@@ -153,7 +151,7 @@ def test_charger_activity_allows_three_heartbeat_intervals(age_seconds, expected
 def test_charger_activity_does_not_use_status_notification_age(dashboard_client_factory, dashboard_snapshot_factory):
     data = dashboard_snapshot_factory(status_age_hours=51)
     data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
-    html = _html(dashboard_client_factory, dashboard_snapshot_factory, data)
+    html = _html(dashboard_client_factory, data)
     assert 'status status--ok">Available</span>' in html
 
 
@@ -162,13 +160,13 @@ def test_old_charger_activity_overrides_recent_pipeline(dashboard_client_factory
     data["connectors"][0]["last_activity_at"] = (
         datetime.now(timezone.utc) - timedelta(seconds=240)
     ).isoformat()
-    html = _html(dashboard_client_factory, dashboard_snapshot_factory, data)
+    html = _html(dashboard_client_factory, data)
     assert 'status status--historic">Available</span>' in html
     assert '0 (0)</strong><span>Disponibles' in html
 
 
 def test_missing_charger_activity_preserves_legacy_behavior(dashboard_client_factory, dashboard_snapshot_factory):
-    html = _html(dashboard_client_factory, dashboard_snapshot_factory, dashboard_snapshot_factory())
+    html = _html(dashboard_client_factory, dashboard_snapshot_factory())
     assert 'status status--ok">Available</span>' in html
 
 
@@ -184,7 +182,7 @@ def test_charger_activity_without_valid_utc_evidence_is_unknown(timestamp):
 def test_recent_charger_activity_cannot_hide_stale_replication(dashboard_client_factory, dashboard_snapshot_factory):
     data = dashboard_snapshot_factory(source_age_seconds=3600)
     data["connectors"][0]["last_activity_at"] = datetime.now(timezone.utc).isoformat()
-    html = _html(dashboard_client_factory, dashboard_snapshot_factory, data)
+    html = _html(dashboard_client_factory, data)
     assert 'status status--historic">Available</span>' in html
     assert '0 (0)</strong><span>Disponibles' in html
 
