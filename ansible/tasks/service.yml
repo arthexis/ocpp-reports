@@ -96,8 +96,26 @@
   failed_when: false
   when: reports_service == 'forwarder'
 
+- name: Check whether configured Forwarder identity has durable acknowledged state
+  ansible.builtin.command:
+    argv:
+      - "{{ reports_release }}/venv/bin/python"
+      - -m
+      - ocpp_reports.forwarder_readiness_state
+  become: true
+  become_user: ocpp-reports
+  register: reports_established_forwarder_source
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when:
+    - reports_service == 'forwarder'
+    - reports_service_ready | bool
+    - reports_forwarder_state.stat.exists | default(false)
+    - reports_forwarder_was_enabled.rc | default(1) == 0
+
 # A new satellite must be recognized by the *running* collector before
-# first enable. Existing durable forwarders are intentionally exempt: a WAN
+# first enable. Only previously enabled sources with matching durable ACK/binding evidence are exempt: a WAN
 # outage must never prevent their normal restart/retry behavior.
 - name: Check active collector before first Forwarder enable
   ansible.builtin.command:
@@ -116,7 +134,7 @@
   when:
     - reports_service == 'forwarder'
     - reports_service_ready | bool
-    - not ((reports_forwarder_state.stat.exists | default(false)) and (reports_forwarder_was_enabled.rc | default(1) == 0))
+    - not ((reports_forwarder_was_enabled.rc | default(1) == 0) and (reports_established_forwarder_source.rc | default(1) == 0))
 
 - name: Block unrecognized new Forwarder before enabling service
   ansible.builtin.assert:
@@ -131,7 +149,7 @@
   when:
     - reports_service == 'forwarder'
     - reports_service_ready | bool
-    - not ((reports_forwarder_state.stat.exists | default(false)) and (reports_forwarder_was_enabled.rc | default(1) == 0))
+    - not ((reports_forwarder_was_enabled.rc | default(1) == 0) and (reports_established_forwarder_source.rc | default(1) == 0))
 
 - name: Enable and start configured service
   ansible.builtin.systemd_service:
