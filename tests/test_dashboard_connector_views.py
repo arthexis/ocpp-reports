@@ -120,7 +120,8 @@ def test_directional_discrepancy_badges_are_single_and_colored(monkeypatch, tmp_
     ]
     # Dashboard template expects these standard connector metrics even when absent.
     for connector in data["connectors"]:
-        connector.update(energy_wh=None, power_w=None, rated_power_w=None)
+        connector.update(energy_wh=None, power_w=None, rated_power_w=None,
+                         connection_fresh=True, status_time_unknown=False)
     monkeypatch.setattr(web, "snapshot", lambda *args, **kwargs: deepcopy(data))
     client = TestClient(web.create_app(tmp_path / "unused"))
     html = client.get("/?connector_view=individual").text
