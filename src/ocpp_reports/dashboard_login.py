@@ -15,7 +15,8 @@ COOKIE = "reports_session"
 def initialize(path):
     with sqlite3.connect(path) as db:
         db.executescript("""CREATE TABLE IF NOT EXISTS dashboard_users(user_id TEXT PRIMARY KEY,password_hash TEXT NOT NULL,role TEXT NOT NULL,tenant_id TEXT NOT NULL,active INTEGER DEFAULT 1);
-        CREATE TABLE IF NOT EXISTS dashboard_sessions(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires INTEGER NOT NULL);\n        CREATE TABLE IF NOT EXISTS dashboard_login_attempts(identity TEXT PRIMARY KEY, failures INTEGER NOT NULL, window_start INTEGER NOT NULL, locked_until INTEGER NOT NULL DEFAULT 0);""")
+        CREATE TABLE IF NOT EXISTS dashboard_sessions(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS dashboard_login_attempts(identity TEXT PRIMARY KEY, failures INTEGER NOT NULL, window_start INTEGER NOT NULL, locked_until INTEGER NOT NULL DEFAULT 0);""")
 
 def provision(path, username, password, role, tenant):
     if len(password) < 12 or not username or not tenant: raise ValueError("Invalid account")
