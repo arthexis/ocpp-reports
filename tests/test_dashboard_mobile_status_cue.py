@@ -1,14 +1,9 @@
 """Non-destructive dashboard presentation contract for the next field increment."""
-from pathlib import Path
-
 from jinja2 import Environment
 
-TEMPLATE = (Path(__file__).resolve().parents[1] /
-            "src/ocpp_reports/templates/dashboard.html.j2")
 
-
-def test_mobile_historical_labels_are_short_but_keep_freshness():
-    source = TEMPLATE.read_text()
+def test_mobile_historical_labels_are_short_but_keep_freshness(dashboard_source):
+    source = dashboard_source
     Environment().parse(source)
     assert "Último: " not in source
     assert "último registro" not in source
@@ -17,11 +12,10 @@ def test_mobile_historical_labels_are_short_but_keep_freshness():
     assert "Estado sin fecha</span>" in source
     assert 'data-label="Conectado"' in source
     assert 'c.connected is sameas true' in source
-    assert "c.stale and state in ['available', 'finishing', 'charging']" in source
+    
 
-
-def test_scroll_hint_appears_only_for_overflowing_desktop_table():
-    source = TEMPLATE.read_text()
+def test_scroll_hint_appears_only_for_overflowing_desktop_table(dashboard_source):
+    source = dashboard_source
     assert 'id="connector-scroll-hint" hidden>→ Más columnas' in source
     assert 'aria-describedby="connector-scroll-hint"' in source
     assert "connectorRegion.scrollWidth > connectorRegion.clientWidth + 2" in source

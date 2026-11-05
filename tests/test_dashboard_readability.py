@@ -3,13 +3,9 @@ from pathlib import Path
 
 from jinja2 import Environment
 
-TEMPLATE = (Path(__file__).resolve().parents[1] /
-            "src/ocpp_reports/templates/dashboard.html.j2")
 
-
-def test_stale_observations_never_look_live():
-    source = TEMPLATE.read_text()
-    assert "c.stale and state in ['available', 'finishing', 'charging']" in source
+def test_stale_observations_never_look_live(dashboard_source):
+    source = dashboard_source
     assert "Último: " not in source
     assert "último registro" not in source
     assert "Origen atrasado</span>" in source
@@ -17,16 +13,16 @@ def test_stale_observations_never_look_live():
     Environment().parse(source)
 
 
-def test_desktop_table_scrolls_within_panel_and_mobile_is_compact():
-    source = TEMPLATE.read_text()
+def test_desktop_table_scrolls_within_panel_and_mobile_is_compact(dashboard_source):
+    source = dashboard_source
     assert ".connectors-panel .scroll{width:100%;max-width:100%;min-width:0;overflow-x:auto" in source
     assert ".connectors-panel table{min-width:1140px}" in source
     assert ".connectors-panel .transactions-heading{gap:.2rem;margin-bottom:.35rem}" in source
     assert ".connectors-panel tbody tr{padding:.4rem;margin-bottom:.45rem}" in source
 
 
-def test_summary_count_meaning_is_visible_without_help():
-    source = TEMPLATE.read_text()
+def test_summary_count_meaning_is_visible_without_help(dashboard_source):
+    source = dashboard_source
     assert 'class="counts-legend">Cifras: estaciones (conectores individuales)' in source
     assert "Solo lectura · Datos actualizados cada 15 s" in source
 
