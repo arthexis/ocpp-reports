@@ -117,6 +117,18 @@ def attach_login(app, *, path, tenant):
                     valid=hmac.compare_digest(digest,bytes.fromhex(expected))
                 except ValueError: pass
             if not valid:
+                if attempt and now - attempt[1] < 900:
+                    failures, window_start = attempt[0] + 1, attempt[1]
+                else:
+                    failures, window_start = 1, now
+                locked_until = now + 900 if failures >= 5 else 0
+                db.execute(
+                    """INSERT INTO dashboard_login_attempts(identity,failures,window_start,locked_until)
+                    VALUES(?,?,?,?) ON CONFLICT(identity) DO UPDATE SET
+                    failures=excluded.failures,window_start=excluded.window_start,
+                    locked_until=excluded.locked_until""",
+                    (identity, failures, window_start, locked_until),
+                )
                 return HTMLResponse(HTML.replace("<!--error-->","<p role='alert'>Credenciales incorrectas</p>"),status_code=401)
             db.execute("DELETE FROM dashboard_login_attempts WHERE identity=?", (identity,))
             db.execute("DELETE FROM dashboard_sessions WHERE expires<=?", (now,))
