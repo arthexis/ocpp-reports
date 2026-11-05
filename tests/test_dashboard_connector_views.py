@@ -118,6 +118,13 @@ def test_directional_discrepancy_badges_are_single_and_colored(monkeypatch, tmp_
         {"source_id": "site-a", "charger_id": "cp-ok", "connector_id": 1,
          "status": "Available", "connected": True, "source_freshness": "fresh"},
     ]
+    # Freshness is derived from source ingestion receipts, not connector flags.
+    from datetime import datetime, timezone
+    ingested_at = datetime.now(timezone.utc).isoformat()
+    data["sources"] = [
+        {"source_id": source_id, "last_ingested_at": ingested_at}
+        for source_id in ("site-w", "site-f", "site-a")
+    ]
     # Dashboard template expects these standard connector metrics even when absent.
     for connector in data["connectors"]:
         connector.update(energy_wh=None, power_w=None, rated_power_w=None,
