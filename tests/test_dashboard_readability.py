@@ -6,7 +6,7 @@ from jinja2 import Environment
 
 def test_stale_observations_never_look_live(dashboard_source):
     source = dashboard_source
-        assert "Último: " not in source
+    assert "Último: " not in source
     assert "último registro" not in source
     assert "Origen atrasado</span>" in source
     assert ".status--historic" in source
