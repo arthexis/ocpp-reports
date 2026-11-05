@@ -6,7 +6,21 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/{{ item.hostname }}/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_session_tickets off;
+{% if item.mtls_ca_file is defined %}
+    ssl_client_certificate {{ item.mtls_ca_file }};
+    ssl_verify_client optional;
+    ssl_verify_depth 2;
+    location = /__ocpp_mtls_authorize {
+        internal;
+        if ($ssl_client_verify = SUCCESS) { return 204; }
+        return 403;
+    }
+{% endif %}
     location / {
+{% if item.mtls_ca_file is defined %}
+        satisfy any;
+        auth_request /__ocpp_mtls_authorize;
+{% endif %}
         auth_basic "{{ item.title }}";
         auth_basic_user_file {{ item.htpasswd }};
         proxy_pass http://127.0.0.1:{{ item.port }};
