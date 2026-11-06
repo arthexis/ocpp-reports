@@ -44,8 +44,10 @@ step "Ansible playbook syntax"
 ansible-playbook -i localhost, ansible/playbook.yml --syntax-check
 ansible-playbook -i localhost, ansible/dashboard-instances.yml --syntax-check
 
-step "Ansible lint (basic)"
-ansible-lint --profile basic ansible/playbook.yml ansible/dashboard-instances.yml
+step "Ansible lint (basic; detailed diagnostics)"
+ansible-lint --version
+ansible-playbook --version
+ansible-lint -vv --profile basic ansible/playbook.yml ansible/dashboard-instances.yml
 
 if [ "$mode" = full ]; then
   step "Complete Python test suite"
