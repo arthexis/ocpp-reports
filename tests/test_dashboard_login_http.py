@@ -12,7 +12,7 @@ def test_login_http(tmp_path):
     def events(): return {"ok":True}
     attach_login(app,path=path,tenant="tenant-a")
     with TestClient(app,base_url="https://reports.example.test") as client:
-        assert client.get("/").status_code==403
+        assert client.get("/", follow_redirects=False).status_code==303
         assert client.get("/login").status_code==200
         response=client.post("/login",data={"username":"tester","password":"long-password-for-testing"},headers={"origin":"https://reports.example.test"},follow_redirects=False)
         assert response.status_code==303

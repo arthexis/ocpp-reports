@@ -65,7 +65,7 @@ def test_same_url_enforces_roles_and_tenant(tmp_path):
     attach_login(app, path=path, tenant="tenant-a")
     headers = {"origin": "https://reports.example.test"}
     with TestClient(app, base_url="https://reports.example.test") as client:
-        assert client.get("/").status_code == 403
+        assert client.get("/", follow_redirects=False).status_code == 303
         assert client.post("/login", data={"username": "admin-b", "password": "a-secure-test-password"}, headers=headers).status_code == 401
         assert client.post("/login", data={"username": "operator-a", "password": "a-secure-test-password"}, headers=headers, follow_redirects=False).status_code == 303
         assert client.get("/").status_code == 200
