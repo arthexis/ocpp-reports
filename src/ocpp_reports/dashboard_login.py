@@ -1,5 +1,6 @@
 """Opt-in password login and tenant-scoped HTTP authorization."""
 import hashlib
+import html
 import hmac
 import secrets
 import sqlite3
@@ -9,6 +10,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from .dashboard_auth import Permission, Principal, Role, authorized
 
+PASSWORD_HTML = """<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cambiar contraseña · OCPP Reports</title><style>body{font:16px system-ui;background:#152638;color:white;min-height:100vh;display:grid;place-items:center}main{background:#253a50;padding:2rem;border-radius:12px;width:min(380px,90vw)}label,input,button{display:block;width:100%;box-sizing:border-box;margin:12px 0;padding:9px}button{background:#80baff;border:0;border-radius:6px}a{color:#bcdcff}</style><main><h1>Cambiar contraseña</h1><p><!--user--></p><!--error--><form method="post" action="/change-password"><label>Contraseña actual<input type="password" name="current_password" autocomplete="current-password" required></label><label>Nueva contraseña<input type="password" name="new_password" autocomplete="new-password" minlength="12" required></label><label>Confirmar nueva contraseña<input type="password" name="confirm_password" autocomplete="new-password" minlength="12" required></label><button type="submit">Guardar contraseña</button></form><a href="/">Volver al dashboard</a></main>"""
 HTML = """<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OCPP Reports · Login</title><style>body{font:16px system-ui;background:#152638;color:white;min-height:100vh;display:grid;place-items:center}main{background:#253a50;padding:2rem;border-radius:12px;width:min(360px,85vw)}label,input,button{display:block;width:100%;box-sizing:border-box;margin:12px 0;padding:9px}button{background:#80baff;border:0;border-radius:6px}</style><main><h1>OCPP Reports</h1><p>Acceso a estaciones de carga</p><!--error--><form method="post"><label>Usuario<input name="username" autocomplete="username" required></label><label>Contraseña<input type="password" name="password" autocomplete="current-password" required></label><button>Iniciar sesión</button></form></main>"""
 COOKIE = "reports_session"
 
@@ -81,7 +83,7 @@ def attach_login(app, *, path, tenant):
     @app.middleware("http")
     async def protect(request, next_handler):
         route = request.url.path
-        if (route == "/login" and request.method in ("GET", "POST")) or (route == "/logout" and request.method == "POST"):
+        if (route == "/login" and request.method in ("GET", "POST")) or (route == "/logout" and request.method == "POST") or (route == "/change-password" and request.method in ("GET", "POST")):
             return await next_handler(request)
         token = request.cookies.get(COOKIE,"")
         with sqlite3.connect(path) as db:
@@ -149,6 +151,64 @@ def attach_login(app, *, path, tenant):
         response.set_cookie(COOKIE,token,secure=True,httponly=True,samesite="lax",max_age=43200)
         response.headers["Cache-Control"]="no-store"
         return response
+    def current_account(request):
+        token = request.cookies.get(COOKIE, "")
+        if not token:
+            return None
+        with sqlite3.connect(path) as db:
+            return db.execute("""SELECT u.user_id,u.password_hash FROM dashboard_sessions s
+                JOIN dashboard_users u ON u.user_id=s.user_id
+                WHERE s.token_hash=? AND s.expires>? AND u.active=1 AND u.tenant_id=?""",
+                (hashlib.sha256(token.encode()).hexdigest(), int(time.time()), tenant)).fetchone()
+
+    def password_matches(password, stored):
+        try:
+            salt, expected = stored.split(":")
+            digest = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=16384, r=8, p=1)
+            return hmac.compare_digest(digest, bytes.fromhex(expected))
+        except (ValueError, TypeError):
+            return False
+
+    @app.get("/change-password")
+    async def password_page(request: Request):
+        account = current_account(request)
+        if account is None:
+            return RedirectResponse("/login", status_code=303)
+        return HTMLResponse(PASSWORD_HTML.replace("<!--user-->", html.escape(account[0])), headers={"Cache-Control": "no-store"})
+
+    @app.post("/change-password")
+    async def change_password(request: Request):
+        if request.url.scheme != "https" or request.headers.get("origin") != str(request.base_url).rstrip("/"):
+            return JSONResponse({"detail": "Invalid origin"}, status_code=403)
+        if request.headers.get("content-type", "").split(";")[0] != "application/x-www-form-urlencoded":
+            return JSONResponse({"detail": "Unsupported content type"}, status_code=415)
+        account = current_account(request)
+        if account is None:
+            return RedirectResponse("/login", status_code=303)
+        fields = parse_qs((await request.body()).decode(), max_num_fields=5)
+        current = fields.get("current_password", [""])[0]
+        new = fields.get("new_password", [""])[0]
+        confirm = fields.get("confirm_password", [""])[0]
+        error = None
+        if not password_matches(current, account[1]):
+            error = "Contraseña actual incorrecta"
+        elif len(new) < 12 or len(new) > 1024:
+            error = "La nueva contraseña debe tener entre 12 y 1024 caracteres"
+        elif new != confirm:
+            error = "Las nuevas contraseñas no coinciden"
+        elif hmac.compare_digest(current, new):
+            error = "Elige una contraseña diferente"
+        if error:
+            page = PASSWORD_HTML.replace("<!--user-->", html.escape(account[0]))
+            return HTMLResponse(page.replace("<!--error-->", "<p role='alert'>" + error + "</p>"),
+                                status_code=400, headers={"Cache-Control": "no-store"})
+        # Revoke every session, including the current session, after password rotation.
+        manage_user(path, account[0], password=new)
+        response = RedirectResponse("/login", status_code=303)
+        response.delete_cookie(COOKIE)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
     @app.post("/logout")
     async def logout(request: Request):
         if request.url.scheme != "https" or request.headers.get("origin") != str(request.base_url).rstrip("/"):
