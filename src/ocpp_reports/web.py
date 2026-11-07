@@ -493,7 +493,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                 connector.get("connector_id")))
         template_started = perf_counter()
         response = templates.TemplateResponse(request, "dashboard.html.j2",
-                                          {"data": data, "is_admin": is_admin, "connector_rows": connector_rows,
+                                          {"data": data, "is_admin": is_admin,
+                                           "login_enabled": getattr(request.state, "principal", None) is not None,
+                                           "connector_rows": connector_rows,
                                            "operational_counts": operational_counts,
                                            "connector_view": connector_view,
                                            "event_groups": event_groups,
