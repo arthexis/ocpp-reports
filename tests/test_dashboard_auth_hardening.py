@@ -35,10 +35,10 @@ def test_login_lockout_and_revocation(tmp_path):
         assert client.post("/login", data={"username": "tester", "password": "a-secure-test-password"}, headers=headers, follow_redirects=False).status_code == 303
         assert client.get("/").status_code == 200
         manage_user(path, "tester", active=False)
-        assert client.get("/", follow_redirects=False).status_code == 303
+        assert client.get("/").status_code == 403
         manage_user(path, "tester", active=True, role="user")
         assert client.post("/login", data={"username": "tester", "password": "a-secure-test-password"}, headers=headers, follow_redirects=False).status_code == 303
-        assert client.get("/", follow_redirects=False).status_code == 303
+        assert client.get("/").status_code == 403
 
 
 def test_prune_expired(tmp_path):
