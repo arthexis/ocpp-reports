@@ -94,7 +94,12 @@ def attach_login(app, *, path, tenant):
                 pass
         request.state.principal = principal
         perm = route_permission(route, request.method)
-        if perm is None or not authorized(principal,perm,tenant_id=tenant):
+        if perm is None:
+            return JSONResponse({"detail":"Forbidden"},status_code=403)
+        if principal is None and request.method == "GET" and route == "/":
+            # Browser entry point only; APIs keep their existing 403 contract.
+            return RedirectResponse("/login", status_code=303, headers={"Cache-Control": "no-store"})
+        if not authorized(principal,perm,tenant_id=tenant):
             return JSONResponse({"detail":"Forbidden"},status_code=403)
         return await next_handler(request)
     @app.get("/login")
