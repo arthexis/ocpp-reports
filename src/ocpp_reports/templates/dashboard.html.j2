@@ -151,6 +151,9 @@ header{align-items:start;gap:.65rem}
   .connectors-panel td[data-label="Estado"]{align-items:center}
   .connector-scroll-hint{display:none}
 }
+.dashboard-logout{display:flex;align-items:center;margin:0}
+.dashboard-logout button{display:grid;place-items:center;cursor:pointer;background:transparent;color:inherit;border:1px solid var(--border, #718096);border-radius:7px;padding:8px}
+.dashboard-logout button:hover,.dashboard-logout button:focus-visible{background:var(--surface, #34475b);outline-offset:2px}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand"><h1>{{ title }}</h1>
 <div class="muted">Solo lectura · Datos actualizados cada 15 s ·
@@ -164,6 +167,11 @@ header{align-items:start;gap:.65rem}
 <input type="hidden" name="tx_view" value="{{ tx_view }}">
 <input type="hidden" name="connector_view" value="{{ connector_view }}">
 </form>
+{% if login_enabled %}
+<form class="dashboard-logout" method="post" action="/logout" aria-label="Cerrar sesión">
+<button type="submit" title="Cerrar sesión" aria-label="Cerrar sesión"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg></button>
+</form>
+{% endif %}
 </header><main id="content">
 <section class="operations" aria-labelledby="operations-heading">
 <div class="panel-heading"><h2 id="operations-heading">Estado de los cargadores</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Estado de los cargadores" aria-controls="help-operations" aria-expanded="false" aria-describedby="help-operations">ⓘ</button></span><span class="panel-help-text" id="help-operations" role="tooltip">Estaciones (conectores individuales). Se cuenta cada estación una sola vez por estado; C0 es un resumen y no se duplica. Cifras: estaciones (conectores individuales). Los datos antiguos no confirman disponibilidad actual. Último estado informado, no conectividad en tiempo real. Las notificaciones de estado se envían al cambiar; una fecha de estado antigua no indica desconexión. La frescura del origen y la conexión observada se evalúan por separado; la recepción de datos del origen no demuestra conectividad del cargador. Una falla con origen atrasado también puede contarse como dato incierto. Sin fecha original del estado, la fecha es desconocida.</span></div>
