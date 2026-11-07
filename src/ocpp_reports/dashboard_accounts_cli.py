@@ -111,3 +111,21 @@ def update(
         typer.echo(f"Account update refused: {exc}", err=True)
         raise typer.Exit(2) from exc
     typer.echo("Account updated; sessions revoked")
+
+
+@app.command("inventory-htpasswd")
+def inventory_htpasswd(
+    htpasswd: Path = typer.Option(..., "--htpasswd", help="Existing local Nginx password file"),
+    tenant: str = typer.Option(..., "--tenant", help="Explicit dashboard tenant; never inferred"),
+) -> None:
+    """Preview usernames and hash families only; no password hashes or writes."""
+    import json
+    from .dashboard_htpasswd import inventory
+    try:
+        if not tenant.strip():
+            raise ValueError("Tenant is required")
+        accounts = inventory(htpasswd)
+    except (ValueError, OSError, UnicodeError) as exc:
+        typer.echo(f"Inventory refused: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    typer.echo(json.dumps({"tenant": tenant, "accounts": accounts}, ensure_ascii=False))
