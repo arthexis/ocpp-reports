@@ -421,9 +421,13 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             tx_page = min(tx_page, tx_pages)
             start = (tx_page - 1) * 20
             data["transactions"] = filtered_transactions[start:start + 20]
+        is_admin = not hasattr(request.state, "principal") or request.state.principal.role.value == "admin"
+        if not is_admin:
+            data["events"] = []
+            data["sources"] = []
         # SQL window grouping reads only summaries; details are fetched lazily.
         group_duration_ms = None
-        if paginated is not None:
+        if paginated is not None and is_admin:
             started = perf_counter()
             try:
                 grouped = event_groups_page(
@@ -489,7 +493,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                 connector.get("connector_id")))
         template_started = perf_counter()
         response = templates.TemplateResponse(request, "dashboard.html.j2",
-                                          {"data": data, "connector_rows": connector_rows,
+                                          {"data": data, "is_admin": is_admin, "connector_rows": connector_rows,
                                            "operational_counts": operational_counts,
                                            "connector_view": connector_view,
                                            "event_groups": event_groups,
@@ -579,8 +583,21 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         )
 
     @app.get("/api/snapshot")
-    def api_snapshot(source_id: str | None = None, charger_id: str | None = None,
+    def api_snapshot(request: Request, source_id: str | None = None, charger_id: str | None = None,
                      limit: int = Query(100, ge=1, le=500)):
-        return read(source_id, charger_id, limit)
+        data = read(source_id, charger_id, limit)
+        principal = getattr(request.state, "principal", None)
+        if principal is not None and principal.role.value != "admin":
+            data = {**data, "events": [], "sources": []}
+        return data
 
+    # Opt-in: existing nginx Basic Auth remains unchanged.
+    import os
+    auth_path=os.environ.get("OCPP_REPORTS_AUTH_DATABASE")
+    auth_tenant=os.environ.get("OCPP_REPORTS_AUTH_TENANT")
+    if auth_path or auth_tenant:
+        if not auth_path or not auth_tenant:
+            raise ValueError("Both authentication settings are required")
+        from .dashboard_login import attach_login
+        attach_login(app,path=auth_path,tenant=auth_tenant)
     return app
