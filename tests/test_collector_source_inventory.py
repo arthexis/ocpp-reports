@@ -13,10 +13,10 @@ def test_collector_only_sources_respect_allowlist(tmp_path):
         )
         db.executemany(
             "INSERT INTO collector_latest VALUES (?, 'other', 'key', '{}')",
-            [("audi",), ("porsche",)]
+            [("tenant-a",), ("tenant-b",)]
         )
-    result = snapshot(database, allowed_source_ids=("audi",))
-    assert [source["source_id"] for source in result["sources"]] == ["audi"]
+    result = snapshot(database, allowed_source_ids=("tenant-a",))
+    assert [source["source_id"] for source in result["sources"]] == ["tenant-a"]
     assert result["sources"][0]["cursor"] is None
     assert result["sources"][0]["last_ingested_at"] is None
     assert result["connectors"] == []
@@ -33,9 +33,9 @@ def test_collector_only_sources_do_not_cross_tenants(tmp_path):
         )
         db.executemany(
             "INSERT INTO collector_latest VALUES (?, 'other', 'key', '{}')",
-            [("audi",), ("porsche",)]
+            [("tenant-a",), ("tenant-b",)]
         )
     assert [s["source_id"] for s in snapshot(
-        database, allowed_source_ids=("porsche",)
-    )["sources"]] == ["porsche"]
+        database, allowed_source_ids=("tenant-b",)
+    )["sources"]] == ["tenant-b"]
     assert snapshot(database, allowed_source_ids=("absent",))["sources"] == []
