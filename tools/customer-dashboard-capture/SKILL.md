@@ -1,6 +1,6 @@
 ---
 name: customer-dashboard-capture
-description: Capture authenticated Audi and Porsche customer Watchtower dashboards on desktop Chromium or an authorized USB Android browser, with private credentials and provenance manifests. Use for dashboard screenshots and browser acceptance evidence.
+description: Capture authenticated configured customer Watchtower dashboards on desktop Chromium or an authorized USB Android browser, with private credentials and provenance manifests. Use for dashboard screenshots and browser acceptance evidence.
 ---
 
 # Customer dashboard captures
@@ -16,7 +16,7 @@ ocpp-dashboard-shots 123 --repo OWNER/REPO
 ocpp-dashboard-shots 108 --check
 ```
 
-`108` defaults to `arthexis/ocpp-reports`. Both issue and PR URLs are supported. The command requires an authorized, unlocked Android device, captures Audi/Porsche on actual Android and desktop Chromium, verifies titles/scopes and displayed phone URL/title, then uploads all four PNGs and their manifest to a unique evidence branch and posts an illustrated comment. Missing, unauthorized, locked, or interrupted Android capture stops with exit code 2 and no upload. An already unlocked sleeping phone may be woken; keyguard is never dismissed. No emulation fallback or partial publication is allowed.
+`108` defaults to `arthexis/ocpp-reports`. Both issue and PR URLs are supported. The command requires an authorized, unlocked Android device, captures each configured tenant on actual Android and desktop Chromium, verifies titles/scopes and displayed phone URL/title, then uploads the complete set of PNGs and their manifest to a unique evidence branch and posts an illustrated comment. Missing, unauthorized, locked, or interrupted Android capture stops with exit code 2 and no upload. An already unlocked sleeping phone may be woken; keyguard is never dismissed. No emulation fallback or partial publication is allowed.
 
 The standalone CLI uses the installed authenticated `gh` command, passing upload bodies through stdin. It verifies server-stored blob digests before creating the evidence branch/comment. `--serial` selects among connected devices; `--output` sets the evidence root. Private unique run directories and a `receipt.json` record the artifacts, evidence commit/branch, and final comment URL. On an upload failure, inspect the receipt before rerunning to avoid duplicate evidence; there is no automatic retry of mutations. An exclusive local lock prevents simultaneous runs from switching the phone between dashboards.
 
@@ -29,7 +29,7 @@ First try the Browser skill's supported connection. When none is available, the 
 ```bash
 /home/arthe/.local/share/ocpp-dashboard-launcher/venv/bin/python \
   /home/arthe/.codex/skills/customer-dashboard-capture/scripts/capture.py \
-  --mode desktop --site both --output /home/arthe/screenshots/customer-watchtower
+  --mode desktop --site all --output /home/arthe/screenshots/customer-watchtower
 ```
 
 `--mode mobile-emulated` is a responsive Chromium viewport, **not physical Android acceptance**. `--mode android` requires exactly one authorized `adb devices -l` entry (or `--serial` selecting one). If no phone is attached or its state is unauthorized, ask the operator to connect/unlock/authorize it while continuing desktop work. Never infer readiness from an old device record or USB enumeration.
@@ -49,7 +49,7 @@ Basic Auth credentials no longer work. The operator must privately provision
 mode 0600), with the following placeholder shape:
 
 ```json
-{"sites":{"audi":{"username":"<audi-user>","password":"<private>"},"porsche":{"username":"<porsche-user>","password":"<private>"}}}
+{"sites":{"tenant-a":{"origin":"https://tenant-a.example.test","title":"Tenant A Dashboard","source_ids":["source-a"],"username":"<user>","password":"<private>"}}}
 ```
 
 Do not commit credentials or pass them in CLI arguments. `--check` only verifies

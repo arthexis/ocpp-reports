@@ -45,25 +45,25 @@ class PhoneTests(unittest.TestCase):
     def test_wrong_foreground_display_is_rejected(self):
         with patch.object(capture, 'device'), patch.object(capture, 'adb', return_value='mCurrentFocus=StatusBar'):
             with self.assertRaisesRegex(RuntimeError, 'android_browser_not_foreground'):
-                capture.verify_phone_display('a', 'https://audi.gelectriic.com', 'Audi OCPP Reports')
+                capture.verify_phone_display('a', 'https://tenant-a.example.test', 'Tenant A Dashboard')
 
     def test_wrong_display_url_stops_and_removes_temporary_ui_file(self):
         xml = ('<hierarchy><node resource-id="com.android.chrome:id/url_bar" '
-               'text="wrong.example"/><node text="Audi OCPP Reports"/></hierarchy>')
+               'text="wrong.example"/><node text="Tenant A Dashboard"/></hierarchy>')
         with patch.object(capture, 'device'), patch.object(capture, 'adb', side_effect=[
             'mCurrentFocus=Window com.android.chrome/Main', '', xml, ''
         ]) as adb:
             with self.assertRaisesRegex(RuntimeError, 'android_display_unverified'):
-                capture.verify_phone_display('a', 'https://audi.gelectriic.com', 'Audi OCPP Reports')
+                capture.verify_phone_display('a', 'https://tenant-a.example.test', 'Tenant A Dashboard')
         self.assertEqual(adb.call_args.args[:3], ('shell', 'rm', '-f'))
 
     def test_successful_display_check_requires_url_and_title(self):
         xml = ('<hierarchy><node resource-id="com.android.chrome:id/url_bar" '
-               'text="audi.gelectriic.com"/><node text="Audi OCPP Reports"/></hierarchy>')
+               'text="tenant-a.example.test"/><node text="Tenant A Dashboard"/></hierarchy>')
         with patch.object(capture, 'device'), patch.object(capture, 'adb', side_effect=[
             'mCurrentFocus=Window com.android.chrome/Main', '', xml, ''
         ]):
-            capture.verify_phone_display('a', 'https://audi.gelectriic.com', 'Audi OCPP Reports')
+            capture.verify_phone_display('a', 'https://tenant-a.example.test', 'Tenant A Dashboard')
 
 
 class WorkflowTests(unittest.TestCase):
@@ -85,7 +85,7 @@ class WorkflowTests(unittest.TestCase):
 
     def test_failure_after_partial_capture_never_publishes(self):
         with tempfile.TemporaryDirectory() as root, patch.object(shots.shutil, 'which', return_value='/bin/tool'), \
-             patch.object(shots, 'phone', return_value='a'), patch.object(shots.capture, 'integrated_account', return_value=('u', 'dummy')), \
+             patch.object(shots, 'phone', return_value='a'), patch.object(shots.capture, 'site_config', return_value={'tenant-a': {}}), patch.object(shots.capture, 'integrated_account', return_value=('u', 'dummy')), \
              patch.object(shots, 'api', return_value={'html_url': 'https://github.com/arthexis/ocpp-reports/issues/108'}), \
              patch.object(shots, 'collect', new=AsyncMock(side_effect=shots.Blocked('phone disconnected'))), \
              patch.object(shots, 'publish') as publish, redirect_stdout(io.StringIO()):
@@ -94,9 +94,9 @@ class WorkflowTests(unittest.TestCase):
             publish.assert_not_called()
 
     def test_incomplete_image_set_is_not_accepted(self):
-        with patch.object(capture, 'capture', new=AsyncMock(return_value=[])), \
+        with patch.object(capture, 'site_config', return_value={'tenant-a': {}}), patch.object(capture, 'capture', new=AsyncMock(return_value=[])), \
              patch.object(shots, 'phone') as phone, redirect_stdout(io.StringIO()):
-            with self.assertRaisesRegex(shots.Blocked, 'four-image set'):
+            with self.assertRaisesRegex(shots.Blocked, 'configured image set'):
                 asyncio.run(shots.collect(Path('/unused'), 'a'))
             phone.assert_not_called()
 
@@ -124,13 +124,13 @@ class IntegratedAccountTests(unittest.TestCase):
         import json
         with tempfile.TemporaryDirectory() as root:
             p = Path(root) / 'accounts.json'
-            p.write_text(json.dumps({'sites': {'audi': {'username': 'a', 'password': 'dummy-a'}, 'porsche': {'username': 'p', 'password': 'dummy-p'}}}))
+            p.write_text(json.dumps({'sites': {'tenant-a': {'username': 'a', 'password': 'dummy-a'}, 'tenant-b': {'username': 'p', 'password': 'dummy-p'}}}))
             p.chmod(0o600)
-            self.assertEqual(capture.integrated_account('audi', p)[0], 'a')
-            self.assertEqual(capture.integrated_account('porsche', p)[0], 'p')
+            self.assertEqual(capture.integrated_account('tenant-a', p)[0], 'a')
+            self.assertEqual(capture.integrated_account('tenant-b', p)[0], 'p')
             p.chmod(0o644)
             with self.assertRaisesRegex(RuntimeError, 'permissions_invalid'):
-                capture.integrated_account('audi', p)
+                capture.integrated_account('tenant-a', p)
 
     def test_missing_tenant_fails_closed(self):
         with tempfile.TemporaryDirectory() as root:
@@ -138,7 +138,34 @@ class IntegratedAccountTests(unittest.TestCase):
             p.write_text('{"sites":{}}')
             p.chmod(0o600)
             with self.assertRaisesRegex(RuntimeError, 'accounts_unavailable'):
-                capture.integrated_account('porsche', p)
+                capture.integrated_account('tenant-b', p)
+
+class ConfiguredSitesTests(unittest.TestCase):
+    def test_private_config_requires_scoped_metadata(self):
+        import json
+        with tempfile.TemporaryDirectory() as root:
+            p = Path(root) / 'accounts.json'
+            p.write_text(json.dumps({'sites': {'tenant-a': {
+                'origin': 'https://tenant-a.example.test',
+                'title': 'Tenant A Dashboard', 'source_ids': ['source-a'],
+                'username': 'user', 'password': 'secret'}}}))
+            p.chmod(0o600)
+            self.assertEqual(capture.site_config(p)['tenant-a']['source_ids'], ['source-a'])
+            p.chmod(0o644)
+            with self.assertRaisesRegex(RuntimeError, 'permissions_invalid'):
+                capture.site_config(p)
+
+    def test_missing_scope_fails_closed(self):
+        import json
+        with tempfile.TemporaryDirectory() as root:
+            p = Path(root) / 'accounts.json'
+            p.write_text(json.dumps({'sites': {'tenant-a': {
+                'origin': 'https://tenant-a.example.test',
+                'title': 'Tenant A Dashboard', 'username': 'user', 'password': 'secret'}}}))
+            p.chmod(0o600)
+            with self.assertRaisesRegex(RuntimeError, 'accounts_unavailable'):
+                capture.site_config(p)
+
 
 class IntegratedLoginTests(unittest.IsolatedAsyncioTestCase):
     async def test_successful_form_login(self):
@@ -148,9 +175,9 @@ class IntegratedLoginTests(unittest.IsolatedAsyncioTestCase):
         page.locator.return_value.click = AsyncMock()
         page.locator.return_value.count = AsyncMock(return_value=0)
         page.wait_for_load_state = AsyncMock()
-        page.url = 'https://audi.gelectriic.com/'
-        await capture.integrated_login(page, 'https://audi.gelectriic.com', 'user', 'dummy')
-        page.goto.assert_awaited_once_with('https://audi.gelectriic.com/login', wait_until='domcontentloaded', timeout=45000)
+        page.url = 'https://tenant-a.example.test/'
+        await capture.integrated_login(page, 'https://tenant-a.example.test', 'user', 'dummy')
+        page.goto.assert_awaited_once_with('https://tenant-a.example.test/login', wait_until='domcontentloaded', timeout=45000)
         page.locator.assert_any_call('input[name="username"]')
         page.locator.assert_any_call('input[name="password"]')
 
@@ -161,6 +188,6 @@ class IntegratedLoginTests(unittest.IsolatedAsyncioTestCase):
         page.locator.return_value.click = AsyncMock()
         page.locator.return_value.count = AsyncMock(return_value=1)
         page.wait_for_load_state = AsyncMock()
-        page.url = 'https://audi.gelectriic.com/login'
+        page.url = 'https://tenant-a.example.test/login'
         with self.assertRaisesRegex(RuntimeError, 'authentication_failed'):
-            await capture.integrated_login(page, 'https://audi.gelectriic.com', 'user', 'dummy')
+            await capture.integrated_login(page, 'https://tenant-a.example.test', 'user', 'dummy')
