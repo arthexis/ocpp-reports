@@ -24,6 +24,8 @@ jobs:
         run: python -m pip install 'git+https://github.com/arthexis/ocpp-csms.git@9ae44f2fed6082dbf30848a48d616a2c07bcfd80'
       - name: Unit and contract tests with timings
         run: python -m pytest
+      - name: Dashboard capture helper unit tests (offline)
+        run: python -m unittest discover -s tools/customer-dashboard-capture/scripts -p test_shots.py -v
       - name: CLI smoke
         run: |
           ocpp-reports --help
