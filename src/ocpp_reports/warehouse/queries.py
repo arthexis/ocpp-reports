@@ -190,6 +190,20 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                         sources.append({"source_id": r["source_id"], "cursor": r["sequence"],
                                         "last_ingested_at": None,
                                         "last_replication_received_at": receipt_times.get(r["source_id"])})
+            # Collector-only databases can hold evidence without source metadata.
+            # Apply the same SQL allowlist before deriving source identities.
+            known_sources = {s["source_id"] for s in sources}
+            for row in db.execute(
+                "SELECT DISTINCT source_id FROM collector_latest" + scope_clause
+                + " ORDER BY source_id", scope_args
+            ):
+                identity = row["source_id"]
+                if identity not in known_sources:
+                    sources.append({"source_id": identity, "cursor": None,
+                                    "last_ingested_at": None,
+                                    "last_replication_received_at": receipt_times.get(identity)})
+                    known_sources.add(identity)
+            sources.sort(key=lambda source: source["source_id"])
             for s in sources:
                 s.setdefault("last_replication_received_at", receipt_times.get(s["source_id"]))
             existing_connectors = {(r["source_id"], r["charger_id"], r["connector_id"]) for r in connectors}
