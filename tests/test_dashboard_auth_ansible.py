@@ -17,17 +17,17 @@ def _render(name: str, instance: dict) -> str:
 
 def test_dashboard_auth_staging_and_cutover():
     instance = {
-        "name": "dashboard-audi", "hostname": "audi.example.com", "port": 8082,
-        "title": "Audi", "htpasswd": "/etc/ocpp-reports/audi.htpasswd",
-        "source_ids": ["audi"], "auth_tenant": "audi",
+        "name": "dashboard-tenant-a", "hostname": "tenant-a.example.test", "port": 8082,
+        "title": "Tenant A", "htpasswd": "/etc/ocpp-reports/tenant-a.htpasswd",
+        "source_ids": ["tenant-a"], "auth_tenant": "tenant-a",
     }
     service = _render("ocpp-reports-dashboard-scope.conf.j2", instance)
-    assert 'OCPP_REPORTS_AUTH_TENANT=audi' in service
+    assert 'OCPP_REPORTS_AUTH_TENANT=tenant-a' in service
     assert 'OCPP_REPORTS_AUTH_DATABASE=/var/lib/ocpp-reports/dashboard-auth.sqlite' in service
-    assert "--source-id audi" in service
+    assert "--source-id tenant-a" in service
 
     proxy = _render("ocpp-reports-dashboard-instance.nginx.j2", instance)
-    assert "auth_basic_user_file /etc/ocpp-reports/audi.htpasswd;" in proxy
+    assert "auth_basic_user_file /etc/ocpp-reports/tenant-a.htpasswd;" in proxy
     instance["auth_mode"] = "integrated"
     proxy = _render("ocpp-reports-dashboard-instance.nginx.j2", instance)
     assert "auth_basic" not in proxy

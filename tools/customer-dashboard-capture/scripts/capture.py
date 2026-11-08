@@ -2,7 +2,6 @@
 import argparse
 import asyncio
 import hashlib
-import importlib.util
 import json
 import os
 import re
@@ -13,15 +12,26 @@ import xml.etree.ElementTree as ET
 import uuid
 from datetime import datetime, timezone
 
-LAUNCHER = Path('/home/arthe/.local/share/ocpp-dashboard-launcher/launcher.py')
 ACCOUNTS = Path.home() / '.config/ocpp-dashboard/integrated-accounts.json'
 
 
-def launcher():
-    spec = importlib.util.spec_from_file_location('dashboard_launcher', LAUNCHER)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def site_config(path=ACCOUNTS):
+    import stat
+    try:
+        metadata = path.stat()
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & 0o077 or metadata.st_uid != os.getuid():
+            raise RuntimeError('integrated_accounts_permissions_invalid')
+        sites = json.loads(path.read_text())['sites']
+        if not isinstance(sites, dict) or not sites:
+            raise ValueError()
+        for item in sites.values():
+            if not isinstance(item.get('origin'), str) or not item['origin'].startswith('https://') or not item['origin'].rstrip('/').count('.'):
+                raise ValueError()
+            if not isinstance(item.get('title'), str) or not item['title'] or not isinstance(item.get('source_ids'), list) or not item['source_ids'] or any(not isinstance(x, str) or not x for x in item['source_ids']):
+                raise ValueError()
+        return sites
+    except (OSError, KeyError, ValueError, TypeError):
+        raise RuntimeError('integrated_accounts_unavailable') from None
 
 
 def integrated_account(site, path=ACCOUNTS):
@@ -131,17 +141,19 @@ async def validate(page, expected_title, expected_sources):
 
 async def capture(args):
     from playwright.async_api import async_playwright
-    config = launcher()
+    config = site_config()
     args.output.mkdir(parents=True, exist_ok=True, mode=0o700)
     if args.output.stat().st_mode & 0o077:
         raise RuntimeError('output_directory_must_be_private')
     serial = device(args.serial, wake=True) if args.mode == 'android' else None
-    sites = list(config.SITES) if args.site == 'both' else [args.site]
+    sites = list(config) if args.site == 'all' else [args.site]
+    if not sites or any(site not in config for site in sites):
+        raise RuntimeError('dashboard_site_unconfigured')
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     records = []
     async with async_playwright() as pw:
         for site in sites:
-            origin, expected_sources, title = config.SITES[site]
+            origin, expected_sources, title = (config[site]['origin'], set(config[site]['source_ids']), config[site]['title'])
             port = None
             browser = None
             username, secret = integrated_account(site)
@@ -211,7 +223,7 @@ def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode', choices=['desktop', 'mobile-emulated', 'android'], required=True)
-    parser.add_argument('--site', choices=['audi', 'porsche', 'both'], default='both')
+    parser.add_argument('--site', default='all', help='Configured site key or all')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--serial')
     args = parser.parse_args()
@@ -225,7 +237,7 @@ def main():
             'output_directory_must_be_private', 'unexpected_dashboard_title',
             'unexpected_dashboard_source_scope', 'dashboard_authentication_failed',
             'integrated_accounts_unavailable', 'integrated_accounts_permissions_invalid',
-            'dashboard_login_unavailable',
+            'dashboard_login_unavailable', 'dashboard_site_unconfigured',
             'invalid_png_capture',
             'android_browser_not_foreground', 'android_display_unverified',
         }:

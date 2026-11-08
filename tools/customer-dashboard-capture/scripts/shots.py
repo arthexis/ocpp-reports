@@ -1,4 +1,4 @@
-"""Capture both dashboards on desktop and Android, then post verified evidence."""
+"""Capture configured dashboards on desktop and Android, then post verified evidence."""
 import argparse
 import asyncio
 import base64
@@ -81,17 +81,18 @@ def progress(message):
 
 async def collect(directory, serial):
     records = []
+    sites = list(capture.site_config())
     for mode in ['android', 'desktop']:
-        progress('Capturing Audi and Porsche on ' + ('Android…' if mode == 'android' else 'desktop Chromium…'))
+        progress('Capturing configured dashboards on ' + ('Android…' if mode == 'android' else 'desktop Chromium…'))
         try:
             records.extend(await capture.capture(SimpleNamespace(
-                mode=mode, site='both', output=directory, serial=serial, quiet=True)))
+                mode=mode, site='all', output=directory, serial=serial, quiet=True)))
         except Exception:
             hint = 'Reconnect/unlock the phone and close browser dialogs.' if mode == 'android' else 'Check Chromium, dashboard access and the protected local credential.'
             raise Blocked(f'{mode.title()} capture or verification failed. {hint} Nothing uploaded.') from None
-    expected = {(site, mode) for site in ['audi', 'porsche'] for mode in ['android', 'desktop']}
-    if {(r['site'], r['mode']) for r in records} != expected or len(records) != 4:
-        raise Blocked('The complete four-image set is missing. Nothing uploaded.')
+    expected = {(site, mode) for site in sites for mode in ['android', 'desktop']}
+    if {(r['site'], r['mode']) for r in records} != expected or len(records) != len(expected):
+        raise Blocked('The complete configured image set is missing. Nothing uploaded.')
     for record in records:
         data = (directory / record['file']).read_bytes()
         if data[:8] != b'\x89PNG\r\n\x1a\n' or hashlib.sha256(data).hexdigest() != record['sha256']:
@@ -133,18 +134,17 @@ def publish(repository, number, kind, directory, records, manifest, receipt):
         image_base = 'https://github.com/' + repository + '/blob/' + commit['sha'] + '/' + folder + '/'
     def artifact(name):
         return image_base + name + ('?raw=true' if metadata.get('private') else '')
-    lines = [f'Audi and Porsche dashboard screenshots — automated desktop + **physical Android** capture.', '',
-             f'Captured {receipt["created_at"]}. Both dashboard titles and source scopes verified with normal HTTPS verification.', '',
-             'Audi: `gway-002`. Porsche: `gway-005` and `porsche-abb-1`.', '']
-    for site in ['audi', 'porsche']:
+    lines = [f'Configured dashboard screenshots — desktop and physical Android.', '',
+             f'Captured {receipt["created_at"]}. Dashboard titles and source scopes verified with HTTPS.', '']
+    for site in sorted({r['site'] for r in records}):
         for mode, label in [('desktop', 'desktop Chromium'), ('android', 'actual Android browser')]:
             record = next(r for r in records if r['site'] == site and r['mode'] == mode)
             width = '900' if mode == 'desktop' else '360'
-            lines += [f'### {site.title()} — {label}', '',
-                      f'<img src="{artifact(record["file"])}" alt="{site.title()} dashboard — {label}" width="{width}">', '']
+            lines += [f'### {site} — {label}', '',
+                      f'<img src="{artifact(record["file"])}" alt="Dashboard {site} — {label}" width="{width}">', '']
     lines += [f'[Capture provenance and SHA-256 manifest]({artifact(manifest.name)}).', '',
               f'Evidence branch: `{branch}`; commit `{commit["sha"]}`. All uploaded artifact digests verified.', '',
-              'Captured using `ocpp-dashboard-shots`. All four captures passed before publication; temporary ADB forwards were removed. No production service/configuration changes were made.', '',
+              'Captured using `ocpp-dashboard-shots`. All configured captures passed before publication; temporary ADB forwards were removed. No production service/configuration changes were made.', '',
               'Dashboard rendering and source-scope evidence does not establish collector readiness or physical charger state.']
     comment = api(prefix + f'/issues/{number}/comments', {'body': '\n'.join(lines)})
     receipt.update({'status': 'complete', 'comment_url': comment['html_url']})
@@ -165,7 +165,7 @@ def run(args):
     progress('Checking Android and GitHub target…')
     serial = phone(args.serial)  # Must precede desktop work and all GitHub mutations.
     try:
-        for site in ("audi", "porsche"):
+        for site in capture.site_config():
             capture.integrated_account(site)
     except RuntimeError:
         raise Blocked("Integrated account file unavailable; nothing captured or uploaded.") from None
@@ -188,7 +188,7 @@ def run(args):
     receipt = {'created_at': datetime.now(timezone.utc).isoformat(), 'target': issue['html_url'],
                'local_directory': str(directory), 'status': 'captures_verified'}
     save(directory / 'receipt.json', receipt)
-    progress('All four captures verified. Uploading evidence…')
+    progress('All configured captures verified. Uploading evidence…')
     url = publish(repository, number, kind, directory, records, manifest, receipt)
     progress('Uploaded: ' + url)
 

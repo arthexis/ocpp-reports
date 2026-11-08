@@ -66,7 +66,7 @@ Before replacing Basic Auth for a dashboard:
    real dashboard endpoints, not only a minimal test FastAPI app.
 2. Validate reverse-proxy HTTPS/Host/Origin handling, session cookies, CSRF
    protections and rate limiting under concurrent requests.
-3. Verify that source allowlists isolate Audi/Porsche and that each account
+3. Verify that source allowlists isolate independent customer tenants and that each account
    has the intended tenant and role.
 4. Provision at least one working administrator, verify login and recovery,
    and confirm that account deactivation and role changes revoke sessions.
