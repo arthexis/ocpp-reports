@@ -35,10 +35,44 @@ def test_login_lockout_and_revocation(tmp_path):
         assert client.post("/login", data={"username": "tester", "password": "a-secure-test-password"}, headers=headers, follow_redirects=False).status_code == 303
         assert client.get("/").status_code == 200
         manage_user(path, "tester", active=False)
-        assert client.get("/").status_code == 403
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login"
         manage_user(path, "tester", active=True, role="user")
         assert client.post("/login", data={"username": "tester", "password": "a-secure-test-password"}, headers=headers, follow_redirects=False).status_code == 303
         assert client.get("/").status_code == 403
+
+
+def test_expired_and_unknown_cookie_redirect_browser_but_not_api(tmp_path):
+    path = str(tmp_path / "auth.sqlite")
+    provision(path, "tester", "a-secure-test-password", "operator", "tenant-a")
+    app = FastAPI()
+
+    @app.get("/")
+    def index():
+        return {"ok": True}
+
+    @app.get("/api/snapshot")
+    def snapshot():
+        return {"ok": True}
+
+    attach_login(app, path=path, tenant="tenant-a")
+    headers = {"origin": "https://reports.example.test"}
+    with TestClient(app, base_url="https://reports.example.test") as client:
+        client.cookies.set("reports_session", "unknown-session")
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login"
+        assert client.get("/api/snapshot").status_code == 403
+        client.cookies.clear()
+        assert client.post("/login", data={"username": "tester", "password": "a-secure-test-password"},
+                           headers=headers, follow_redirects=False).status_code == 303
+        with sqlite3.connect(path) as db:
+            db.execute("UPDATE dashboard_sessions SET expires=1 WHERE user_id='tester'")
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login"
+        assert client.get("/api/snapshot").status_code == 403
 
 
 def test_prune_expired(tmp_path):

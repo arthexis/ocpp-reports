@@ -98,8 +98,8 @@ def attach_login(app, *, path, tenant):
         perm = route_permission(route, request.method)
         if perm is None:
             return JSONResponse({"detail":"Forbidden"},status_code=403)
-        if principal is None and not token and request.method == "GET" and route == "/":
-            # Browser entry point only; APIs keep their existing 403 contract.
+        if row is None and request.method == "GET" and route == "/":
+            # Missing, expired and revoked sessions return to login. Invalid roles remain forbidden; APIs keep 403.
             return RedirectResponse("/login", status_code=303, headers={"Cache-Control": "no-store"})
         if not authorized(principal,perm,tenant_id=tenant):
             return JSONResponse({"detail":"Forbidden"},status_code=403)
