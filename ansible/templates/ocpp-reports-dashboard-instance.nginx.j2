@@ -7,8 +7,10 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_session_tickets off;
     location / {
+{% if item.auth_mode | default('basic') != 'integrated' %}
         auth_basic "{{ item.title }}";
         auth_basic_user_file {{ item.htpasswd }};
+{% endif %}
         proxy_pass http://127.0.0.1:{{ item.port }};
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto https;

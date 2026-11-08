@@ -41,7 +41,33 @@
              item.source_ids | select('match', '^[A-Za-z0-9][A-Za-z0-9._-]*$') | list | length == item.source_ids | length)
           - item.title is match('^[A-Za-z0-9 ._-]+$')
           - item.htpasswd is match('^/etc/ocpp-reports/[A-Za-z0-9._-]+[.]htpasswd$')
+          - item.auth_mode | default('basic') in ['basic', 'integrated']
+          - item.auth_tenant is not defined or item.auth_tenant is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+          - item.auth_database is not defined or item.auth_database is match('^/var/lib/ocpp-reports/[A-Za-z0-9._-]+[.]sqlite$')
+          - item.auth_mode | default('basic') != 'integrated' or item.auth_tenant is defined
       loop: "{{ reports_dashboard_instances }}"
+
+    - name: Check integrated login database before enabling a dashboard
+      ansible.builtin.stat:
+        path: "{{ item.auth_database | default('/var/lib/ocpp-reports/dashboard-auth.sqlite') }}"
+        follow: true
+      loop: "{{ reports_dashboard_instances }}"
+      when: item.auth_tenant is defined
+      become: true
+      register: reports_dashboard_auth_databases
+
+    - name: Refuse login without a private initialized database
+      ansible.builtin.assert:
+        that:
+          - item.stat.isreg | default(false)
+          - item.stat.size | default(0) > 0
+          - item.stat.mode == '0600'
+          - item.stat.pw_name == 'ocpp-reports'
+        fail_msg: "Dashboard login database must be initialized and owned privately by ocpp-reports."
+      loop: "{{ reports_dashboard_auth_databases.results }}"
+      when: not item.skipped | default(false)
+      loop_control:
+        label: "{{ item.item.name }}"
 
     - name: Require existing per-dashboard authentication and TLS files
       ansible.builtin.stat:
@@ -118,10 +144,11 @@
     - name: Verify each dashboard HTTP endpoint
       ansible.builtin.uri:
         url: "http://127.0.0.1:{{ item.port }}/"
-        status_code: 200
+        status_code: "{{ [303] if item.auth_tenant is defined else [200] }}"
+        follow_redirects: none
       loop: "{{ reports_dashboard_instances }}"
       register: reports_dashboard_http
-      until: reports_dashboard_http.status == 200
+      until: reports_dashboard_http.status == (303 if item.auth_tenant is defined else 200)
       retries: 10
       delay: 1
 
