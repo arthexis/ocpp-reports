@@ -1,4 +1,8 @@
 # Managed source restriction; survives regeneration of the base service unit.
 [Service]
+{% if item.auth_tenant is defined %}
+Environment="OCPP_REPORTS_AUTH_DATABASE={{ item.auth_database | default('/var/lib/ocpp-reports/dashboard-auth.sqlite') }}"
+Environment="OCPP_REPORTS_AUTH_TENANT={{ item.auth_tenant }}"
+{% endif %}
 ExecStart=
 ExecStart={{ reports_cli_link }} serve --database /var/lib/ocpp-reports/warehouse.sqlite --host 127.0.0.1 --port {{ item.port }} --title "{{ item.title }}" --timezone-file /etc/ocpp-reports/{{ item.name }}.timezones.json{% if item.source_ids != '*' %}{% for source in item.source_ids %} --source-id {{ source }}{% endfor %}{% endif %}{% for zone in item.timezones | default(reports_dashboard_timezones | default([])) %} --timezone {{ zone | quote }}{% endfor %}
