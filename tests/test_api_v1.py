@@ -445,3 +445,15 @@ def test_dashboard_event_fetch_contract_and_partial_refresh(monkeypatch, tmp_pat
     assert 'holder.replaceChildren(wrapper, status, more)' in html
     assert 'more.hidden = exhausted' in html
     assert 'details.addEventListener("toggle"' in html
+
+
+
+def test_api_v1_invalid_connector_view_is_rejected(monkeypatch, tmp_path):
+    """Invalid view must be a 422, not a silent fallback or server error."""
+    def fake_snapshot(path, **kwargs):
+        return {"connectors": [], "transactions": [], "events": [], "sources": []}
+
+    monkeypatch.setattr(web, "snapshot", fake_snapshot)
+    client = TestClient(web.create_app(tmp_path / "unused.sqlite"))
+    response = client.get("/api/v1/connectors", params={"connector_view": "invalid"})
+    assert response.status_code == 422
