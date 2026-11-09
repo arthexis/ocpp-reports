@@ -70,3 +70,36 @@ def dashboard_client_factory(monkeypatch, tmp_path):
         )
         return TestClient(web.create_app(tmp_path / "warehouse", **app_kwargs))
     return make
+
+
+@pytest.fixture
+def integrated_dashboard_warehouse(tmp_path):
+    """Real SQLite schema, two tenants and event history; no patched queries.
+
+    Use this for HTTP integration tests instead of partial snapshot mocks.
+    All data is synthetic, deterministic and isolated from production.
+    """
+    import json
+    import sqlite3
+    from ocpp_reports.warehouse.schema import _schema
+    from ocpp_reports.warehouse.collector_schema import ensure_collector_schema
+
+    path = tmp_path / "integrated-dashboard.sqlite"
+    with sqlite3.connect(path) as db:
+        _schema(db)
+        ensure_collector_schema(db)
+        for source in ("tenant-a", "tenant-b"):
+            db.execute("INSERT INTO sources(source_id,cursor) VALUES (?,0)", (source,))
+            for n, action in ((1, "BootNotification"), (2, "Heartbeat"),
+                              (3, "StatusNotification")):
+                payload = {
+                    "id": n, "kind": "ocpp", "charger_id": "CP-" + source,
+                    "action": action, "at": "2026-11-01T06:30:00Z",
+                }
+                if action == "StatusNotification":
+                    payload.update(connector_id=1, status="Available")
+                db.execute(
+                    "INSERT INTO events(source_id,event_id,payload) VALUES (?,?,?)",
+                    (source, n, json.dumps(payload)),
+                )
+    return path
