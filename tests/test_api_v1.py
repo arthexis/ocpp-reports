@@ -296,3 +296,55 @@ def test_dashboard_dst_display_uses_instant_not_naive_wall_clock():
     assert second.startswith("2026-11-01 01:30")
     assert web.display_date("2026-11-01T06:30:00Z", "UTC").startswith(
         "2026-11-01 06:30")
+
+
+
+def test_v1_event_groups_share_html_sql_pagination_and_tenant_scope(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_groups(path, **kwargs):
+        calls.append(kwargs)
+        return {"groups": [{"source_id": "tenant-a", "first_event_id": 42}],
+                "page": kwargs["page"], "has_next": True}
+
+    monkeypatch.setattr(web, "event_groups_page", fake_groups)
+    client = TestClient(web.create_app(
+        tmp_path / "unused.sqlite", allowed_source_ids=("tenant-a",),
+        timezones=("UTC", "America/Monterrey")))
+    params = {"source_id": "tenant-a", "page": 2, "filter": "CP1",
+              "date_from": "2026-11-01", "date_to": "2026-11-09",
+              "tz": "America/Monterrey"}
+    response = client.get("/api/v1/event-groups", params=params)
+    assert response.status_code == 200
+    assert response.json()["groups"][0]["first_event_id"] == 42
+    assert response.json()["page"] == 2
+    assert response.json()["has_next"] is True
+    assert calls[0]["allowed_source_ids"] == ("tenant-a",)
+    assert calls[0]["term"] == "CP1"
+    assert calls[0]["zone"] == "America/Monterrey"
+    assert client.get("/api/v1/event-groups", params={
+        "source_id": "tenant-b"}).status_code == 403
+    assert client.get("/api/v1/event-groups", params={
+        "page": 0}).status_code == 422
+    assert len(calls) == 1
+
+
+def test_v1_event_groups_operator_denied_before_sql(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("operator must not query event groups")
+
+    monkeypatch.setattr(web, "event_groups_page", forbidden)
+    app = web.create_app(tmp_path / "unused.sqlite")
+
+    @app.middleware("http")
+    async def operator_identity(request, call_next):
+        request.state.principal = SimpleNamespace(
+            role=SimpleNamespace(value="operator"))
+        return await call_next(request)
+
+    assert TestClient(app).get("/api/v1/event-groups").status_code == 403
+    from ocpp_reports.dashboard_login import route_permission
+    assert route_permission("/api/v1/event-groups", "GET") is not None
+    assert route_permission("/api/v1/event-groups", "POST") is None
