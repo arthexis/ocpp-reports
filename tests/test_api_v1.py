@@ -173,3 +173,22 @@ def test_v1_sources_route_authorized_only_for_admin_diagnostics():
     from ocpp_reports.dashboard_login import route_permission
     assert route_permission("/api/v1/sources", "GET") is not None
     assert route_permission("/api/v1/sources", "POST") is None
+
+
+def test_v1_sources_deny_non_admin_without_querying_warehouse(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    def forbidden_snapshot(*args, **kwargs):
+        raise AssertionError("non-admin source diagnostics must not query warehouse")
+
+    monkeypatch.setattr(web, "snapshot", forbidden_snapshot)
+    app = web.create_app(tmp_path / "unused.sqlite")
+
+    @app.middleware("http")
+    async def fake_operator(request, call_next):
+        request.state.principal = SimpleNamespace(role=SimpleNamespace(value="operator"))
+        return await call_next(request)
+
+    response = TestClient(app).get("/api/v1/sources")
+    assert response.status_code == 403
+    assert "items" not in response.json()
