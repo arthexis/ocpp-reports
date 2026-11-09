@@ -12,7 +12,7 @@ from pathlib import Path
 
 import httpx
 
-from .replication.forwarder import confirmed_cursor, save_cursor, validate_endpoint
+from .replication.forwarder import confirmed_cursor, save_cursor, validate_endpoint, verify_source_binding
 from .changefeed import changes_page
 
 
@@ -56,7 +56,7 @@ def relay_once(database: Path, state: Path, source_id: str, endpoint: str,
         raise ValueError("Relay state must be separate from warehouse")
     # A destination-qualified cursor prevents unrelated collectors sharing ACK state.
     cursor_key = json.dumps([destination_id, hashlib.sha256(endpoint.encode("utf-8")).hexdigest(), source_id], separators=(",", ":"))
-    after = confirmed_cursor(state, cursor_key)
+    if local_evidence_source is not None:\n        verify_source_binding(state, cursor_key, local_evidence_source)\n    after = confirmed_cursor(state, cursor_key)
     batch = relay_page(database, source_id, after=after, limit=limit,\n                       local_evidence_source=local_evidence_source)
     if not batch["changes"]:
         return after
