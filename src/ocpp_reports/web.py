@@ -539,6 +539,36 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         response.headers["Server-Timing"] = ", ".join(timings)
         return response
 
+    @app.get("/api/v1/event-groups", tags=["Dashboard API v1"])
+    def api_event_groups(
+        request: Request, source_id: str | None = None,
+        charger_id: str | None = None, filter: str = "",
+        status: str = "", location: str = "", date_from: str = "",
+        date_to: str = "", tz: str | None = None,
+        page: int = Query(1, ge=1),
+    ):
+        """Return the same SQL-paginated group summaries as the HTML panel."""
+        principal = getattr(request.state, "principal", None)
+        if principal is not None and principal.role.value != "admin":
+            raise HTTPException(403, "Event history requires administrator access")
+        if allowed_source_ids is not None and source_id is not None and source_id not in allowed_source_ids:
+            raise HTTPException(403, "Source is not available in this dashboard")
+        zone = tz or zones[0]
+        validate_dashboard_window(zone, zones, date_from, date_to)
+        try:
+            started = perf_counter()
+            result = event_groups_page(
+                warehouse, source_id=source_id, charger_id=charger_id,
+                allowed_source_ids=allowed_source_ids, term=filter,
+                status=status, location=location, date_from=date_from,
+                date_to=date_to, zone=zone, page=page)
+            return {**result, "query_duration_ms": round(
+                (perf_counter() - started) * 1000, 1)}
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except (OSError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Event history unavailable") from exc
+
     @app.get("/api/v1/event-group", tags=["Dashboard API v1"])
     @app.get("/api/event-group")
     def api_event_group(
