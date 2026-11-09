@@ -366,6 +366,10 @@ def test_v1_openapi_declares_typed_operational_station_and_transaction_counts(tm
     assert components["TransactionCounts"]["properties"]["failed"]["type"] == "integer"
     assert components["StationItem"]["properties"]["source_id"]["type"] == "string"
     assert components["StationsResponse"]["properties"]["items"]["items"]["$ref"].endswith("/StationItem")
+    assert components["ConnectorsResponse"]["properties"]["items"]["items"]["$ref"].endswith("/ConnectorItem")
+    assert components["TransactionsResponse"]["properties"]["items"]["items"]["$ref"].endswith("/TransactionItem")
+    assert components["ConnectorItem"]["properties"]["connector_id"]["type"] == "integer"
+    assert components["TransactionItem"]["properties"]["source_id"]["type"] == "string"
 
 
 
