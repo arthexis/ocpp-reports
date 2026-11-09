@@ -113,12 +113,13 @@ def test_shared_sqlite_fixture_with_real_auth_roles(
         assert client.get("/api/v1/transactions/tenant-b/CP-tenant-b/1",
                           headers=headers).status_code in (403, 404)
         for endpoint in ("/api/v1/event-group", "/api/event-group"):
+            legacy_cookies = {"reports_session": token} if endpoint == "/api/event-group" else None
             event_detail = client.get(endpoint, params={
                 "group_source": "tenant-a", "first_event_id": 1},
-                headers=headers)
+                headers=headers, cookies=legacy_cookies)
             assert event_detail.status_code == (200 if username == "admin-a" else 403)
             assert client.get(endpoint, params={
                 "group_source": "tenant-b", "first_event_id": 1},
-                headers=headers).status_code == 403
+                headers=headers, cookies=legacy_cookies).status_code == 403
         event_status = client.get("/api/v1/event-groups", headers=headers).status_code
         assert event_status == (200 if username == "admin-a" else 403)
