@@ -55,8 +55,15 @@ def main():
                 page = browser.new_page(viewport={"width": 1100, "height": 700})
                 page.on("console", lambda message: print("browser:", message.text)
                         if message.type == "error" else None)
-                page.goto(f"http://127.0.0.1:{port}/", wait_until="domcontentloaded",
-                          timeout=30000)
+                for attempt in range(40):
+                    try:
+                        page.goto(f"http://127.0.0.1:{port}/",
+                                  wait_until="domcontentloaded", timeout=3000)
+                        break
+                    except Exception:
+                        if server.poll() is not None or attempt == 39:
+                            raise
+                        time.sleep(0.25)
                 assert page.locator(".event-group").count() >= 1
                 assert page.request.get(
                     f"http://127.0.0.1:{port}/?source_id=tenant-b").status == 403
