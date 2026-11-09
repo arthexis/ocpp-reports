@@ -86,7 +86,7 @@ def attach_login(app, *, path, tenant):
     @app.middleware("http")
     async def protect(request, next_handler):
         route = request.url.path
-        if (route == "/login" and request.method in ("GET", "POST")) or (route == "/logout" and request.method == "POST") or (route == "/change-password" and request.method in ("GET", "POST")):
+        if (route == "/api/v1/session/rotate" and request.method == "POST") or (route == "/login" and request.method in ("GET", "POST")) or (route == "/logout" and request.method == "POST") or (route == "/change-password" and request.method in ("GET", "POST")):
             return await next_handler(request)
         token = request.cookies.get(COOKIE, "")
         # Native clients can reuse the existing short-lived, revocable session
@@ -112,6 +112,49 @@ def attach_login(app, *, path, tenant):
         if not authorized(principal,perm,tenant_id=tenant):
             return JSONResponse({"detail":"Forbidden"},status_code=403)
         return await next_handler(request)
+
+    @app.post("/api/v1/session/rotate")
+    async def rotate_session(request: Request):
+        """Atomically exchange a valid session for a new short-lived bearer."""
+        if request.url.scheme != "https":
+            return JSONResponse({"detail": "HTTPS required"}, status_code=403)
+        header = request.headers.get("authorization", "")
+        bearer = header[7:].strip() if header.startswith("Bearer ") else ""
+        cookie = request.cookies.get(COOKIE, "")
+        token = bearer or cookie
+        if not token:
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+        if not bearer and request.headers.get("origin") != str(request.base_url).rstrip("/"):
+            return JSONResponse({"detail": "Invalid origin"}, status_code=403)
+        now = int(time.time())
+        replacement = secrets.token_urlsafe(32)
+        old_hash = hashlib.sha256(token.encode()).hexdigest()
+        with sqlite3.connect(path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT s.expires,u.role,u.user_id FROM dashboard_sessions s "
+                "JOIN dashboard_users u ON u.user_id=s.user_id "
+                "WHERE s.token_hash=? AND s.expires>? AND u.active=1 AND u.tenant_id=?",
+                (old_hash, now, tenant)).fetchone()
+            if row is None:
+                return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+            try:
+                permitted = authorized(Principal(row[2], Role(row[1]), frozenset({tenant})),
+                                       Permission.DASHBOARD_VIEW, tenant_id=tenant)
+            except ValueError:
+                permitted = False
+            if not permitted:
+                return JSONResponse({"detail": "Forbidden"}, status_code=403)
+            expiry = min(row[0], now + 43200)
+            db.execute("UPDATE dashboard_sessions SET token_hash=?,expires=? WHERE token_hash=?",
+                       (hashlib.sha256(replacement.encode()).hexdigest(), expiry, old_hash))
+        response = JSONResponse({"access_token": replacement, "token_type": "bearer",
+                                 "expires_in": expiry - now})
+        response.headers["Cache-Control"] = "no-store"
+        if cookie and not bearer:
+            response.delete_cookie(COOKIE)
+        return response
+
     @app.get("/login")
     async def login_page(): return HTMLResponse(HTML,headers={"Cache-Control":"no-store"})
     @app.post("/login")
