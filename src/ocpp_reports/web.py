@@ -344,6 +344,26 @@ def dashboard_transaction_page(*, term: str, status: str, location: str,
             "view": view, "page": page}
 
 
+def dashboard_filtered_connectors(data: dict, *, term: str, status: str,
+                                  location: str, date_from: str, date_to: str,
+                                  zone: str, connector_view: str,
+                                  now: datetime) -> tuple[dict, dict]:
+    """Shared read-only filtered connector projection for HTML and API."""
+    source_freshness = {
+        source["source_id"]: _source_freshness(source, now)
+        for source in data["sources"]
+    }
+    filtered = _filter_dashboard(
+        data, term=term, status=status, location=location,
+        date_from=date_from, date_to=date_to, zone=zone,
+    )
+    projected = project_dashboard_connectors(
+        filtered, now=now, connector_view=connector_view,
+        source_freshness=source_freshness,
+    )
+    return filtered, projected
+
+
 def project_dashboard_connectors(data: dict, *, now: datetime, connector_view: str = "combined",
                                  source_freshness: dict[str, str] | None = None) -> dict:
     """Shared read-only connector projection for HTML and versioned JSON clients."""
@@ -503,18 +523,18 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         snapshot_started = perf_counter()
         data = read(source_id, charger_id, 100, transaction_pagination=sql_page, skip_events=True)
         snapshot_duration_ms = (perf_counter() - snapshot_started) * 1000
-        # Preserve source freshness evidence before term filtering hides source rows.
+        # Shared HTML/API projection preserves source evidence before filtering.
         now = datetime.now(timezone.utc)
-        source_freshness = {source["source_id"]: _source_freshness(source, now)
-                            for source in data["sources"]}
         paginated = data.get("transaction_pagination")
         # Keep connector/event filters in the established presentation path.
         rows = data["transactions"] if paginated is not None else None
         if rows is not None:
             data = {**data, "transactions": []}
         try:
-            data = _filter_dashboard(data, term=filter, status=status,
-                                     location=location, date_from=date_from, date_to=date_to, zone=tz)
+            data, projected = dashboard_filtered_connectors(
+                data, term=filter, status=status, location=location,
+                date_from=date_from, date_to=date_to, zone=tz,
+                connector_view=connector_view, now=now)
             if rows is not None:
                 data["transactions"] = rows
         except ValueError as exc:
@@ -535,8 +555,6 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             tx_page = min(tx_page, tx_pages)
             start = (tx_page - 1) * 20
             data["transactions"] = filtered_transactions[start:start + 20]
-        projected = project_dashboard_connectors(data, now=now, connector_view=connector_view,
-                                                 source_freshness=source_freshness)
         operational_counts = projected["status_counts"]
         connector_rows = projected["connectors"]
         is_admin = not hasattr(request.state, "principal") or request.state.principal.role.value == "admin"
