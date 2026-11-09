@@ -333,6 +333,17 @@ def _group_events(events: list[dict]) -> list[dict]:
     return groups
 
 
+def dashboard_transaction_page(*, term: str, status: str, location: str,
+                               date_from: str, date_to: str, zone: str,
+                               view: str, page: int) -> dict:
+    """Canonical warehouse pagination contract shared by HTML and JSON readers."""
+    if view not in ("all", "success", "failed"):
+        raise HTTPException(422, "Invalid transaction view")
+    return {"term": term, "status": status, "location": location,
+            "date_from": date_from, "date_to": date_to, "zone": zone,
+            "view": view, "page": page}
+
+
 def project_dashboard_connectors(data: dict, *, now: datetime, connector_view: str = "combined",
                                  source_freshness: dict[str, str] | None = None) -> dict:
     """Shared read-only connector projection for HTML and versioned JSON clients."""
@@ -485,9 +496,10 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         if tx_view not in ("success", "failed", "all"):
             raise HTTPException(422, "Invalid transaction view")
         # Filter and paginate transactions inside SQLite, before decoding JSON.
-        sql_page = dict(term=filter, status=status, location=location,
-                        date_from=date_from, date_to=date_to, zone=tz,
-                        view=tx_view, page=tx_page)
+        sql_page = dashboard_transaction_page(
+            term=filter, status=status, location=location,
+            date_from=date_from, date_to=date_to, zone=tz,
+            view=tx_view, page=tx_page)
         snapshot_started = perf_counter()
         data = read(source_id, charger_id, 100, transaction_pagination=sql_page, skip_events=True)
         snapshot_duration_ms = (perf_counter() - snapshot_started) * 1000
