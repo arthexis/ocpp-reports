@@ -366,3 +366,41 @@ def test_v1_openapi_declares_typed_operational_station_and_transaction_counts(tm
     assert components["TransactionCounts"]["properties"]["failed"]["type"] == "integer"
     assert components["StationItem"]["properties"]["source_id"]["type"] == "string"
     assert components["StationsResponse"]["properties"]["items"]["items"]["$ref"].endswith("/StationItem")
+
+
+
+def test_html_event_panel_and_api_v1_share_group_query(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_snapshot(path, **kwargs):
+        return {
+            "connectors": [], "transactions": [], "events": [], "sources": [],
+            "transaction_pagination": {
+                "total": 0, "page": 1, "pages": 1,
+                "counts": {"all": 0, "success": 0, "failed": 0}},
+        }
+
+    def fake_groups(path, **kwargs):
+        calls.append(kwargs)
+        return {"groups": [{"source_id": "tenant-a", "charger_id": "CP1",
+                            "location": "North", "action": "Heartbeat",
+                            "at": "2026-11-09T12:00:00Z",
+                            "event_count": 3, "first_event_id": 42}],
+                "page": kwargs["page"], "has_next": True}
+
+    monkeypatch.setattr(web, "snapshot", fake_snapshot)
+    monkeypatch.setattr(web, "event_groups_page", fake_groups)
+    client = TestClient(web.create_app(
+        tmp_path / "unused.sqlite", allowed_source_ids=("tenant-a",)))
+    html = client.get("/", params={"source_id": "tenant-a", "event_page": 2})
+    api = client.get("/api/v1/event-groups", params={
+        "source_id": "tenant-a", "page": 2})
+    assert html.status_code == 200
+    assert api.status_code == 200
+    assert 'data-first-id="42"' in html.text
+    assert "Heartbeat" in html.text
+    assert api.json()["groups"][0]["first_event_id"] == 42
+    assert len(calls) == 2
+    assert calls[0] == calls[1]
+    assert calls[0]["page"] == 2
+    assert calls[0]["allowed_source_ids"] == ("tenant-a",)
