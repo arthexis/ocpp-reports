@@ -102,4 +102,16 @@ def integrated_dashboard_warehouse(tmp_path):
                     "INSERT INTO events(source_id,event_id,payload) VALUES (?,?,?)",
                     (source, n, json.dumps(payload)),
                 )
+            for n in range(1, 46):
+                record = {
+                    "id": n, "charger_id": "CP-" + source, "state": "closed",
+                    "active": False, "started_at": "2026-11-01T05:30:00Z",
+                    "stopped_at": "2026-11-01T06:30:00Z",
+                    "energy_wh": 0 if n % 10 == 0 else 1000,
+                }
+                db.execute(
+                    "INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)",
+                    (source, "CP-" + source, n, 0, 0, "fixture",
+                     json.dumps(record), "2026-11-01T06:30:00Z"),
+                )
     return path
