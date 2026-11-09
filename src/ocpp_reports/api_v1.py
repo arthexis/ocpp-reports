@@ -15,6 +15,31 @@ class ItemsResponse(BaseModel):
     items: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class ConnectorItem(BaseModel):
+    """Stable connector identity; preserve vendor-specific projected fields."""
+    model_config = {"extra": "allow"}
+
+    source_id: str
+    charger_id: str
+    connector_id: int
+
+
+class ConnectorsResponse(BaseModel):
+    items: list[ConnectorItem] = Field(default_factory=list)
+
+
+class TransactionItem(BaseModel):
+    """Stable transaction identity with backward-compatible optional details."""
+    model_config = {"extra": "allow"}
+
+    source_id: str
+    charger_id: str
+
+
+class SourcesResponse(ItemsResponse):
+    pass
+
+
 class OperationalCount(BaseModel):
     stations: int
     connectors: int
@@ -46,7 +71,8 @@ class TransactionCounts(BaseModel):
     failed: int
 
 
-class TransactionsResponse(ItemsResponse):
+class TransactionsResponse(BaseModel):
+    items: list[TransactionItem] = Field(default_factory=list)
     total: int
     page: int
     pages: int
@@ -75,7 +101,7 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
         data = visible(request, source_id, charger_id, 500, source_evidence=True)
         return {"status_counts": _operational_status_counts(data["connectors"])}
 
-    @app.get("/api/v1/connectors", tags=["Dashboard API v1"], response_model=ItemsResponse, dependencies=[Depends(documented_auth)])
+    @app.get("/api/v1/connectors", tags=["Dashboard API v1"], response_model=ConnectorsResponse, dependencies=[Depends(documented_auth)])
     def connectors(request: Request, source_id: str | None = None,
                    charger_id: str | None = None, connector_view: str = "combined",
                    filter: str = "", status: str = "", location: str = "",
@@ -94,7 +120,7 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
             raise HTTPException(422, str(exc)) from exc
         return {"items": projected["connectors"]}
 
-    @app.get("/api/v1/sources", tags=["Dashboard API v1"], response_model=ItemsResponse,
+    @app.get("/api/v1/sources", tags=["Dashboard API v1"], response_model=SourcesResponse,
              dependencies=[Depends(documented_auth)])
     def sources(request: Request, source_id: str | None = None):
         # Match the existing HTML visibility policy: source sync diagnostics are admin-only.
