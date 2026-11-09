@@ -141,3 +141,11 @@ def test_v1_event_history_matches_legacy_and_scopes_tenant(monkeypatch, tmp_path
     assert client.get("/api/v1/event-group", params={
         "group_source": "tenant-a", "first_event_id": 0}).status_code == 422
     assert len(calls) == 2
+
+
+def test_v1_detail_and_event_routes_require_explicit_permissions():
+    from ocpp_reports.dashboard_login import route_permission
+    assert route_permission("/api/v1/transactions/tenant-a/CP1/42", "GET") is not None
+    assert route_permission("/api/v1/event-group", "GET") is not None
+    assert route_permission("/api/v1/transactions/tenant-a/CP1/42", "POST") is None
+    assert route_permission("/api/v1/transactions/tenant-a/CP1", "GET") is None
