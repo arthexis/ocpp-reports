@@ -449,11 +449,11 @@ def test_dashboard_event_fetch_contract_and_partial_refresh(monkeypatch, tmp_pat
 
 
 def test_api_v1_invalid_connector_view_is_rejected(monkeypatch, tmp_path):
-    """Invalid view must be a 422, not a silent fallback or server error."""
-    def fake_snapshot(path, **kwargs):
-        return {"connectors": [], "transactions": [], "events": [], "sources": []}
+    """Invalid view must be a 422 before any warehouse access."""
+    def forbidden_snapshot(path, **kwargs):
+        raise AssertionError("Invalid connector view must not query warehouse")
 
-    monkeypatch.setattr(web, "snapshot", fake_snapshot)
+    monkeypatch.setattr(web, "snapshot", forbidden_snapshot)
     client = TestClient(web.create_app(tmp_path / "unused.sqlite"))
     response = client.get("/api/v1/connectors", params={"connector_view": "invalid"})
     assert response.status_code == 422
