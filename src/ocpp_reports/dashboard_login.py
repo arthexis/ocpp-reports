@@ -88,7 +88,12 @@ def attach_login(app, *, path, tenant):
         route = request.url.path
         if (route == "/login" and request.method in ("GET", "POST")) or (route == "/logout" and request.method == "POST") or (route == "/change-password" and request.method in ("GET", "POST")):
             return await next_handler(request)
-        token = request.cookies.get(COOKIE,"")
+        token = request.cookies.get(COOKIE, "")
+        # Native clients can reuse the existing short-lived, revocable session
+        # token without creating a second credential store. Bearer is API-only.
+        authorization = request.headers.get("authorization", "")
+        if route.startswith("/api/v1/") and authorization.startswith("Bearer "):
+            token = authorization[7:].strip()
         with sqlite3.connect(path) as db:
             row = db.execute("""SELECT u.user_id,u.role,u.tenant_id FROM dashboard_sessions s JOIN dashboard_users u ON s.user_id=u.user_id WHERE s.token_hash=? AND s.expires>? AND u.active=1 AND u.tenant_id=?""",(hashlib.sha256(token.encode()).hexdigest(),int(time.time()),tenant)).fetchone() if token else None
         principal = None
