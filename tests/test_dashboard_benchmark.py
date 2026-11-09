@@ -31,7 +31,8 @@ def test_benchmark_runs_without_modifying_warehouse(tmp_path):
     assert result["schema"] == "ocpp-reports/benchmark/v1"
     assert set(result["scenarios"]) == {
         "dashboard", "transactions_page_2", "charger_filter",
-        "api_snapshot", "snapshot_query",
+        "api_snapshot", "api_v1_summary", "api_v1_connectors",
+        "api_v1_transactions_page_2", "api_v1_event_groups", "snapshot_query",
     }
     for item in result["scenarios"].values():
         assert item["iterations"] == 2
