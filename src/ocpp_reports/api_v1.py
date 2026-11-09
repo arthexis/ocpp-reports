@@ -155,7 +155,8 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
 
     @app.get("/api/v1/stations", tags=["Dashboard API v1"], response_model=StationsResponse, dependencies=[Depends(documented_auth)])
     def stations(request: Request, source_id: str | None = None):
-        rows = visible(request, source_id, None, 500)["connectors"]
+        data = visible(request, source_id, None, 500, source_evidence=True)
+        rows = project_dashboard_connectors(data, now=datetime.now(timezone.utc))["connectors"]
         groups = {}
         for row in rows:
             key = (row.get("source_id"), row.get("charger_id"))
