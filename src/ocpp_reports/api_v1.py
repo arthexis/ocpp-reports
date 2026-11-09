@@ -32,7 +32,7 @@ class TransactionsResponse(ItemsResponse):
     counts: dict[str, int]
 
 from fastapi.responses import JSONResponse
-from .web import project_dashboard_connectors
+from .web import project_dashboard_connectors, _operational_status_counts
 
 
 def register_api_v1(app, read):
@@ -52,7 +52,7 @@ def register_api_v1(app, read):
     def summary(request: Request, source_id: str | None = None,
                 charger_id: str | None = None):
         data = visible(request, source_id, charger_id, 500, source_evidence=True)
-        return {"status_counts": project_dashboard_connectors(data, now=datetime.now(timezone.utc))["status_counts"]}
+        return {"status_counts": _operational_status_counts(data["connectors"])}
 
     @app.get("/api/v1/connectors", tags=["Dashboard API v1"], response_model=ItemsResponse, dependencies=[Depends(documented_auth)])
     def connectors(request: Request, source_id: str | None = None,
