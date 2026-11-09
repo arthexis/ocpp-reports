@@ -63,3 +63,33 @@ def test_v1_connector_view_and_tenant_isolation(monkeypatch, tmp_path):
                       params={"connector_view": "bad"}).status_code == 422
     assert client.get("/api/v1/connectors",
                       params={"source_id": "tenant-b"}).status_code == 403
+
+
+def test_v1_transactions_share_dashboard_sql_filter_contract(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_snapshot(path, *, allowed_source_ids=None, **kwargs):
+        calls.append(kwargs.get("transaction_pagination"))
+        return {
+            "connectors": [], "sources": [], "events": [], "transactions": [],
+            "transaction_pagination": {"total": 0, "page": 2, "pages": 2,
+                                       "counts": {"all": 0, "success": 0, "failed": 0}},
+        }
+
+    monkeypatch.setattr(web, "snapshot", fake_snapshot)
+    app = web.create_app(tmp_path / "unused.sqlite", timezones=("UTC", "America/Monterrey"))
+    client = TestClient(app)
+    params = {"source_id": "site-a", "charger_id": "CP1", "view": "failed",
+              "page": 2, "filter": "CP1", "status": "Faulted",
+              "location": "North", "date_from": "2026-11-01",
+              "date_to": "2026-11-08", "tz": "America/Monterrey"}
+    assert client.get("/api/v1/transactions", params=params).status_code == 200
+    assert calls[-1] == {"term": "CP1", "status": "Faulted", "location": "North",
+                         "date_from": "2026-11-01", "date_to": "2026-11-08",
+                         "zone": "America/Monterrey", "view": "failed", "page": 2}
+    assert client.get("/api/v1/transactions", params={
+        "tz": "Europe/Berlin"}).status_code == 422
+    assert client.get("/api/v1/transactions", params={
+        "date_from": "2026-11-09", "date_to": "2026-11-08"}).status_code == 422
+    assert client.get("/api/v1/transactions", params={
+        "date_from": "not-a-date"}).status_code == 422
