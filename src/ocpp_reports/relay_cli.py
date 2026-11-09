@@ -21,14 +21,14 @@ def load_config(path: Path = DEFAULT_CONFIG) -> dict:
         raise ValueError("Relay configuration must be a protected regular file (0640 or stricter)")
     with path.open("rb") as f:
         document = tomllib.load(f)
-    if set(document) != {"relay"} or not isinstance(document["relay"], dict) or set(document["relay"]) != {"destination_id", "endpoint", "sources", "terminal_destination"}:
+    if set(document) != {"relay"} or not isinstance(document["relay"], dict) or set(document["relay"]) != {"destination_id", "endpoint", "sources"}:
         raise ValueError("Expected [relay] destination_id, endpoint and sources")
     cfg = document["relay"]
     from .replication.forwarder import validate_endpoint
     validate_endpoint(cfg["endpoint"])
     if not cfg["endpoint"].startswith("https://"):
         raise ValueError("Relay requires HTTPS even over WireGuard")
-    if cfg["terminal_destination"] is not True:\n        raise ValueError("Relay requires explicitly declared terminal destination; multi-hop relay is prohibited")\n    if not isinstance(cfg["destination_id"], str) or not cfg["destination_id"]:
+    if not isinstance(cfg["destination_id"], str) or not cfg["destination_id"]:
         raise ValueError("Missing destination identity")
     if not isinstance(cfg["sources"], dict) or not cfg["sources"]:
         raise ValueError("Relay requires explicit per-source bearer tokens")
