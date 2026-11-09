@@ -12,7 +12,7 @@ from ocpp_reports.replication.collector import Batch, accept_batch
 
 def test_protected_config_and_explicit_sources(tmp_path):
     path = tmp_path / "relay.toml"
-    path.write_text('[relay]\ndestination_id="001"\nendpoint="https://collector.test/api/replication"\n'
+    path.write_text('[relay]\ndestination_id="001"\nterminal_destination=true\nendpoint="https://collector.test/api/replication"\n'
                     '[relay.sources]\n"local"="token-local"\n"002"="token-002"\n"005"="token-005"\n')
     os.chmod(path, 0o644)
     with pytest.raises(ValueError, match="protected"):
