@@ -192,3 +192,23 @@ def test_v1_sources_deny_non_admin_without_querying_warehouse(monkeypatch, tmp_p
     response = TestClient(app).get("/api/v1/sources")
     assert response.status_code == 403
     assert "items" not in response.json()
+
+def test_v1_connector_filters_preserve_source_freshness(monkeypatch, tmp_path):
+    def fake_snapshot(path, **kwargs):
+        return {"sources": [{"source_id": "tenant-a"}],
+                "connectors": [{"source_id": "tenant-a", "charger_id": "CP1",
+                                "connector_id": 1, "status": "Available",
+                                "location": "North", "connected": 1}],
+                "transactions": [], "events": []}
+
+    monkeypatch.setattr(web, "snapshot", fake_snapshot)
+    client = TestClient(web.create_app(tmp_path / "unused.sqlite"))
+    response = client.get("/api/v1/connectors", params={
+        "filter": "CP1", "status": "Available", "location": "North"})
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 1
+    assert response.json()["items"][0]["source_freshness"] == "unknown"
+    assert client.get("/api/v1/connectors", params={
+        "location": "South"}).json()["items"] == []
+    assert client.get("/api/v1/connectors", params={
+        "date_from": "bad"}).status_code == 422
