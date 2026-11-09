@@ -21,11 +21,7 @@ def register_api_v1(app, read):
     def summary(request: Request, source_id: str | None = None,
                 charger_id: str | None = None):
         data = visible(request, source_id, charger_id, 500)
-        return {"status_counts": _operational_status_counts(data["connectors"]),
-                "transaction_counts": {
-                    "success": len(_filter_transaction_energy(data["transactions"], "success")),
-                    "failed": len(_filter_transaction_energy(data["transactions"], "failed")),
-                }}
+        return {"status_counts": _operational_status_counts(data["connectors"])}
 
     @app.get("/api/v1/connectors", tags=["Dashboard API v1"])
     def connectors(request: Request, source_id: str | None = None,
