@@ -35,7 +35,7 @@ from fastapi.responses import JSONResponse
 from .web import project_dashboard_connectors, _operational_status_counts
 
 
-def register_api_v1(app, read):
+def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
     # Documentation only: authorization is enforced centrally by dashboard_login.
     bearer = HTTPBearer(auto_error=False)
     from fastapi import Depends
@@ -68,12 +68,27 @@ def register_api_v1(app, read):
     @app.get("/api/v1/transactions", tags=["Dashboard API v1"], response_model=TransactionsResponse, dependencies=[Depends(documented_auth)])
     def transactions(request: Request, source_id: str | None = None,
                      charger_id: str | None = None,
-                     view: str = "all", page: int = Query(1, ge=1)):
+                     view: str = "all", page: int = Query(1, ge=1),
+                     filter: str = "", status: str = "", location: str = "",
+                     date_from: str = "", date_to: str = "", tz: str | None = None):
         if view not in ("all", "success", "failed"):
             raise HTTPException(422, "Invalid transaction view")
+        zone = tz or timezones[0]
+        if zone not in timezones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
+        for day in (date_from, date_to):
+            if day:
+                try:
+                    datetime.strptime(day, "%Y-%m-%d")
+                except ValueError as exc:
+                    raise HTTPException(422, "Invalid date") from exc
+        if date_from and date_to and date_from > date_to:
+            raise HTTPException(422, "Date range start must not exceed end")
+        # Use the exact SQL pagination/filter contract consumed by the HTML dashboard.
         data = visible(request, source_id, charger_id, 100, pagination={
-            "term": "", "status": "", "location": "", "date_from": "",
-            "date_to": "", "zone": "UTC", "view": view, "page": page})
+            "term": filter, "status": status, "location": location,
+            "date_from": date_from, "date_to": date_to,
+            "zone": zone, "view": view, "page": page})
         info = data["transaction_pagination"]
         return {"items": data["transactions"], "total": info["total"],
                 "page": info["page"], "pages": info["pages"], "counts": info["counts"]}
