@@ -457,3 +457,30 @@ def test_api_v1_invalid_connector_view_is_rejected(monkeypatch, tmp_path):
     client = TestClient(web.create_app(tmp_path / "unused.sqlite"))
     response = client.get("/api/v1/connectors", params={"connector_view": "invalid"})
     assert response.status_code == 422
+
+
+
+def test_dashboard_poll_preserves_active_controls_and_expanded_events(monkeypatch, tmp_path):
+    """Template contract for non-destructive fetch refresh (not browser execution)."""
+    def fake_snapshot(path, **kwargs):
+        return {
+            "connectors": [], "transactions": [], "events": [], "sources": [],
+            "transaction_pagination": {
+                "total": 0, "page": 1, "pages": 1,
+                "counts": {"all": 0, "success": 0, "failed": 0}},
+        }
+
+    monkeypatch.setattr(web, "snapshot", fake_snapshot)
+    client = TestClient(web.create_app(tmp_path / "unused.sqlite"))
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.text
+    assert 'credentials: "same-origin", cache: "no-store"' in html
+    assert 'headers: {"Accept": "text/html"}' in html
+    assert 'new DOMParser().parseFromString(await response.text(), "text/html")' in html
+    assert '!current.contains(document.activeElement)' in html
+    assert '!eventRegion.querySelector("details[open]")' in html
+    assert '!eventRegion.contains(document.activeElement)' in html
+    assert 'setupEventGroups(eventRegion)' in html
+    assert 'window.setInterval(refreshDashboard, 15000)' in html
+    assert 'window.addEventListener("pagehide"' in html
