@@ -116,3 +116,60 @@ def test_large_heartbeat_run_is_one_group_without_large_payload_response(tmp_pat
     assert not first["has_next"]
     assert len(event_group_details(db, group_source="a", first_event_id=10000,
                                     allowed_source_ids=("a",))["events"]) == 50
+
+
+def test_global_chronological_order_with_sql_pagination(tmp_path):
+    db = tmp_path / "chronological.sqlite"
+    with sqlite3.connect(db) as conn:
+        _schema(conn)
+        ensure_collector_schema(conn)
+        # Source Z has *older* data despite sorting after A alphabetically.
+        for n in range(1, 8):
+            payload = _event(n, "BootNotification", cp="z")
+            payload["at"] = f"2026-11-08T00:{n:02}:00Z"
+            conn.execute("INSERT INTO events VALUES (?,?,?)",
+                         ("z", n, json.dumps(payload)))
+        for n in range(1, 8):
+            payload = _event(n, "BootNotification", cp="a")
+            payload["at"] = f"2026-11-09T00:{n:02}:00Z"
+            conn.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                         ("a", "event", str(n), n, json.dumps(payload)))
+        missing = _event(8, "BootNotification", cp="a")
+        missing.pop("at")
+        conn.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                     ("a", "event", "8", 8, json.dumps(missing)))
+    page1 = event_groups_page(db)
+    page2 = event_groups_page(db, page=2)
+    assert len(page1["groups"]) == 10
+    assert page1["has_next"]
+    assert len(page2["groups"]) == 5
+    assert not page2["has_next"]
+    ordered = page1["groups"] + page2["groups"]
+    assert [g["source_id"] for g in ordered] == ["a"] * 7 + ["z"] * 7 + ["a"]
+    assert [g["first_event_id"] for g in ordered[:7]] == list(range(7, 0, -1))
+    assert ordered[-1]["at"] is None
+    assert event_groups_page(db, allowed_source_ids=("z",))["groups"][0]["source_id"] == "z"
+    assert event_groups_page(db, date_from="2026-11-09")["groups"][0]["source_id"] == "a"
+
+
+def test_global_grouping_only_collapses_adjacent_events_and_lazy_details(tmp_path):
+    db = tmp_path / "interleaved.sqlite"
+    with sqlite3.connect(db) as conn:
+        _schema(conn)
+        for source, n, timestamp in (
+            ("z", 1, "2026-11-09T10:00:00Z"),
+            ("z", 2, "2026-11-09T10:03:00Z"),
+            ("a", 1, "2026-11-09T10:02:00Z"),
+            ("z", 3, "2026-11-09T10:01:00Z"),
+        ):
+            event = _event(n)
+            event["at"] = timestamp
+            conn.execute("INSERT INTO events VALUES (?,?,?)",
+                         (source, n, json.dumps(event)))
+    groups = event_groups_page(db)["groups"]
+    assert [(g["source_id"], g["event_count"]) for g in groups] == [
+        ("z", 1), ("a", 1), ("z", 2)]
+    assert [g["first_event_id"] for g in groups] == [2, 1, 3]
+    details = event_group_details(db, group_source="z", first_event_id=3)
+    assert [item["id"] for item in details["events"]] == [3, 1]
+    assert event_groups_page(db, page=2)["groups"] == []
