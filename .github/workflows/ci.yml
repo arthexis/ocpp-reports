@@ -105,10 +105,34 @@ jobs:
           path: dashboard-benchmark.json
           if-no-files-found: warn
 
+  dashboard_browser:
+    name: Chromium dashboard integration
+    needs: static_validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install dashboard and Playwright
+        run: |
+          python -m pip install '.[test]' 'playwright>=1.50,<2'
+          python -m playwright install --with-deps chromium
+      - name: Real Chromium browser integration
+        run: python scripts/ci_dashboard_browser.py
+      - name: Archive browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-chromium-evidence
+          path: dashboard-browser.png
+          if-no-files-found: warn
+
   general:
     name: CI
     if: always()
-    needs: [test, static_validation, systemd_integration, ansible_integration, dashboard_benchmark]
+    needs: [test, static_validation, systemd_integration, ansible_integration, dashboard_benchmark, dashboard_browser]
     runs-on: ubuntu-latest
     steps:
       - name: Require all test matrix jobs
@@ -118,9 +142,11 @@ jobs:
           ANSIBLE_RESULT: ${{ needs.ansible_integration.result }}
           SYSTEMD_RESULT: ${{ needs.systemd_integration.result }}
           BENCHMARK_RESULT: ${{ needs.dashboard_benchmark.result }}
+          BROWSER_RESULT: ${{ needs.dashboard_browser.result }}
         run: |
           test "$RESULT" = success
           test "$STATIC_RESULT" = success
           test "$ANSIBLE_RESULT" = success
           test "$SYSTEMD_RESULT" = success
           test "$BENCHMARK_RESULT" = success
+          test "$BROWSER_RESULT" = success
