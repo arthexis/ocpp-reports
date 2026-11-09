@@ -561,3 +561,33 @@ def test_shared_warehouse_dst_fall_back_dates(integrated_dashboard_warehouse):
     assert response.json()["total"] == 47
     assert client.get("/api/v1/transactions", params={
         "tz": "Europe/Berlin", "date_from": "2026-11-01"}).status_code == 422
+
+
+def test_integrated_connector_projection_and_html_semantics_without_mocks(
+        integrated_dashboard_warehouse):
+    """Use one real SQLite warehouse for the HTML and JSON connector contracts."""
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",)))
+    html = client.get("/")
+    response = client.get("/api/v1/connectors")
+    assert html.status_code == response.status_code == 200
+    connectors = response.json()["items"]
+    assert {item["connector_id"] for item in connectors} == {0, 1}
+    for item in connectors:
+        assert item["source_id"] == "tenant-a"
+        for field in ("status", "source_freshness", "activity_freshness",
+                      "connection_fresh", "status_time_unknown", "stale",
+                      "power_w", "energy_wh"):
+            assert field in item, (field, item)
+        assert item["source_freshness"] in ("fresh", "old", "unknown")
+        assert item["activity_freshness"] in ("fresh", "old", "unknown")
+        assert isinstance(item["stale"], bool)
+        assert isinstance(item["connection_fresh"], bool)
+        assert isinstance(item["status_time_unknown"], bool)
+        if item["power_w"] is None:
+            assert "—" in html.text
+        if item["energy_wh"] is not None:
+            assert "%.2f" % (item["energy_wh"] / 1000) in html.text
+    assert "Potencia" in html.text and "Medidor" in html.text
+    assert client.get("/api/v1/connectors", params={
+        "source_id": "tenant-b"}).status_code == 403
