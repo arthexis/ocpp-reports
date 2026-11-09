@@ -1,8 +1,7 @@
-"""Read-only SQLite window selection of consecutive dashboard event groups.
+"""Read-only globally chronological SQLite event grouping and pagination.
 
-No materialized index or changes to authoritative evidence. Groups follow the
-existing collapse predicate and order (source, descending event ID). The
-window only selects group summaries; full payloads are retrieved on demand.
+Grouping and page boundaries are selected in SQL; event payloads are retrieved
+only when a group is expanded. Missing/unparseable timestamps sort last.
 """
 from __future__ import annotations
 
@@ -129,86 +128,16 @@ def _query(db: sqlite3.Connection, *, source_id: str | None, charger_id: str | N
         " json_extract(e.payload,'$.action') AS action,"
         " json_extract(e.payload,'$.at') AS at," + grouping_key + " AS grouping_key"
         " FROM raw e" + loc_join + where + "),"
+        " timed AS (SELECT *,julianday(at) AS event_time FROM eligible),"
         " compared AS (SELECT *,LAG(grouping_key) OVER "
-        " (ORDER BY source_id DESC,event_id DESC) AS previous_key FROM eligible),"
+        " (ORDER BY (event_time IS NULL),event_time DESC,source_id DESC,event_id DESC)"
+        " AS previous_key FROM timed),"
         " numbered AS (SELECT *,SUM(CASE WHEN grouping_key IS NOT NULL "
         " AND grouping_key=previous_key THEN 0 ELSE 1 END)"
-        " OVER (ORDER BY source_id DESC,event_id DESC ROWS UNBOUNDED PRECEDING)"
-        " AS group_number FROM compared) "
+        " OVER (ORDER BY (event_time IS NULL),event_time DESC,source_id DESC,event_id DESC"
+        " ROWS UNBOUNDED PRECEDING) AS group_number FROM compared) "
     )
     return cte, [*parameters, *filter_args]
-
-
-
-def _default_first_page(db: sqlite3.Connection, tables: set[str],
-                        source_id: str | None,
-                        allowed_source_ids: tuple[str, ...] | None,
-                        page_size: int) -> dict:
-    """Stream exactly enough ordered evidence to finish the first ten groups.
-
-    Unlike the window query, this doesn't decode and rank all historic event
-    payloads on a normal unfiltered first-page dashboard request.
-    """
-    conditions, args = [], []
-    if allowed_source_ids is not None:
-        conditions.append("source_id IN (" + ",".join("?" for _ in allowed_source_ids) + ")")
-        args.extend(allowed_source_ids)
-    if source_id:
-        conditions.append("source_id=?")
-        args.append(source_id)
-    scope = " AND ".join(conditions) if conditions else "1=1"
-    branches, parameters = [], []
-    if "events" in tables:
-        branches.append("SELECT source_id,event_id,payload FROM events WHERE " + scope)
-        parameters.extend(args)
-    if "collector_latest" in tables:
-        branches.append(
-            "SELECT r.source_id, CAST(json_extract(r.payload,'$.id') AS INTEGER) AS event_id,"
-            " r.payload FROM collector_latest r WHERE r.kind='event' AND " + scope
-            + (" AND NOT EXISTS (SELECT 1 FROM events l WHERE l.source_id=r.source_id"
-               " AND l.event_id=CAST(json_extract(r.payload,'$.id') AS INTEGER))"
-               if "events" in tables else "")
-        )
-        parameters.extend(args)
-    if not branches:
-        return {"groups": [], "page": 1, "has_next": False}
-    locations = {}
-    if "collector_charger_locations" in tables:
-        locations = {(r[0], r[1]): r[2] for r in db.execute(
-            "SELECT source_id,charger_id,location FROM collector_charger_locations")}
-    sql = ("SELECT source_id,event_id,payload FROM (" + " UNION ALL ".join(branches)
-           + ") ORDER BY source_id DESC,event_id DESC")
-    groups: list[dict] = []
-    previous_key = None
-    for source, event_id, serialized in db.execute(sql, parameters):
-        payload = json.loads(serialized)
-        charger = payload.get("charger_id")
-        action = payload.get("action")
-        kind = payload.get("kind")
-        status = payload.get("status")
-        key = None
-        if source is not None and charger:
-            if action == "Heartbeat" and kind == "ocpp":
-                key = (source, charger, "Heartbeat")
-            elif (action == "StatusNotification" and kind == "status"
-                  and status in ("Available", "Preparing", "Charging",
-                                 "SuspendedEV", "SuspendedEVSE", "Finishing", "Reserved")
-                  and not payload.get("error_code") and not payload.get("info")
-                  and payload.get("connector_id") is not None):
-                key = (source, charger, "StatusNotification",
-                       payload["connector_id"], status)
-        if not groups or key is None or key != previous_key:
-            if len(groups) == page_size:
-                return {"groups": groups, "page": 1, "has_next": True}
-            groups.append({
-                "source_id": source, "charger_id": charger,
-                "location": locations.get((source, charger), source),
-                "action": action, "at": payload.get("at"),
-                "event_count": 0, "first_event_id": event_id,
-            })
-        groups[-1]["event_count"] += 1
-        previous_key = key
-    return {"groups": groups, "page": 1, "has_next": False}
 
 
 
@@ -230,21 +159,16 @@ def event_groups_page(
                            location=location, date_from=date_from, date_to=date_to, zone=zone)
         if not cte:
             return {"groups": [], "page": 1, "has_next": False}
-        if (page == 1 and not any((charger_id, term, status, location,
-                                   date_from, date_to))):
-            return _default_first_page(db, {
-                r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            }, source_id, allowed_source_ids, page_size)
         # Rank group numbers instead of materializing the event JSON for each
         # group; the newest row supplies the display information.
         sql = cte + (
-            ", summaries AS (SELECT group_number,COUNT(*) AS event_count,"
-            " MAX(event_id) AS newest_id FROM numbered GROUP BY group_number)"
-            " SELECT n.source_id,n.charger_id,n.location,n.action,n.at,"
-            " s.event_count,s.newest_id AS first_event_id"
-            " FROM summaries s JOIN numbered n ON n.group_number=s.group_number"
-            " AND n.event_id=s.newest_id"
-            " ORDER BY s.group_number ASC LIMIT ? OFFSET ?"
+            ", ranked AS (SELECT *,COUNT(*) OVER (PARTITION BY group_number) AS event_count,"
+            " ROW_NUMBER() OVER (PARTITION BY group_number"
+            " ORDER BY (event_time IS NULL),event_time DESC,source_id DESC,event_id DESC)"
+            " AS group_rank FROM numbered)"
+            " SELECT source_id,charger_id,location,action,at,event_count,"
+            " event_id AS first_event_id FROM ranked WHERE group_rank=1"
+            " ORDER BY group_number ASC LIMIT ? OFFSET ?"
         )
         rows = [dict(r) for r in db.execute(sql, [*args, page_size + 1, (page - 1) * page_size])]
     return {"groups": rows[:page_size], "page": page, "has_next": len(rows) > page_size}
@@ -274,15 +198,17 @@ def event_group_details(
         # The submitted newest ID must actually be the first (newest) member
         # of its group; old/stale or guessed boundaries cannot widen access.
         sql = cte + (
-            ", selected AS (SELECT group_number FROM numbered WHERE source_id=? AND event_id=?),"
-            " first_member AS (SELECT n.group_number FROM numbered n"
-            " JOIN selected s USING(group_number) GROUP BY n.group_number"
-            " HAVING MAX(n.event_id)=?)"
-            " SELECT n.source_id,n.payload,n.location FROM numbered n"
-            " JOIN first_member f USING(group_number)"
-            " ORDER BY n.event_id DESC LIMIT ? OFFSET ?"
+            ", ranked AS (SELECT *,ROW_NUMBER() OVER (PARTITION BY group_number"
+            " ORDER BY (event_time IS NULL),event_time DESC,source_id DESC,event_id DESC)"
+            " AS group_rank FROM numbered),"
+            " selected AS (SELECT group_number FROM ranked"
+            " WHERE source_id=? AND event_id=? AND group_rank=1)"
+            " SELECT n.source_id,n.payload,n.location FROM ranked n"
+            " JOIN selected s USING(group_number)"
+            " ORDER BY (n.event_time IS NULL),n.event_time DESC,"
+            " n.source_id DESC,n.event_id DESC LIMIT ? OFFSET ?"
         )
-        rows = db.execute(sql, [*args, group_source, first_event_id, first_event_id,
+        rows = db.execute(sql, [*args, group_source, first_event_id,
                                 limit + 1, offset]).fetchall()
     if not rows and offset == 0:
         raise LookupError("Event group not found")
