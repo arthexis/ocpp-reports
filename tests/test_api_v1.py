@@ -588,6 +588,21 @@ def test_integrated_connector_projection_and_html_semantics_without_mocks(
             assert "—" in html.text
         if item["energy_wh"] is not None:
             assert "%.2f" % (item["energy_wh"] / 1000) in html.text
+    station_items = client.get("/api/v1/stations").json()["items"]
+    station_connectors = [row for station in station_items for row in station["connectors"]]
+    assert {(r["source_id"], r["charger_id"], r["connector_id"])
+            for r in station_connectors} == {
+                (r["source_id"], r["charger_id"], r["connector_id"])
+                for r in connectors}
+    for station_row in station_connectors:
+        peer = next(r for r in connectors if
+                    (r["source_id"], r["charger_id"], r["connector_id"]) ==
+                    (station_row["source_id"], station_row["charger_id"],
+                     station_row["connector_id"]))
+        for field in ("status", "source_freshness", "activity_freshness",
+                      "connection_fresh", "status_time_unknown", "stale",
+                      "power_w", "energy_wh", "connected"):
+            assert station_row[field] == peer[field], field
     assert "Potencia" in html.text and "Medidor" in html.text
     assert client.get("/api/v1/connectors", params={
         "source_id": "tenant-b"}).status_code == 403
