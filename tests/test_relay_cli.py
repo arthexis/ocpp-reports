@@ -104,7 +104,7 @@ def test_cli_lock_rejects_concurrent_process_without_dispatch(tmp_path):
         "from ocpp_reports.relay_cli import app\n"
         "r = CliRunner().invoke(app, ['once', '--database', sys.argv[1], "
         "'--state', sys.argv[2], '--config', sys.argv[3]])\n"
-        "print(r.stdout)\n"
+        "print(r.output)\n"
         "sys.exit(r.exit_code)\n"
     )
     fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
