@@ -7,6 +7,7 @@ from __future__ import annotations
 from fastapi import HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from typing import Any
+from datetime import datetime, timezone
 from fastapi.security import HTTPBearer
 
 
@@ -31,7 +32,7 @@ class TransactionsResponse(ItemsResponse):
     counts: dict[str, int]
 
 from fastapi.responses import JSONResponse
-from .web import _operational_status_counts, _filter_transaction_energy
+from .web import project_dashboard_connectors
 
 
 def register_api_v1(app, read):
@@ -51,12 +52,18 @@ def register_api_v1(app, read):
     def summary(request: Request, source_id: str | None = None,
                 charger_id: str | None = None):
         data = visible(request, source_id, charger_id, 500)
-        return {"status_counts": _operational_status_counts(data["connectors"])}
+        return {"status_counts": project_dashboard_connectors(data, now=datetime.now(timezone.utc))["status_counts"]}
 
     @app.get("/api/v1/connectors", tags=["Dashboard API v1"], response_model=ItemsResponse, dependencies=[Depends(documented_auth)])
     def connectors(request: Request, source_id: str | None = None,
-                   charger_id: str | None = None):
-        return {"items": visible(request, source_id, charger_id, 500)["connectors"]}
+                   charger_id: str | None = None, connector_view: str = "combined"):
+        data = visible(request, source_id, charger_id, 500)
+        try:
+            projected = project_dashboard_connectors(data, now=datetime.now(timezone.utc),
+                                                     connector_view=connector_view)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {"items": projected["connectors"]}
 
     @app.get("/api/v1/transactions", tags=["Dashboard API v1"], response_model=TransactionsResponse, dependencies=[Depends(documented_auth)])
     def transactions(request: Request, source_id: str | None = None,
