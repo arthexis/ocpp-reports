@@ -476,6 +476,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             tx_page = min(tx_page, tx_pages)
             start = (tx_page - 1) * 20
             data["transactions"] = filtered_transactions[start:start + 20]
+        projected = project_dashboard_connectors(data, now=now, connector_view=connector_view)
+        operational_counts = projected["status_counts"]
+        connector_rows = projected["connectors"]
         is_admin = not hasattr(request.state, "principal") or request.state.principal.role.value == "admin"
         if not is_admin:
             data["events"] = []
@@ -499,9 +502,6 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         else:
             event_groups = _group_events(data["events"])[:10]
             event_has_next = False
-        projected = project_dashboard_connectors(data, now=now, connector_view=connector_view)
-        operational_counts = projected["status_counts"]
-        connector_rows = projected["connectors"]
         template_started = perf_counter()
         response = templates.TemplateResponse(request, "dashboard.html.j2",
                                           {"data": data, "is_admin": is_admin,
