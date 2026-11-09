@@ -32,7 +32,7 @@ class TransactionsResponse(ItemsResponse):
     counts: dict[str, int]
 
 from fastapi.responses import JSONResponse
-from .web import project_dashboard_connectors, _operational_status_counts, _source_freshness, _filter_dashboard
+from .web import project_dashboard_connectors, _operational_status_counts, _source_freshness, _filter_dashboard, validate_dashboard_window
 
 
 def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
@@ -61,8 +61,7 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
                    date_from: str = "", date_to: str = "", tz: str | None = None):
         data = visible(request, source_id, charger_id, 500, source_evidence=True)
         zone = tz or timezones[0]
-        if zone not in timezones:
-            raise HTTPException(422, "Unsupported dashboard timezone")
+        validate_dashboard_window(zone, timezones, date_from, date_to)
         try:
             source_freshness = {source["source_id"]: _source_freshness(source, datetime.now(timezone.utc))
                                 for source in data["sources"]}
@@ -95,16 +94,7 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
         if view not in ("all", "success", "failed"):
             raise HTTPException(422, "Invalid transaction view")
         zone = tz or timezones[0]
-        if zone not in timezones:
-            raise HTTPException(422, "Unsupported dashboard timezone")
-        for day in (date_from, date_to):
-            if day:
-                try:
-                    datetime.strptime(day, "%Y-%m-%d")
-                except ValueError as exc:
-                    raise HTTPException(422, "Invalid date") from exc
-        if date_from and date_to and date_from > date_to:
-            raise HTTPException(422, "Date range start must not exceed end")
+        validate_dashboard_window(zone, timezones, date_from, date_to)
         # Use the exact SQL pagination/filter contract consumed by the HTML dashboard.
         data = visible(request, source_id, charger_id, 100, pagination={
             "term": filter, "status": status, "location": location,
