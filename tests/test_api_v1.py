@@ -663,3 +663,36 @@ def test_real_sqlite_api_validation_and_legacy_dashboard_contract(
     assert client.get("/").status_code == 200
     assert client.get("/api/snapshot").status_code == 200
     assert client.get("/api/v1/openapi.json").status_code == 200
+
+
+def test_real_sqlite_soc_energy_html_api_parity_and_missing_values(
+        integrated_dashboard_warehouse):
+    """Compare transaction SoC and energy across HTML and API without mocked snapshots."""
+    import json
+    import sqlite3
+
+    with sqlite3.connect(integrated_dashboard_warehouse) as db:
+        for txid, energy, soc_start, soc_end in (
+                (1, 2500, 31, 79), (2, None, None, None)):
+            row = db.execute(
+                "SELECT payload FROM current_transactions WHERE source_id=? AND transaction_id=?",
+                ("tenant-a", txid)).fetchone()
+            assert row is not None
+            payload = json.loads(row[0])
+            payload.update(energy_wh=energy, soc_start=soc_start, soc_end=soc_end)
+            db.execute(
+                "UPDATE current_transactions SET payload=? WHERE source_id=? AND transaction_id=?",
+                (json.dumps(payload), "tenant-a", txid))
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",)))
+    html = client.get("/", params={"tx_view": "all"})
+    response = client.get("/api/v1/transactions", params={"view": "all"})
+    assert html.status_code == response.status_code == 200
+    rows = {row["id"]: row for row in response.json()["items"]}
+    assert rows[1]["soc_start"] == 31 and rows[1]["soc_end"] == 79
+    assert rows[1]["energy_wh"] == 2500
+    assert rows[2]["soc_start"] is None and rows[2]["soc_end"] is None
+    assert rows[2]["energy_wh"] is None
+    assert "31%" in html.text and "79%" in html.text
+    assert "2.50" in html.text
+    assert "—" in html.text
