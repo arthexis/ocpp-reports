@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -391,6 +392,23 @@ def project_dashboard_connectors(data: dict, *, now: datetime, connector_view: s
     return {"connectors": connector_rows, "status_counts": operational_counts}
 
 
+class EventGroupSummary(BaseModel):
+    source_id: str
+    charger_id: str | None = None
+    location: str | None = None
+    action: str | None = None
+    at: str | None = None
+    event_count: int
+    first_event_id: int
+
+
+class EventGroupsResponse(BaseModel):
+    groups: list[EventGroupSummary] = Field(default_factory=list)
+    page: int
+    has_next: bool
+    query_duration_ms: float
+
+
 def validate_dashboard_window(zone: str, timezones: tuple[str, ...],
                               date_from: str = "", date_to: str = "") -> None:
     """Shared validation for HTML and versioned JSON dashboard date filters."""
@@ -539,7 +557,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         response.headers["Server-Timing"] = ", ".join(timings)
         return response
 
-    @app.get("/api/v1/event-groups", tags=["Dashboard API v1"])
+    @app.get("/api/v1/event-groups", tags=["Dashboard API v1"], response_model=EventGroupsResponse)
     def api_event_groups(
         request: Request, source_id: str | None = None,
         charger_id: str | None = None, filter: str = "",
