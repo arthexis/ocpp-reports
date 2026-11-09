@@ -73,6 +73,10 @@ case "${role}" in
   watchtower)
     test -f /etc/systemd/system/ocpp-reports-collector.service
     test -f /etc/systemd/system/ocpp-reports-dashboard.service
+    test -f /etc/systemd/system/ocpp-reports-relay.service
+    test -f /etc/systemd/system/ocpp-reports-relay.timer
+    ! systemctl is-enabled --quiet ocpp-reports-relay.timer
+    ! systemctl is-active --quiet ocpp-reports-relay.timer
     ! systemctl is-active --quiet ocpp-reports-collector.service
     if ! systemctl is-active --quiet ocpp-reports-dashboard.service; then
       echo "::error::Dashboard service failed to remain active after deploy"
@@ -85,6 +89,10 @@ case "${role}" in
     test -f /etc/systemd/system/ocpp-reports-forwarder.service
     test -f /etc/systemd/system/ocpp-reports-collector.service
     test -f /etc/systemd/system/ocpp-reports-dashboard.service
+    test -f /etc/systemd/system/ocpp-reports-relay.service
+    test -f /etc/systemd/system/ocpp-reports-relay.timer
+    ! systemctl is-enabled --quiet ocpp-reports-relay.timer
+    ! systemctl is-active --quiet ocpp-reports-relay.timer
     ! systemctl is-active --quiet ocpp-reports-forwarder.service
     ! systemctl is-active --quiet ocpp-reports-collector.service
     if ! systemctl is-active --quiet ocpp-reports-dashboard.service; then
