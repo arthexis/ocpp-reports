@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from fastapi.security import HTTPBearer
 
 
 class ItemsResponse(BaseModel):
@@ -23,6 +24,11 @@ from .web import _operational_status_counts, _filter_transaction_energy
 
 
 def register_api_v1(app, read):
+    # Documentation only: authorization is enforced centrally by dashboard_login.
+    bearer = HTTPBearer(auto_error=False)
+    from fastapi import Depends
+    def documented_auth(_credentials=Depends(bearer)):
+        return None
     def visible(request: Request, source_id, charger_id, limit, *, pagination=None):
         data = read(source_id, charger_id, limit, transaction_pagination=pagination, skip_events=True)
         principal = getattr(request.state, "principal", None)
@@ -30,7 +36,7 @@ def register_api_v1(app, read):
             data = {**data, "events": [], "sources": []}
         return data
 
-    @app.get("/api/v1/summary", tags=["Dashboard API v1"])
+    @app.get("/api/v1/summary", tags=["Dashboard API v1"], dependencies=[Depends(documented_auth)])
     def summary(request: Request, source_id: str | None = None,
                 charger_id: str | None = None):
         data = visible(request, source_id, charger_id, 500)
