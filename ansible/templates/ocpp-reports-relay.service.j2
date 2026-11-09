@@ -1,0 +1,14 @@
+[Unit]
+Description=OCPP Reports Collector Relay (one bounded pass)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ocpp-reports
+Group=ocpp
+ExecStart={{ reports_cli_link }} relay once --database /var/lib/ocpp-reports/warehouse.sqlite --state /var/lib/ocpp-reports/relay.sqlite --config /etc/ocpp-reports/relay.toml
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ocpp-reports
