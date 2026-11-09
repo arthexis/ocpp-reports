@@ -36,6 +36,15 @@ def load_config(path: Path = DEFAULT_CONFIG) -> dict:
            not isinstance(token, str) or not token or
            source == cfg["destination_id"] for source, token in cfg["sources"].items()):
         raise ValueError("Invalid source authorization or self-replication")
+    local = cfg.get("local_sources", {})
+    if not isinstance(local, dict) or any(
+        not isinstance(source, str) or source not in cfg["sources"]
+        or not isinstance(evidence, str) or not evidence.strip()
+        for source, evidence in local.items()
+    ):
+        raise ValueError("Local evidence bindings must reference authorized sources")
+    if len(set(local.values())) != len(local):
+        raise ValueError("Local evidence identity cannot map to multiple public sources")
     return cfg
 
 
