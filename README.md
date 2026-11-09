@@ -136,3 +136,33 @@ curl -I https://customer.example.com/
 For an unauthenticated GET, Collector should return **403** (Nginx allows only POST to `/api/replication`) and Dashboard should return **401** with the Basic Auth challenge. Both must pass TLS hostname validation without `curl -k`. These responses verify HTTPS routing and access control, *not* successful replication; on the satellite, verify `forward_cursors` advances and compare the Collector's acknowledged source cursor.
 
 If deployment rejects HTTPS prerequisites, look for the exact missing path in Ansible output. Required files include the fullchain and private key for both names, the diagnostic certificate, `/etc/ocpp-reports/dashboard.htpasswd`, and `/etc/ocpp-reports/collector.toml`. Do not disable TLS verification to bypass a missing certificate.
+
+
+### Native dashboard API v1 (Android / webOS)
+
+Use an explicitly provisioned dashboard instance with `auth_mode: integrated`,
+`auth_tenant`, a private initialized `auth_database`, and a restrictive
+`source_ids` allowlist. The existing per-instance Nginx template preserves
+HTTPS and forwards requests to the loopback application; only integrated mode
+disables the *redundant* Nginx Basic challenge, because the application enforces
+its own session, tenant and role authorization. Instances with `auth_mode: basic`
+retain their Nginx Basic challenge and are not native-bearer endpoints.
+Never remove Basic Auth from the legacy dashboard site to enable API access.
+
+The native client must use verified HTTPS. It can authenticate with the existing
+`POST /login` form (including same-origin `Origin` header), retain the secure
+session cookie temporarily, and exchange it using
+`POST /api/v1/session/rotate` with that cookie and the same `Origin`.
+The exchange returns `access_token`, `token_type: bearer`, and `expires_in`;
+the original session token is invalidated. Use
+`Authorization: Bearer <access_token>` for subsequent `GET /api/v1/*` calls.
+The bearer can also be rotated over HTTPS; rotation never extends the original
+12-hour session lifetime. On expiry, authenticate again. Do not store passwords
+or bearer tokens in logs, URLs, or plain-text configuration. The exchange is
+not a refresh-token grant. Browser dashboard login remains unchanged.
+
+API transaction pages use the existing SQLite warehouse projection with
+`page` (1-based, 20 records per page) and `view=all|success|failed`.
+The configured instance source allowlist is applied in SQL before pagination
+or counts. OpenAPI is exposed at `/api/v1/openapi.json` subject to the
+same dashboard authorization when integrated login is enabled.
