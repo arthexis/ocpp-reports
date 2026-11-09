@@ -471,6 +471,8 @@ def test_dashboard_poll_preserves_active_controls_and_expanded_events(monkeypatc
         }
 
     monkeypatch.setattr(web, "snapshot", fake_snapshot)
+    monkeypatch.setattr(web, "event_groups_page", lambda path, **kwargs: {
+        "groups": [], "page": kwargs["page"], "has_next": False})
     client = TestClient(web.create_app(tmp_path / "unused.sqlite"))
     response = client.get("/")
     assert response.status_code == 200
