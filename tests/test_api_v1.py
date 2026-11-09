@@ -606,3 +606,31 @@ def test_integrated_connector_projection_and_html_semantics_without_mocks(
     assert "Potencia" in html.text and "Medidor" in html.text
     assert client.get("/api/v1/connectors", params={
         "source_id": "tenant-b"}).status_code == 403
+
+
+def test_real_sqlite_openapi_schema_and_unknown_meter_values(
+        integrated_dashboard_warehouse):
+    """Validate published API schema and unknown values against actual warehouse data."""
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",)))
+    spec_response = client.get("/api/v1/openapi.json")
+    assert spec_response.status_code == 200
+    assert spec_response.headers["cache-control"] == "no-store"
+    spec = spec_response.json()
+    for endpoint in ("/api/v1/summary", "/api/v1/connectors",
+                     "/api/v1/stations", "/api/v1/filters",
+                     "/api/v1/transactions", "/api/v1/sources",
+                     "/api/v1/event-groups"):
+        assert "get" in spec["paths"][endpoint], endpoint
+        assert "200" in spec["paths"][endpoint]["get"]["responses"], endpoint
+    schemas = spec["components"]["schemas"]
+    assert "ConnectorsResponse" in schemas
+    assert "TransactionsResponse" in schemas
+    assert "SummaryResponse" in schemas
+    rows = client.get("/api/v1/connectors").json()["items"]
+    assert len(rows) == 2
+    assert all(row["power_w"] is None for row in rows)
+    assert next(row for row in rows if row["connector_id"] == 0)["energy_wh"] is None
+    assert next(row for row in rows if row["connector_id"] == 1)["energy_wh"] == 1500
+    assert all(row["source_freshness"] == "unknown" for row in rows)
+    assert all(row["status_time_unknown"] is False for row in rows)
