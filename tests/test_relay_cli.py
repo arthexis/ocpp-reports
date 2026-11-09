@@ -52,3 +52,17 @@ def test_restart_replay_and_downstream_auth_denial(tmp_path):
             lambda request: pytest.fail("unexpected replay"))) as client:
         assert relay_once(warehouse, state, "002", "https://collector.test/api/replication",
                           "good", destination_id="001", client=client) == 1
+
+
+def test_relay_config_rejects_symlink_and_nonterminal(tmp_path):
+    path = tmp_path / "relay.toml"
+    path.write_text('[relay]\\ndestination_id="001"\\nterminal_destination=false\\n'
+                    'endpoint="https://collector.test/api/replication"\\n'
+                    '[relay.sources]\\n"002"="token"\\n')
+    os.chmod(path, 0o600)
+    with pytest.raises(ValueError, match="terminal destination"):
+        load_config(path)
+    link = tmp_path / "alias.toml"
+    link.symlink_to(path)
+    with pytest.raises(ValueError, match="protected regular file"):
+        load_config(link)
