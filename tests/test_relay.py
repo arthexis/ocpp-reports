@@ -5,6 +5,8 @@ import pytest
 from ocpp_reports.relay import relay_once, relay_page
 from ocpp_reports.replication.collector import Batch, Change, accept_batch
 from ocpp_reports.replication.forwarder import confirmed_cursor
+import hashlib
+import json
 
 
 def seed(path, source, sequence, key):
@@ -45,7 +47,7 @@ def test_multisource_relay_keeps_identity_and_independent_ack(tmp_path):
 def test_relay_retries_after_network_error_and_bad_ack(tmp_path):
     warehouse, state = tmp_path / "warehouse.sqlite", tmp_path / "relay.sqlite"
     seed(warehouse, "002", 1, "one")
-    key = '["001","002"]'
+    key = json.dumps(["001", hashlib.sha256(b"https://collector.test/api/replication").hexdigest(), "002"], separators=(",", ":"))
 
     def offline(request):
         raise httpx.ConnectError("offline")
@@ -58,7 +60,7 @@ def test_relay_retries_after_network_error_and_bad_ack(tmp_path):
     assert confirmed_cursor(state, key) == 0
 
     with httpx.Client(transport=httpx.MockTransport(
-            lambda request: httpx.Response(200, json={"source_id": "002", "ack": 999}))) as client:
+            lambda request: httpx.Response(200, json={"source_id": "wrong", "ack": 1}))) as client:
         with pytest.raises(ValueError, match="acknowledgement"):
             relay_once(warehouse, state, "002",
                        "https://collector.test/api/replication", "secret",
