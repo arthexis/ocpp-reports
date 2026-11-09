@@ -32,7 +32,7 @@ class TransactionsResponse(ItemsResponse):
     counts: dict[str, int]
 
 from fastapi.responses import JSONResponse
-from .web import project_dashboard_connectors, _operational_status_counts
+from .web import project_dashboard_connectors, _operational_status_counts, _source_freshness
 
 
 def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
@@ -64,6 +64,18 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         return {"items": projected["connectors"]}
+
+    @app.get("/api/v1/sources", tags=["Dashboard API v1"], response_model=ItemsResponse,
+             dependencies=[Depends(documented_auth)])
+    def sources(request: Request, source_id: str | None = None):
+        # Match the existing HTML visibility policy: source sync diagnostics are admin-only.
+        principal = getattr(request.state, "principal", None)
+        if principal is not None and principal.role.value != "admin":
+            raise HTTPException(403, "Source diagnostics require administrator access")
+        data = visible(request, source_id, None, 500, source_evidence=True)
+        now = datetime.now(timezone.utc)
+        return {"items": [{**source, "freshness": _source_freshness(source, now)}
+                          for source in data["sources"]]}
 
     @app.get("/api/v1/transactions", tags=["Dashboard API v1"], response_model=TransactionsResponse, dependencies=[Depends(documented_auth)])
     def transactions(request: Request, source_id: str | None = None,
