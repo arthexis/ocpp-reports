@@ -6,11 +6,22 @@ from __future__ import annotations
 
 from fastapi import HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from typing import Any
 from fastapi.security import HTTPBearer
 
 
 class ItemsResponse(BaseModel):
-    items: list[dict] = Field(default_factory=list)
+    items: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SummaryResponse(BaseModel):
+    status_counts: dict[str, dict[str, int]]
+
+
+class FiltersResponse(BaseModel):
+    source_ids: list[str]
+    charger_ids: list[str]
+    locations: list[str]
 
 
 class TransactionsResponse(ItemsResponse):
@@ -36,18 +47,18 @@ def register_api_v1(app, read):
             data = {**data, "events": [], "sources": []}
         return data
 
-    @app.get("/api/v1/summary", tags=["Dashboard API v1"], dependencies=[Depends(documented_auth)])
+    @app.get("/api/v1/summary", tags=["Dashboard API v1"], response_model=SummaryResponse, dependencies=[Depends(documented_auth)])
     def summary(request: Request, source_id: str | None = None,
                 charger_id: str | None = None):
         data = visible(request, source_id, charger_id, 500)
         return {"status_counts": _operational_status_counts(data["connectors"])}
 
-    @app.get("/api/v1/connectors", tags=["Dashboard API v1"], response_model=ItemsResponse)
+    @app.get("/api/v1/connectors", tags=["Dashboard API v1"], response_model=ItemsResponse, dependencies=[Depends(documented_auth)])
     def connectors(request: Request, source_id: str | None = None,
                    charger_id: str | None = None):
         return {"items": visible(request, source_id, charger_id, 500)["connectors"]}
 
-    @app.get("/api/v1/transactions", tags=["Dashboard API v1"], response_model=TransactionsResponse)
+    @app.get("/api/v1/transactions", tags=["Dashboard API v1"], response_model=TransactionsResponse, dependencies=[Depends(documented_auth)])
     def transactions(request: Request, source_id: str | None = None,
                      charger_id: str | None = None,
                      view: str = "all", page: int = Query(1, ge=1)):
@@ -60,7 +71,7 @@ def register_api_v1(app, read):
         return {"items": data["transactions"], "total": info["total"],
                 "page": info["page"], "pages": info["pages"], "counts": info["counts"]}
 
-    @app.get("/api/v1/stations", tags=["Dashboard API v1"], response_model=ItemsResponse)
+    @app.get("/api/v1/stations", tags=["Dashboard API v1"], response_model=ItemsResponse, dependencies=[Depends(documented_auth)])
     def stations(request: Request, source_id: str | None = None):
         rows = visible(request, source_id, None, 500)["connectors"]
         groups = {}
@@ -70,7 +81,7 @@ def register_api_v1(app, read):
         return {"items": [{"source_id": source, "charger_id": charger,
                            "connectors": items} for (source, charger), items in groups.items()]}
 
-    @app.get("/api/v1/filters", tags=["Dashboard API v1"])
+    @app.get("/api/v1/filters", tags=["Dashboard API v1"], response_model=FiltersResponse, dependencies=[Depends(documented_auth)])
     def filters(request: Request, source_id: str | None = None):
         rows = visible(request, source_id, None, 500)["connectors"]
         return {"source_ids": sorted({r["source_id"] for r in rows if r.get("source_id")}),
