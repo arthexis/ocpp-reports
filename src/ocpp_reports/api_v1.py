@@ -32,7 +32,7 @@ class TransactionsResponse(ItemsResponse):
     counts: dict[str, int]
 
 from fastapi.responses import JSONResponse
-from .web import project_dashboard_connectors, _operational_status_counts, _source_freshness
+from .web import project_dashboard_connectors, _operational_status_counts, _source_freshness, _filter_dashboard
 
 
 def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
@@ -56,11 +56,20 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
 
     @app.get("/api/v1/connectors", tags=["Dashboard API v1"], response_model=ItemsResponse, dependencies=[Depends(documented_auth)])
     def connectors(request: Request, source_id: str | None = None,
-                   charger_id: str | None = None, connector_view: str = "combined"):
+                   charger_id: str | None = None, connector_view: str = "combined",
+                   filter: str = "", status: str = "", location: str = "",
+                   date_from: str = "", date_to: str = "", tz: str | None = None):
         data = visible(request, source_id, charger_id, 500, source_evidence=True)
+        zone = tz or timezones[0]
+        if zone not in timezones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
         try:
+            source_freshness = {source["source_id"]: _source_freshness(source, datetime.now(timezone.utc))
+                                for source in data["sources"]}
+            data = _filter_dashboard(data, term=filter, status=status, location=location,
+                                     date_from=date_from, date_to=date_to, zone=zone)
             projected = project_dashboard_connectors(data, now=datetime.now(timezone.utc),
-                                                     connector_view=connector_view)
+                                                     connector_view=connector_view, source_freshness=source_freshness)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         return {"items": projected["connectors"]}
