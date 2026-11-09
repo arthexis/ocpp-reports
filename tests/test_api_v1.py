@@ -149,3 +149,27 @@ def test_v1_detail_and_event_routes_require_explicit_permissions():
     assert route_permission("/api/v1/event-group", "GET") is not None
     assert route_permission("/api/v1/transactions/tenant-a/CP1/42", "POST") is None
     assert route_permission("/api/v1/transactions/tenant-a/CP1", "GET") is None
+
+def test_v1_sources_freshness_respects_allowlist(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_snapshot(path, *, allowed_source_ids=None, **kwargs):
+        calls.append(allowed_source_ids)
+        return {"sources": [{"source_id": "tenant-a"}],
+                "connectors": [], "transactions": [], "events": []}
+
+    monkeypatch.setattr(web, "snapshot", fake_snapshot)
+    client = TestClient(web.create_app(tmp_path / "unused.sqlite",
+                                       allowed_source_ids=("tenant-a",)))
+    response = client.get("/api/v1/sources")
+    assert response.status_code == 200
+    assert response.json()["items"][0]["source_id"] == "tenant-a"
+    assert "freshness" in response.json()["items"][0]
+    assert client.get("/api/v1/sources", params={"source_id": "tenant-b"}).status_code == 403
+    assert calls == [("tenant-a",)]
+
+
+def test_v1_sources_route_authorized_only_for_admin_diagnostics():
+    from ocpp_reports.dashboard_login import route_permission
+    assert route_permission("/api/v1/sources", "GET") is not None
+    assert route_permission("/api/v1/sources", "POST") is None
