@@ -72,6 +72,10 @@ def benchmark(database: Path, *, iterations: int = 100, warmup: int = 5) -> dict
         "transactions_page_2": "/?tx_page=2",
         "charger_filter": "/?connector_view=station",
         "api_snapshot": "/api/snapshot",
+        "api_v1_summary": "/api/v1/summary",
+        "api_v1_connectors": "/api/v1/connectors",
+        "api_v1_transactions_page_2": "/api/v1/transactions?page=2",
+        "api_v1_event_groups": "/api/v1/event-groups",
     }
     results = {}
     with TestClient(app) as client:
