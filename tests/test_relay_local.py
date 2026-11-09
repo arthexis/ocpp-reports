@@ -14,7 +14,7 @@ def test_local_changefeed_uses_explicit_source_binding(tmp_path):
     with sqlite3.connect(warehouse) as db:
         db.execute("CREATE TABLE replication_changes (source_id TEXT, sequence INTEGER, kind TEXT, record_key TEXT, payload TEXT)")
         db.execute("INSERT INTO replication_changes VALUES (?,?,?,?,?)",
-                   ("csms-internal-uuid", 1, "event", "key", '{"ok":true}'))
+                   ("csms-internal-uuid", 1, "event", "key", '{\"ok\":true}'))
     page = relay_page(warehouse, "public-origin", local_evidence_source="csms-internal-uuid")
     assert page["source_id"] == "public-origin"
     assert page["changes"][0]["record_key"] == "key"
