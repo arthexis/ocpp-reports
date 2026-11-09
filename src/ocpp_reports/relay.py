@@ -6,6 +6,7 @@ One durable acknowledgement cursor is maintained per destination/source pair.
 from __future__ import annotations
 
 import json
+import hashlib
 import sqlite3
 from pathlib import Path
 
@@ -53,7 +54,7 @@ def relay_once(database: Path, state: Path, source_id: str, endpoint: str,
     if database.resolve() == state.resolve():
         raise ValueError("Relay state must be separate from warehouse")
     # A destination-qualified cursor prevents unrelated collectors sharing ACK state.
-    cursor_key = json.dumps([destination_id, source_id], separators=(",", ":"))
+    cursor_key = json.dumps([destination_id, hashlib.sha256(endpoint.encode("utf-8")).hexdigest(), source_id], separators=(",", ":"))
     after = confirmed_cursor(state, cursor_key)
     batch = relay_page(database, source_id, after=after, limit=limit)
     if not batch["changes"]:
@@ -66,10 +67,10 @@ def relay_once(database: Path, state: Path, source_id: str, endpoint: str,
                                headers={"Authorization": "Bearer " + token})
         response.raise_for_status()
         receipt = response.json()
-        if receipt.get("source_id") != source_id or receipt.get("ack") != batch["next"]:
+        if receipt.get("source_id") != source_id or type(receipt.get("ack")) is not int or receipt["ack"] < batch["next"]:
             raise ValueError("Collector acknowledgement does not match batch")
-        save_cursor(state, cursor_key, batch["next"])
-        return batch["next"]
+        save_cursor(state, cursor_key, receipt["ack"])
+        return receipt["ack"]
     finally:
         if owned:
             client.close()
