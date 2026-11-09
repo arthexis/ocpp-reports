@@ -82,3 +82,41 @@ def test_local_bindings_must_be_unique_and_authorized(tmp_path):
         os.chmod(path, 0o600)
         with pytest.raises(ValueError, match="Local evidence"):
             load_config(path)
+
+
+def test_cli_lock_rejects_concurrent_process_without_dispatch(tmp_path):
+    """A second process cannot dispatch while the first owns the state lock."""
+    import fcntl
+    import subprocess
+    import sys
+
+    config = tmp_path / "relay.toml"
+    config.write_text('[relay]\ndestination_id="sink"\n'
+                      'endpoint="https://collector.test/api/replication"\n'
+                      '[relay.sources]\n"origin"="token"\n')
+    os.chmod(config, 0o600)
+    state = tmp_path / "relay-state.sqlite"
+    lock_path = state.with_name(state.name + ".lock")
+    database = tmp_path / "not-created.sqlite"
+    child = (
+        "import sys\n"
+        "from typer.testing import CliRunner\n"
+        "from ocpp_reports.relay_cli import app\n"
+        "r = CliRunner().invoke(app, ['once', '--database', sys.argv[1], "
+        "'--state', sys.argv[2], '--config', sys.argv[3]])\n"
+        "print(r.stdout)\n"
+        "sys.exit(r.exit_code)\n"
+    )
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        result = subprocess.run(
+            [sys.executable, "-c", child, str(database), str(state), str(config)],
+            capture_output=True, text=True, timeout=15, check=False,
+        )
+        assert result.returncode == 2, (result.stdout, result.stderr)
+        assert "ValueError" in result.stdout
+        assert not database.exists()
+        assert not state.exists()
+    finally:
+        os.close(fd)
