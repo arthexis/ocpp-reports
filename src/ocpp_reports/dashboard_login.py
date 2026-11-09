@@ -70,7 +70,8 @@ _ROUTE_PERMISSIONS = {
     ("/api/v1/event-group", "GET"): Permission.EVENTS_VIEW,
     **{(path, "GET"): Permission.DASHBOARD_VIEW for path in (
         "/api/v1/summary", "/api/v1/connectors", "/api/v1/transactions",
-        "/api/v1/stations", "/api/v1/filters", "/api/v1/openapi.json")},
+        "/api/v1/stations", "/api/v1/filters", "/api/v1/openapi.json",
+        "/api/v1/sources")},
 }
 
 
