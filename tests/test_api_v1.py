@@ -304,7 +304,7 @@ def test_v1_event_groups_share_html_sql_pagination_and_tenant_scope(monkeypatch,
 
     def fake_groups(path, **kwargs):
         calls.append(kwargs)
-        return {"groups": [{"source_id": "tenant-a", "first_event_id": 42}],
+        return {"groups": [{"source_id": "tenant-a", "first_event_id": 42, "event_count": 2}],
                 "page": kwargs["page"], "has_next": True}
 
     monkeypatch.setattr(web, "event_groups_page", fake_groups)
@@ -319,6 +319,9 @@ def test_v1_event_groups_share_html_sql_pagination_and_tenant_scope(monkeypatch,
     assert response.json()["groups"][0]["first_event_id"] == 42
     assert response.json()["page"] == 2
     assert response.json()["has_next"] is True
+    schema = client.get("/api/v1/openapi.json").json()
+    response_schema = schema["paths"]["/api/v1/event-groups"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert response_schema["$ref"].endswith("/EventGroupsResponse")
     assert calls[0]["allowed_source_ids"] == ("tenant-a",)
     assert calls[0]["term"] == "CP1"
     assert calls[0]["zone"] == "America/Monterrey"
