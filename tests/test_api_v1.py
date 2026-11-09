@@ -685,8 +685,8 @@ def test_real_sqlite_soc_energy_html_api_parity_and_missing_values(
                 (json.dumps(payload), "tenant-a", txid))
     client = TestClient(web.create_app(
         integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",)))
-    html = client.get("/", params={"tx_view": "all"})
-    response = client.get("/api/v1/transactions", params={"view": "all"})
+    html = client.get("/", params={"tx_view": "all", "tx_page": 3})
+    response = client.get("/api/v1/transactions", params={"view": "all", "page": 3})
     assert html.status_code == response.status_code == 200
     rows = {row["id"]: row for row in response.json()["items"]}
     assert rows[1]["soc_start"] == 31 and rows[1]["soc_end"] == 79
