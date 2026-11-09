@@ -332,6 +332,63 @@ def _group_events(events: list[dict]) -> list[dict]:
     return groups
 
 
+def project_dashboard_connectors(data: dict, *, now: datetime, connector_view: str = "combined") -> dict:
+    """Shared read-only connector projection for HTML and versioned JSON clients."""
+    if connector_view not in ("combined", "station", "individual"):
+        raise ValueError("Invalid connector view")
+    source_freshness = {source["source_id"]: _source_freshness(source, now)
+                        for source in data["sources"]}
+    for connector in data["connectors"]:
+        # StatusNotification is change-driven: age of the last status change
+        # does not measure connectivity. Do not use the export timestamp as
+        # proof of a new status or a heartbeat from this charger.
+        connector["status_time_unknown"] = (
+            _freshness(connector.get("status_observed_at"), now) == "unknown"
+        )
+        connector["source_freshness"] = source_freshness.get(
+            connector.get("source_id"), "unknown"
+        )
+        # SQLite snapshots export 0/1 rather than JSON booleans. Normalize
+        # presentation values for both badges and operational counts; the
+        # raw /api/snapshot response remains untouched.
+        connector["connected"] = _connection_flag(connector.get("connected"))
+        # The observed connection flag comes from the source's last
+        # CSMS status snapshot; it is only actionable with recent source data.
+        connector["activity_freshness"] = _charger_activity_freshness(
+            connector.get("last_activity_at"), now
+        )
+        # Charger-origin activity is distinct from the export timestamp.
+        # Legacy snapshots retain the connection flag semantics.
+        activity = connector["activity_freshness"]
+        connector["connection_fresh"] = (
+            connector["source_freshness"] == "fresh"
+            and connector["connected"] is not None
+            and activity != "old"
+        )
+        connector["stale"] = (
+            connector["source_freshness"] != "fresh"
+            or connector.get("connected") is not True
+            or activity == "old"
+            or not connector.get("status")
+        )
+    operational_counts = _operational_status_counts(data["connectors"])
+    # Presentation-only selection. Operational cards count all scoped physical connectors,
+    # and /api/snapshot preserves the complete source-scoped evidence.
+    discrepancy_badges = _single_connector_discrepancy_badges(data["connectors"])
+    connector_rows = [
+        connector for connector in data["connectors"]
+        if connector_view == "combined"
+        or (connector_view == "station" and connector.get("connector_id") == 0)
+        or (connector_view == "individual" and connector.get("connector_id") != 0)
+    ]
+    for connector in connector_rows:
+        connector["status_discrepancy_badge"] = discrepancy_badges.get((
+            connector.get("source_id"), connector.get("charger_id"),
+            connector.get("connector_id")))
+
+    return {"connectors": connector_rows, "status_counts": operational_counts}
+
+
 def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | None = None,
                title: str = "OCPP Reports", timezones: tuple[str, ...] = ("UTC",)) -> FastAPI:
     if allowed_source_ids is not None and (not allowed_source_ids or
@@ -391,8 +448,6 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         snapshot_duration_ms = (perf_counter() - snapshot_started) * 1000
         # Preserve source freshness evidence before term filtering hides source rows.
         now = datetime.now(timezone.utc)
-        source_freshness = {source["source_id"]: _source_freshness(source, now)
-                            for source in data["sources"]}
         paginated = data.get("transaction_pagination")
         # Keep connector/event filters in the established presentation path.
         rows = data["transactions"] if paginated is not None else None
@@ -444,53 +499,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         else:
             event_groups = _group_events(data["events"])[:10]
             event_has_next = False
-        for connector in data["connectors"]:
-            # StatusNotification is change-driven: age of the last status change
-            # does not measure connectivity. Do not use the export timestamp as
-            # proof of a new status or a heartbeat from this charger.
-            connector["status_time_unknown"] = (
-                _freshness(connector.get("status_observed_at"), now) == "unknown"
-            )
-            connector["source_freshness"] = source_freshness.get(
-                connector.get("source_id"), "unknown"
-            )
-            # SQLite snapshots export 0/1 rather than JSON booleans. Normalize
-            # presentation values for both badges and operational counts; the
-            # raw /api/snapshot response remains untouched.
-            connector["connected"] = _connection_flag(connector.get("connected"))
-            # The observed connection flag comes from the source's last
-            # CSMS status snapshot; it is only actionable with recent source data.
-            connector["activity_freshness"] = _charger_activity_freshness(
-                connector.get("last_activity_at"), now
-            )
-            # Charger-origin activity is distinct from the export timestamp.
-            # Legacy snapshots retain the connection flag semantics.
-            activity = connector["activity_freshness"]
-            connector["connection_fresh"] = (
-                connector["source_freshness"] == "fresh"
-                and connector["connected"] is not None
-                and activity != "old"
-            )
-            connector["stale"] = (
-                connector["source_freshness"] != "fresh"
-                or connector.get("connected") is not True
-                or activity == "old"
-                or not connector.get("status")
-            )
-        operational_counts = _operational_status_counts(data["connectors"])
-        # Presentation-only selection. Operational cards count all scoped physical connectors,
-        # and /api/snapshot preserves the complete source-scoped evidence.
-        discrepancy_badges = _single_connector_discrepancy_badges(data["connectors"])
-        connector_rows = [
-            connector for connector in data["connectors"]
-            if connector_view == "combined"
-            or (connector_view == "station" and connector.get("connector_id") == 0)
-            or (connector_view == "individual" and connector.get("connector_id") != 0)
-        ]
-        for connector in connector_rows:
-            connector["status_discrepancy_badge"] = discrepancy_badges.get((
-                connector.get("source_id"), connector.get("charger_id"),
-                connector.get("connector_id")))
+        projected = project_dashboard_connectors(data, now=now, connector_view=connector_view)
+        operational_counts = projected["status_counts"]
+        connector_rows = projected["connectors"]
         template_started = perf_counter()
         response = templates.TemplateResponse(request, "dashboard.html.j2",
                                           {"data": data, "is_admin": is_admin,
