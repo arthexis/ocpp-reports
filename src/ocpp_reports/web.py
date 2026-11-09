@@ -594,6 +594,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             data = {**data, "events": [], "sources": []}
         return data
 
+    from .api_v1 import register_api_v1
+    register_api_v1(app, read)
+
     # Opt-in: existing nginx Basic Auth remains unchanged.
     import os
     auth_path=os.environ.get("OCPP_REPORTS_AUTH_DATABASE")
