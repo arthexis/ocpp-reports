@@ -15,8 +15,13 @@ class ItemsResponse(BaseModel):
     items: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class OperationalCount(BaseModel):
+    stations: int
+    connectors: int
+
+
 class SummaryResponse(BaseModel):
-    status_counts: dict[str, dict[str, int]]
+    status_counts: dict[str, OperationalCount]
 
 
 class FiltersResponse(BaseModel):
@@ -25,11 +30,27 @@ class FiltersResponse(BaseModel):
     locations: list[str]
 
 
+class StationItem(BaseModel):
+    source_id: str
+    charger_id: str
+    connectors: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class StationsResponse(BaseModel):
+    items: list[StationItem] = Field(default_factory=list)
+
+
+class TransactionCounts(BaseModel):
+    all: int
+    success: int
+    failed: int
+
+
 class TransactionsResponse(ItemsResponse):
     total: int
     page: int
     pages: int
-    counts: dict[str, int]
+    counts: TransactionCounts
 
 from fastapi.responses import JSONResponse
 from .web import project_dashboard_connectors, _operational_status_counts, _source_freshness, _filter_dashboard, validate_dashboard_window
@@ -104,7 +125,7 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
         return {"items": data["transactions"], "total": info["total"],
                 "page": info["page"], "pages": info["pages"], "counts": info["counts"]}
 
-    @app.get("/api/v1/stations", tags=["Dashboard API v1"], response_model=ItemsResponse, dependencies=[Depends(documented_auth)])
+    @app.get("/api/v1/stations", tags=["Dashboard API v1"], response_model=StationsResponse, dependencies=[Depends(documented_auth)])
     def stations(request: Request, source_id: str | None = None):
         rows = visible(request, source_id, None, 500)["connectors"]
         groups = {}
