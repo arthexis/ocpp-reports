@@ -10,7 +10,8 @@
     that:
       - reports_relay_config.stat.isreg | default(false)
       - reports_relay_config.stat.mode | default('') in ['0600', '0640']
-    fail_msg: "Relay credentials must be a protected regular file"
+      - (reports_relay_config.stat.pw_name | default('')) == 'ocpp-reports' or ((reports_relay_config.stat.gr_name | default('')) == 'ocpp' and (reports_relay_config.stat.mode | default('')) == '0640')
+    fail_msg: "Relay credentials must be regular, protected, and readable by ocpp-reports"
   when: reports_relay_config.stat.exists | default(false)
 
 - name: Install relay service and timer
