@@ -486,3 +486,28 @@ def test_dashboard_poll_preserves_active_controls_and_expanded_events(monkeypatc
     assert 'setupEventGroups(eventRegion)' in html
     assert 'window.setInterval(refreshDashboard, 15000)' in html
     assert 'window.addEventListener("pagehide"' in html
+
+
+def test_integrated_warehouse_html_api_parity_without_mocks(integrated_dashboard_warehouse):
+    """Exercise actual SQLite queries, source isolation and date validation."""
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse,
+        allowed_source_ids=("tenant-a",),
+        timezones=("UTC", "America/New_York")))
+    html = client.get("/")
+    groups = client.get("/api/v1/event-groups")
+    assert html.status_code == 200
+    assert groups.status_code == 200
+    assert groups.json()["groups"]
+    assert all(g["source_id"] == "tenant-a" for g in groups.json()["groups"])
+    for group in groups.json()["groups"]:
+        assert 'data-first-id="' + str(group["first_event_id"]) + '"' in html.text
+    assert client.get("/api/v1/event-groups", params={
+        "source_id": "tenant-b"}).status_code == 403
+    assert client.get("/", params={"source_id": "tenant-b"}).status_code == 403
+    assert client.get("/api/v1/event-groups", params={
+        "tz": "Europe/Berlin"}).status_code == 422
+    assert client.get("/api/v1/transactions", params={
+        "date_from": "2026-11-02", "date_to": "2026-11-01"}).status_code == 422
+    assert client.get("/api/v1/transactions", params={
+        "page": 2}).status_code == 200
