@@ -4,6 +4,9 @@
   vars:
     reports_service: "collector"
     reports_service_config: "/etc/ocpp-reports/collector-credentials.json"
+- name: Configure optional collector relay
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/relay.yml"
+
 - name: Configure dashboard service
   ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/service.yml"
   vars:
