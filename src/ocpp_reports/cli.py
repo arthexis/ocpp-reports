@@ -12,7 +12,7 @@ from .config import DEFAULT_CONFIG, load_config
 app = typer.Typer(help="OCPP Reports operator CLI: inspect, ingest, run and deliver reports.", no_args_is_help=True)
 app.add_typer(mail_app, name="mail")
 from .dashboard_accounts_cli import app as dashboard_accounts_app
-app.add_typer(dashboard_accounts_app, name="dashboard-accounts")
+app.add_typer(dashboard_accounts_app, name="accounts")
 from .collector_config import app as collector_app
 app.add_typer(collector_app, name="collector")
 from .forwarder_config import app as forwarder_app
