@@ -10,6 +10,8 @@ def test_v1_routes_and_source_allowlist(monkeypatch, tmp_path):
                       allowed_source_ids=None, **kwargs):
         calls.append((source_id, allowed_source_ids))
         return {
+            "transaction_pagination": {"total": 1, "page": 1, "pages": 1,
+                                       "counts": {"all": 1, "success": 1, "failed": 0}} if kwargs.get("transaction_pagination") else None,
             "connectors": [{"source_id": "tenant-a", "charger_id": "CP1",
                             "connector_id": 1, "status": "Available", "location": "North"}],
             "transactions": [{"source_id": "tenant-a", "charger_id": "CP1",
