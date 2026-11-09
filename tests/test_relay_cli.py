@@ -67,6 +67,7 @@ def test_relay_config_rejects_symlink(tmp_path):
         load_config(link)
 
 
+
 def test_local_bindings_must_be_unique_and_authorized(tmp_path):
     path = tmp_path / "relay.toml"
     base = ('[relay]\ndestination_id="sink"\n'
