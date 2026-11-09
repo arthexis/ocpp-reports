@@ -67,10 +67,10 @@ def relay_once(database: Path, state: Path, source_id: str, endpoint: str,
                                headers={"Authorization": "Bearer " + token})
         response.raise_for_status()
         receipt = response.json()
-        if receipt.get("source_id") != source_id or type(receipt.get("ack")) is not int or receipt["ack"] < batch["next"]:
+        if receipt.get("source_id") != source_id or type(receipt.get("ack")) is not int or receipt["ack"] != batch["next"]:
             raise ValueError("Collector acknowledgement does not match batch")
-        save_cursor(state, cursor_key, receipt["ack"])
-        return receipt["ack"]
+        save_cursor(state, cursor_key, batch["next"])
+        return batch["next"]
     finally:
         if owned:
             client.close()
