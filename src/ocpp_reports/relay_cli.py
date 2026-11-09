@@ -16,19 +16,19 @@ DEFAULT_CONFIG = Path("/etc/ocpp-reports/relay.toml")
 
 
 def load_config(path: Path = DEFAULT_CONFIG) -> dict:
-    info = path.stat()
+    info = path.lstat()
     if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o137:
         raise ValueError("Relay configuration must be a protected regular file (0640 or stricter)")
     with path.open("rb") as f:
         document = tomllib.load(f)
-    if set(document) != {"relay"} or set(document["relay"]) != {"destination_id", "endpoint", "sources"}:
+    if set(document) != {"relay"} or not isinstance(document["relay"], dict) or set(document["relay"]) != {"destination_id", "endpoint", "sources", "terminal_destination"}:
         raise ValueError("Expected [relay] destination_id, endpoint and sources")
     cfg = document["relay"]
     from .replication.forwarder import validate_endpoint
     validate_endpoint(cfg["endpoint"])
     if not cfg["endpoint"].startswith("https://"):
         raise ValueError("Relay requires HTTPS even over WireGuard")
-    if not isinstance(cfg["destination_id"], str) or not cfg["destination_id"]:
+    if cfg["terminal_destination"] is not True:\n        raise ValueError("Relay requires explicitly declared terminal destination; multi-hop relay is prohibited")\n    if not isinstance(cfg["destination_id"], str) or not cfg["destination_id"]:
         raise ValueError("Missing destination identity")
     if not isinstance(cfg["sources"], dict) or not cfg["sources"]:
         raise ValueError("Relay requires explicit per-source bearer tokens")
@@ -65,7 +65,7 @@ def once(
         # Lock across the network call and durable cursor update, not just SQL writes.
         lock_path = state.with_name(state.name + ".lock")
         lock_path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
         with os.fdopen(fd, "w") as lock:
             try:
                 fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
