@@ -56,9 +56,9 @@ def test_restart_replay_and_downstream_auth_denial(tmp_path):
 
 def test_relay_config_rejects_symlink(tmp_path):
     path = tmp_path / "relay.toml"
-    path.write_text('[relay]\\ndestination_id="sink"\\n'
-                    'endpoint="https://collector.test/api/replication"\\n'
-                    '[relay.sources]\\n"origin"="token"\\n')
+    path.write_text('[relay]\ndestination_id="sink"\n'
+                    'endpoint="https://collector.test/api/replication"\n'
+                    '[relay.sources]\n"origin"="token"\n')
     os.chmod(path, 0o600)
     assert load_config(path)["sources"] == {"origin": "token"}
     link = tmp_path / "alias.toml"
