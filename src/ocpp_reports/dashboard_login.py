@@ -67,6 +67,7 @@ _ROUTE_PERMISSIONS = {
     ("/", "GET"): Permission.DASHBOARD_VIEW,
     ("/api/snapshot", "GET"): Permission.DASHBOARD_VIEW,
     ("/api/event-group", "GET"): Permission.EVENTS_VIEW,
+    ("/api/v1/event-group", "GET"): Permission.EVENTS_VIEW,
     **{(path, "GET"): Permission.DASHBOARD_VIEW for path in (
         "/api/v1/summary", "/api/v1/connectors", "/api/v1/transactions",
         "/api/v1/stations", "/api/v1/filters", "/api/v1/openapi.json")},
@@ -76,6 +77,8 @@ _ROUTE_PERMISSIONS = {
 def route_permission(path, method):
     if (path, method) in _ROUTE_PERMISSIONS:
         return _ROUTE_PERMISSIONS[(path, method)]
+    if method == "GET" and path.startswith("/api/v1/transactions/") and len(path.split("/")) == 7 and all(path.split("/")[4:]):
+        return Permission.TRANSACTIONS_VIEW
     if method == "GET" and path.startswith("/transactions/") and len(path.split("/")) == 5 and all(path.split("/")[1:]):
         return Permission.TRANSACTIONS_VIEW
     return None

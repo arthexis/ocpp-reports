@@ -533,6 +533,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         response.headers["Server-Timing"] = ", ".join(timings)
         return response
 
+    @app.get("/api/v1/event-group", tags=["Dashboard API v1"])
     @app.get("/api/event-group")
     def api_event_group(
         group_source: str, first_event_id: int = Query(..., ge=1),
