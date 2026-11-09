@@ -95,5 +95,17 @@ def test_shared_sqlite_fixture_with_real_auth_roles(
             assert client.get("/api/v1/transactions",
                               params={"source_id": "tenant-b"},
                               headers=headers).status_code == 403
+        for endpoint in ("/api/v1/summary", "/api/v1/connectors",
+                         "/api/v1/stations", "/api/v1/filters"):
+            assert client.get(endpoint, headers=headers).status_code == expected
+            if expected == 200:
+                assert client.get(endpoint, params={"source_id": "tenant-b"},
+                                  headers=headers).status_code == 403
+        source_status = client.get("/api/v1/sources", headers=headers).status_code
+        assert source_status == (200 if username == "admin-a" else 403)
+        if username == "admin-a":
+            assert client.get("/api/v1/sources", params={"source_id": "tenant-b"},
+                              headers=headers).status_code == 403
+        assert client.get("/api/v1/openapi.json", headers=headers).status_code == expected
         event_status = client.get("/api/v1/event-groups", headers=headers).status_code
         assert event_status == (200 if username == "admin-a" else 403)
