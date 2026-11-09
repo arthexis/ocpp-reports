@@ -212,3 +212,50 @@ def test_v1_connector_filters_preserve_source_freshness(monkeypatch, tmp_path):
         "location": "South"}).json()["items"] == []
     assert client.get("/api/v1/connectors", params={
         "date_from": "bad"}).status_code == 422
+
+
+
+def test_v1_and_legacy_event_history_deny_operator_before_warehouse(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    calls = []
+
+    def forbidden_details(*args, **kwargs):
+        calls.append(kwargs)
+        raise AssertionError("operator must not query event history")
+
+    monkeypatch.setattr(web, "event_group_details", forbidden_details)
+    app = web.create_app(tmp_path / "unused.sqlite",
+                         allowed_source_ids=("tenant-a",))
+
+    @app.middleware("http")
+    async def operator_identity(request, call_next):
+        request.state.principal = SimpleNamespace(
+            role=SimpleNamespace(value="operator"))
+        return await call_next(request)
+
+    client = TestClient(app)
+    for path in ("/api/v1/event-group", "/api/event-group"):
+        for source in ("tenant-a", "tenant-b"):
+            response = client.get(path, params={
+                "group_source": source, "first_event_id": 11})
+            assert response.status_code == 403
+            assert "events" not in response.json()
+    assert calls == []
+
+
+def test_v1_event_history_denies_cross_tenant_admin_before_query(monkeypatch, tmp_path):
+    calls = []
+
+    def forbidden_details(*args, **kwargs):
+        calls.append(kwargs)
+        raise AssertionError("cross-tenant event detail must not query warehouse")
+
+    monkeypatch.setattr(web, "event_group_details", forbidden_details)
+    client = TestClient(web.create_app(
+        tmp_path / "unused.sqlite", allowed_source_ids=("tenant-a",)))
+    for path in ("/api/v1/event-group", "/api/event-group"):
+        response = client.get(path, params={
+            "group_source": "tenant-b", "first_event_id": 11})
+        assert response.status_code == 403
+    assert calls == []
