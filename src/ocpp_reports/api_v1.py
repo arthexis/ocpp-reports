@@ -106,6 +106,8 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
                    charger_id: str | None = None, connector_view: str = "combined",
                    filter: str = "", status: str = "", location: str = "",
                    date_from: str = "", date_to: str = "", tz: str | None = None):
+        if connector_view not in ("combined", "station", "individual"):
+            raise HTTPException(422, "Invalid connector view")
         zone = tz or timezones[0]
         validate_dashboard_window(zone, timezones, date_from, date_to)
         data = visible(request, source_id, charger_id, 500, source_evidence=True)
