@@ -536,12 +536,15 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     @app.get("/api/v1/event-group", tags=["Dashboard API v1"])
     @app.get("/api/event-group")
     def api_event_group(
-        group_source: str, first_event_id: int = Query(..., ge=1),
+        request: Request, group_source: str, first_event_id: int = Query(..., ge=1),
         source_id: str | None = None, charger_id: str | None = None,
         filter: str = "", status: str = "", location: str = "",
         date_from: str = "", date_to: str = "", tz: str | None = None,
         offset: int = Query(0, ge=0),
     ):
+        principal = getattr(request.state, "principal", None)
+        if principal is not None and principal.role.value != "admin":
+            raise HTTPException(403, "Event history requires administrator access")
         if allowed_source_ids is not None and (
             group_source not in allowed_source_ids or
             (source_id is not None and source_id not in allowed_source_ids)
