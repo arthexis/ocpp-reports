@@ -166,3 +166,35 @@ API transaction pages use the existing SQLite warehouse projection with
 The configured instance source allowlist is applied in SQL before pagination
 or counts. OpenAPI is exposed at `/api/v1/openapi.json` subject to the
 same dashboard authorization when integrated login is enabled.
+
+## Dashboard account management
+
+Use `ocpp-reports accounts` to manage integrated dashboard accounts. Authentication
+databases are resolved in this order: an explicit `--database`, the
+`OCPP_REPORTS_AUTH_DATABASE` environment variable, then the unique database
+referenced by integrated dashboard instances in
+`/etc/ocpp-reports/dashboards.json`. Without an inventory, an existing
+`/var/lib/ocpp-reports/dashboard-auth.sqlite` may be used. If there is
+more than one configured database, specify `--database`; the command never
+guesses which database to use.
+
+```sh
+sudo ocpp-reports accounts tenants
+sudo ocpp-reports accounts list
+sudo ocpp-reports accounts create --username admin --tenant administration --role admin
+sudo ocpp-reports accounts update --username admin --reset-password
+```
+
+The `tenants` command lists tenant IDs declared for the selected authentication
+database and those attached to provisioned accounts, including tenants with
+no users yet. Roles remain scoped to one tenant per user; a dashboard
+instance still authenticates only against its configured `auth_tenant`.
+Password entry is interactive; never pass passwords on command lines.
+
+### Recent event history
+
+Recent dashboard events are grouped in **global event timestamp order**, not
+by source or charger. SQLite performs grouping and page selection using
+window functions and `LIMIT/OFFSET` (10 groups per page). Events with missing
+or unparseable timestamps appear last; source and event ID break timestamp ties.
+Group details are loaded lazily from the same ordering and source allowlist.
