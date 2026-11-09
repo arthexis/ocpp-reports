@@ -1,0 +1,10 @@
+[Unit]
+Description=OCPP Reports Collector Relay polling
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=10s
+Unit=ocpp-reports-relay.service
+
+[Install]
+WantedBy=timers.target

@@ -17,6 +17,8 @@ from .collector_config import app as collector_app
 app.add_typer(collector_app, name="collector")
 from .forwarder_config import app as forwarder_app
 app.add_typer(forwarder_app, name="forwarder")
+from .relay_cli import app as relay_app
+app.add_typer(relay_app, name="relay")
 
 metadata_app = typer.Typer(help="Explicit, bounded producer metadata reconciliation.", no_args_is_help=True)
 app.add_typer(metadata_app, name="metadata")

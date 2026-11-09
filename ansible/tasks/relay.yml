@@ -1,0 +1,48 @@
+---
+- name: Inspect optional relay credentials
+  ansible.builtin.stat:
+    path: /etc/ocpp-reports/relay.toml
+  become: true
+  register: reports_relay_config
+
+- name: Require regular protected relay credentials
+  ansible.builtin.assert:
+    that:
+      - reports_relay_config.stat.isreg | default(false)
+      - reports_relay_config.stat.mode | default('') in ['0600', '0640']
+      - (reports_relay_config.stat.pw_name | default('')) == 'ocpp-reports' or ((reports_relay_config.stat.gr_name | default('')) == 'ocpp' and (reports_relay_config.stat.mode | default('')) == '0640')
+    fail_msg: "Relay credentials must be regular, protected, and readable by ocpp-reports"
+  when: reports_relay_config.stat.exists | default(false)
+
+- name: Install relay service and timer
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates/ocpp-reports-relay.{{ item }}.j2"
+    dest: "/etc/systemd/system/ocpp-reports-relay.{{ item }}"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  loop:
+    - service
+    - timer
+  register: reports_relay_units
+
+- name: Validate configured relay without printing credentials
+  ansible.builtin.command:
+    argv:
+      - "{{ reports_release }}/venv/bin/ocpp-reports"
+      - relay
+      - check
+  become: true
+  become_user: ocpp-reports
+  changed_when: false
+  no_log: true
+  when: reports_relay_config.stat.exists | default(false)
+
+- name: Enable configured relay timer only
+  ansible.builtin.systemd_service:
+    name: ocpp-reports-relay.timer
+    daemon_reload: true
+    enabled: "{{ reports_relay_config.stat.exists | default(false) }}"
+    state: "{{ 'started' if reports_relay_config.stat.exists | default(false) else 'stopped' }}"
+  become: true
