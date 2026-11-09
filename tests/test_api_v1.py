@@ -634,3 +634,32 @@ def test_real_sqlite_openapi_schema_and_unknown_meter_values(
     assert next(row for row in rows if row["connector_id"] == 1)["energy_wh"] == 1500
     assert all(row["source_freshness"] == "unknown" for row in rows)
     assert all(row["status_time_unknown"] is False for row in rows)
+
+
+def test_real_sqlite_api_validation_and_legacy_dashboard_contract(
+        integrated_dashboard_warehouse):
+    """Guard validation failures, existing HTML and legacy JSON against API drift."""
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",),
+        timezones=("UTC", "America/New_York")))
+    for path, params in (
+        ("/api/v1/connectors", {"connector_view": "invalid"}),
+        ("/api/v1/connectors", {"tz": "Europe/Berlin"}),
+        ("/api/v1/transactions", {"page": 0}),
+        ("/api/v1/transactions", {"view": "invalid"}),
+        ("/api/v1/transactions", {"date_from": "2026-02-30"}),
+        ("/api/v1/transactions", {"date_from": "2026-11-02",
+                                  "date_to": "2026-11-01"}),
+    ):
+        response = client.get(path, params=params)
+        assert response.status_code == 422, (path, params, response.text)
+        assert "detail" in response.json()
+    assert client.get("/api/v1/connectors", params={
+        "source_id": "tenant-b"}).status_code == 403
+    assert client.get("/api/v1/stations", params={
+        "source_id": "tenant-b"}).status_code == 403
+    assert client.get("/api/v1/filters", params={
+        "source_id": "tenant-b"}).status_code == 403
+    assert client.get("/").status_code == 200
+    assert client.get("/api/snapshot").status_code == 200
+    assert client.get("/api/v1/openapi.json").status_code == 200
