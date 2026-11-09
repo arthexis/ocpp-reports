@@ -520,3 +520,13 @@ def test_integrated_warehouse_html_api_parity_without_mocks(integrated_dashboard
         "source_id": "tenant-b", "page": 2}).status_code == 403
     assert client.get("/api/v1/transactions", params={
         "view": "failed"}).json()["total"] == 4
+    combined = client.get("/api/v1/connectors")
+    assert combined.status_code == 200
+    assert {item["connector_id"] for item in combined.json()["items"]} == {0, 1}
+    assert all(item["source_id"] == "tenant-a" for item in combined.json()["items"])
+    station = client.get("/api/v1/connectors", params={"connector_view": "station"})
+    individual = client.get("/api/v1/connectors", params={"connector_view": "individual"})
+    assert [item["connector_id"] for item in station.json()["items"]] == [0]
+    assert [item["connector_id"] for item in individual.json()["items"]] == [1]
+    assert client.get("/api/v1/connectors", params={
+        "source_id": "tenant-b"}).status_code == 403
