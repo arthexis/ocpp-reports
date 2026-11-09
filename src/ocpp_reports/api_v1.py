@@ -5,13 +5,26 @@ No independent database, ingestion path, or business-rule implementation.
 from __future__ import annotations
 
 from fastapi import HTTPException, Query, Request
+from pydantic import BaseModel, Field
+
+
+class ItemsResponse(BaseModel):
+    items: list[dict] = Field(default_factory=list)
+
+
+class TransactionsResponse(ItemsResponse):
+    total: int
+    page: int
+    pages: int
+    counts: dict[str, int]
+
 from fastapi.responses import JSONResponse
 from .web import _operational_status_counts, _filter_transaction_energy
 
 
 def register_api_v1(app, read):
-    def visible(request: Request, source_id, charger_id, limit):
-        data = read(source_id, charger_id, limit)
+    def visible(request: Request, source_id, charger_id, limit, *, pagination=None):
+        data = read(source_id, charger_id, limit, transaction_pagination=pagination, skip_events=True)
         principal = getattr(request.state, "principal", None)
         if principal is not None and principal.role.value != "admin":
             data = {**data, "events": [], "sources": []}
@@ -23,21 +36,25 @@ def register_api_v1(app, read):
         data = visible(request, source_id, charger_id, 500)
         return {"status_counts": _operational_status_counts(data["connectors"])}
 
-    @app.get("/api/v1/connectors", tags=["Dashboard API v1"])
+    @app.get("/api/v1/connectors", tags=["Dashboard API v1"], response_model=ItemsResponse)
     def connectors(request: Request, source_id: str | None = None,
                    charger_id: str | None = None):
         return {"items": visible(request, source_id, charger_id, 500)["connectors"]}
 
-    @app.get("/api/v1/transactions", tags=["Dashboard API v1"])
+    @app.get("/api/v1/transactions", tags=["Dashboard API v1"], response_model=TransactionsResponse)
     def transactions(request: Request, source_id: str | None = None,
                      charger_id: str | None = None,
-                     view: str = "all", limit: int = Query(100, ge=1, le=500)):
+                     view: str = "all", page: int = Query(1, ge=1)):
         if view not in ("all", "success", "failed"):
             raise HTTPException(422, "Invalid transaction view")
-        rows = visible(request, source_id, charger_id, limit)["transactions"]
-        return {"items": _filter_transaction_energy(rows, view)}
+        data = visible(request, source_id, charger_id, 100, pagination={
+            "term": "", "status": "", "location": "", "date_from": "",
+            "date_to": "", "zone": "UTC", "view": view, "page": page})
+        info = data["transaction_pagination"]
+        return {"items": data["transactions"], "total": info["total"],
+                "page": info["page"], "pages": info["pages"], "counts": info["counts"]}
 
-    @app.get("/api/v1/stations", tags=["Dashboard API v1"])
+    @app.get("/api/v1/stations", tags=["Dashboard API v1"], response_model=ItemsResponse)
     def stations(request: Request, source_id: str | None = None):
         rows = visible(request, source_id, None, 500)["connectors"]
         groups = {}
