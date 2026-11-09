@@ -102,6 +102,21 @@ def integrated_dashboard_warehouse(tmp_path):
                     "INSERT INTO events(source_id,event_id,payload) VALUES (?,?,?)",
                     (source, n, json.dumps(payload)),
                 )
+            for connector_id, status in ((0, "Available"), (1, "Charging")):
+                connector = {
+                    "charger_id": "CP-" + source, "connector_id": connector_id,
+                    "status": status, "connected": True,
+                    "transaction_id": None, "power_w": None,
+                    "energy_wh": 1500 if connector_id else None,
+                    "observed_at": "2026-11-01T06:30:00Z",
+                    "synced_at": "2026-11-01T06:30:00Z",
+                    "status_observed_at": "2026-11-01T06:30:00Z",
+                }
+                db.execute(
+                    "INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                    (source, "connector", "CP-" + source + ":" + str(connector_id),
+                     connector_id + 1, json.dumps(connector)),
+                )
             for n in range(1, 46):
                 record = {
                     "id": n, "charger_id": "CP-" + source, "state": "closed",
