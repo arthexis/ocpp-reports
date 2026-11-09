@@ -83,10 +83,32 @@ jobs:
       - name: Run isolated role deployment integration
         run: bash scripts/ci_deploy_integration.sh ${{ matrix.role }}
 
+  dashboard_benchmark:
+    name: Synthetic dashboard p95
+    needs: static_validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install dashboard test dependencies
+        run: python -m pip install '.[test]'
+      - name: Benchmark isolated warehouse (100 iterations per scenario)
+        run: python scripts/ci_dashboard_benchmark.py
+      - name: Archive measured p95 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-dashboard-p95
+          path: dashboard-benchmark.json
+          if-no-files-found: warn
+
   general:
     name: CI
     if: always()
-    needs: [test, static_validation, systemd_integration, ansible_integration]
+    needs: [test, static_validation, systemd_integration, ansible_integration, dashboard_benchmark]
     runs-on: ubuntu-latest
     steps:
       - name: Require all test matrix jobs
@@ -95,8 +117,10 @@ jobs:
           STATIC_RESULT: ${{ needs.static_validation.result }}
           ANSIBLE_RESULT: ${{ needs.ansible_integration.result }}
           SYSTEMD_RESULT: ${{ needs.systemd_integration.result }}
+          BENCHMARK_RESULT: ${{ needs.dashboard_benchmark.result }}
         run: |
           test "$RESULT" = success
           test "$STATIC_RESULT" = success
           test "$ANSIBLE_RESULT" = success
           test "$SYSTEMD_RESULT" = success
+          test "$BENCHMARK_RESULT" = success
