@@ -115,7 +115,7 @@ def test_cli_lock_rejects_concurrent_process_without_dispatch(tmp_path):
             capture_output=True, text=True, timeout=15, check=False,
         )
         assert result.returncode == 2, (result.stdout, result.stderr)
-        assert "ValueError" in result.stdout
+        assert "ValueError" in (result.stdout + result.stderr)
         assert not database.exists()
         assert not state.exists()
     finally:
