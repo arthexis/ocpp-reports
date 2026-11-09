@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import getpass
+import json
 import os
+import sqlite3
 from pathlib import Path
 
 import typer
@@ -10,14 +12,45 @@ import typer
 app = typer.Typer(help="Manage dashboard login accounts locally.", no_args_is_help=True)
 
 
-def _database(path: Path | None) -> str:
+INVENTORY = Path("/etc/ocpp-reports/dashboards.json")
+DEFAULT_DATABASE = Path("/var/lib/ocpp-reports/dashboard-auth.sqlite")
+
+
+def _instances() -> list[dict]:
+    """Read the optional installation inventory; reject malformed configuration."""
+    if not INVENTORY.is_file():
+        return []
+    try:
+        instances = json.loads(INVENTORY.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"Cannot read dashboard inventory: {exc}") from exc
+    if not isinstance(instances, list) or any(not isinstance(item, dict) for item in instances):
+        raise ValueError("Dashboard inventory must be a list of objects")
+    return instances
+
+
+def _database(path: Path | None, *, must_exist: bool = True) -> str:
+    """Resolve explicitly, via environment, or from one unambiguous local database."""
     value = str(path) if path is not None else os.environ.get("OCPP_REPORTS_AUTH_DATABASE", "")
-    if not value:
-        raise ValueError("Specify --database or OCPP_REPORTS_AUTH_DATABASE")
-    db = Path(value)
-    if not db.is_file():
+    if value:
+        db = Path(value)
+    else:
+        instances = _instances()
+        candidates = {
+            str(Path(item.get("auth_database") or DEFAULT_DATABASE))
+            for item in instances if item.get("auth_mode") == "integrated"
+        }
+        if not candidates and DEFAULT_DATABASE.is_file():
+            candidates.add(str(DEFAULT_DATABASE))
+        if not candidates:
+            raise ValueError("No authentication database discovered; specify --database")
+        if len(candidates) != 1:
+            raise ValueError("Multiple authentication databases configured; specify --database")
+        db = Path(next(iter(candidates)))
+    if must_exist and not db.is_file():
         raise ValueError("Authentication database does not exist; initialize it explicitly")
     return str(db)
+
 
 
 def _password() -> str:
@@ -31,10 +64,11 @@ def _password() -> str:
 
 
 @app.command("init")
-def init(database: Path = typer.Option(..., "--database")) -> None:
+def init(database: Path | None = typer.Option(None, "--database")) -> None:
     """Initialize a new private authentication database."""
     from .dashboard_login import initialize
     try:
+        database = Path(_database(database, must_exist=False))
         if database.exists():
             raise ValueError("Database already exists")
         if not database.parent.is_dir():
@@ -83,6 +117,31 @@ def list_accounts(
             typer.echo(f"{username}\t{scope}\t{role}\t{'active' if active else 'disabled'}")
     except (ValueError, OSError, sqlite3.Error) as exc:
         typer.echo(f"Account listing refused: {exc}", err=True)
+        raise typer.Exit(2) from exc
+
+
+@app.command("tenants")
+def tenants(database: Path | None = typer.Option(None, "--database")) -> None:
+    """List configured and provisioned tenant identifiers, without credentials."""
+    try:
+        path = _database(database)
+        configured = {
+            item["auth_tenant"] for item in _instances()
+            if item.get("auth_mode") == "integrated"
+            and isinstance(item.get("auth_tenant"), str)
+            and item["auth_tenant"].strip()
+            and str(Path(item.get("auth_database") or DEFAULT_DATABASE)) == path
+        }
+        with sqlite3.connect(path) as db:
+            provisioned = {
+                row[0] for row in db.execute(
+                    "SELECT DISTINCT tenant_id FROM dashboard_users WHERE tenant_id != ''"
+                )
+            }
+        for tenant in sorted(configured | provisioned):
+            typer.echo(tenant)
+    except (ValueError, OSError, sqlite3.Error) as exc:
+        typer.echo(f"Tenant listing refused: {exc}", err=True)
         raise typer.Exit(2) from exc
 
 
