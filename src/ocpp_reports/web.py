@@ -452,6 +452,25 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         except (ValueError, OSError) as exc:
             raise HTTPException(503, "Warehouse unavailable") from exc
 
+    def scoped_event_groups(*, source_id: str | None, charger_id: str | None,
+                            term: str, status: str, location: str,
+                            date_from: str, date_to: str, zone: str,
+                            page: int) -> dict:
+        """Single SQL event-group query contract for HTML and JSON consumers."""
+        if allowed_source_ids is not None and source_id is not None and source_id not in allowed_source_ids:
+            raise HTTPException(403, "Source is not available in this dashboard")
+        validate_dashboard_window(zone, zones, date_from, date_to)
+        try:
+            return event_groups_page(
+                warehouse, source_id=source_id, charger_id=charger_id,
+                allowed_source_ids=allowed_source_ids, term=term,
+                status=status, location=location, date_from=date_from,
+                date_to=date_to, zone=zone, page=page)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except (OSError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Event history unavailable") from exc
+
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request, source_id: str | None = None,
               charger_id: str | None = None, filter: str = "",
@@ -516,15 +535,10 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         group_duration_ms = None
         if paginated is not None and is_admin:
             started = perf_counter()
-            try:
-                grouped = event_groups_page(
-                    warehouse, source_id=source_id, charger_id=charger_id,
-                    allowed_source_ids=allowed_source_ids, term=filter, status=status,
-                    location=location, date_from=date_from, date_to=date_to,
-                    zone=tz, page=event_page,
-                )
-            except (ValueError, OSError, sqlite3.Error) as exc:
-                raise HTTPException(503, "Event history unavailable") from exc
+            grouped = scoped_event_groups(
+                source_id=source_id, charger_id=charger_id, term=filter,
+                status=status, location=location, date_from=date_from,
+                date_to=date_to, zone=tz, page=event_page)
             group_duration_ms = (perf_counter() - started) * 1000
             event_groups = grouped["groups"]
             event_has_next = grouped["has_next"]
@@ -573,19 +587,13 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             raise HTTPException(403, "Source is not available in this dashboard")
         zone = tz or zones[0]
         validate_dashboard_window(zone, zones, date_from, date_to)
-        try:
-            started = perf_counter()
-            result = event_groups_page(
-                warehouse, source_id=source_id, charger_id=charger_id,
-                allowed_source_ids=allowed_source_ids, term=filter,
-                status=status, location=location, date_from=date_from,
-                date_to=date_to, zone=zone, page=page)
-            return {**result, "query_duration_ms": round(
-                (perf_counter() - started) * 1000, 1)}
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
-        except (OSError, sqlite3.Error) as exc:
-            raise HTTPException(503, "Event history unavailable") from exc
+        started = perf_counter()
+        result = scoped_event_groups(
+            source_id=source_id, charger_id=charger_id, term=filter,
+            status=status, location=location, date_from=date_from,
+            date_to=date_to, zone=zone, page=page)
+        return {**result, "query_duration_ms": round(
+            (perf_counter() - started) * 1000, 1)}
 
     @app.get("/api/v1/event-group", tags=["Dashboard API v1"])
     @app.get("/api/event-group")
