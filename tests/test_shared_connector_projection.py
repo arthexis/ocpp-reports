@@ -46,6 +46,15 @@ class SharedConnectorProjectionTests(unittest.TestCase):
         self.assertEqual(len(station["connectors"]), 1)
         self.assertEqual(len(individual["connectors"]), 2)
 
+    def test_preserves_pre_filter_source_freshness(self):
+        data = copy.deepcopy(self.snapshot)
+        projected = project_dashboard_connectors(
+            data, now=self.now, connector_view="combined",
+            source_freshness={"node-a": "fresh", "node-b": "old"})
+        self.assertEqual(projected["connectors"][0]["source_freshness"], "fresh")
+        self.assertEqual(projected["connectors"][2]["source_freshness"], "old")
+        self.assertTrue(projected["connectors"][2]["stale"])
+
     def test_invalid_view_is_rejected(self):
         with self.assertRaises(ValueError):
             project_dashboard_connectors(copy.deepcopy(self.snapshot),
