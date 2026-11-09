@@ -259,3 +259,40 @@ def test_v1_event_history_denies_cross_tenant_admin_before_query(monkeypatch, tm
             "group_source": "tenant-b", "first_event_id": 11})
         assert response.status_code == 403
     assert calls == []
+
+
+
+def test_v1_and_html_share_timezone_and_date_window_validation(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_snapshot(path, **kwargs):
+        calls.append(kwargs)
+        return {
+            "connectors": [], "transactions": [], "events": [], "sources": [],
+            "transaction_pagination": {
+                "total": 0, "page": 1, "pages": 1,
+                "counts": {"all": 0, "success": 0, "failed": 0}},
+        }
+
+    monkeypatch.setattr(web, "snapshot", fake_snapshot)
+    client = TestClient(web.create_app(
+        tmp_path / "unused.sqlite", timezones=("UTC", "America/Monterrey")))
+    invalid = [
+        {"tz": "Europe/Berlin"},
+        {"date_from": "2026-02-30"},
+        {"date_from": "2026-11-09", "date_to": "2026-11-08"},
+    ]
+    for params in invalid:
+        for path in ("/", "/api/v1/connectors", "/api/v1/transactions"):
+            assert client.get(path, params=params).status_code == 422
+    assert calls == []
+
+
+def test_dashboard_dst_display_uses_instant_not_naive_wall_clock():
+    # DST fallback in New York: two UTC instants map to the same local hour.
+    first = web.display_date("2026-11-01T05:30:00Z", "America/New_York")
+    second = web.display_date("2026-11-01T06:30:00Z", "America/New_York")
+    assert first.startswith("2026-11-01 01:30")
+    assert second.startswith("2026-11-01 01:30")
+    assert web.display_date("2026-11-01T06:30:00Z", "UTC").startswith(
+        "2026-11-01 06:30")
