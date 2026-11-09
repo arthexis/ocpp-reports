@@ -530,3 +530,34 @@ def test_integrated_warehouse_html_api_parity_without_mocks(integrated_dashboard
     assert [item["connector_id"] for item in individual.json()["items"]] == [1]
     assert client.get("/api/v1/connectors", params={
         "source_id": "tenant-b"}).status_code == 403
+
+
+def test_shared_warehouse_dst_fall_back_dates(integrated_dashboard_warehouse):
+    """Two UTC instants in the repeated New York hour share one local date."""
+    import json
+    import sqlite3
+
+    with sqlite3.connect(integrated_dashboard_warehouse) as db:
+        for n, started in ((1001, "2026-11-01T05:30:00Z"),
+                           (1002, "2026-11-01T06:30:00Z")):
+            payload = {
+                "id": n, "charger_id": "CP-tenant-a", "state": "closed",
+                "active": False, "started_at": started, "stopped_at": started,
+                "energy_wh": 1000,
+            }
+            db.execute(
+                "INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)",
+                ("tenant-a", "CP-tenant-a", n, 0, 0, "dst",
+                 json.dumps(payload), started),
+            )
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse,
+        allowed_source_ids=("tenant-a",),
+        timezones=("UTC", "America/New_York")))
+    response = client.get("/api/v1/transactions", params={
+        "tz": "America/New_York", "date_from": "2026-11-01",
+        "date_to": "2026-11-01"})
+    assert response.status_code == 200
+    assert response.json()["total"] == 47
+    assert client.get("/api/v1/transactions", params={
+        "tz": "Europe/Berlin", "date_from": "2026-11-01"}).status_code == 422
