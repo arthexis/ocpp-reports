@@ -13,12 +13,13 @@ from pathlib import Path
 import httpx
 
 from .replication.forwarder import confirmed_cursor, save_cursor, validate_endpoint
+from .changefeed import changes_page
 
 
-def relay_page(database: Path, source_id: str, *, after: int = 0, limit: int = 500) -> dict:
+def relay_page(database: Path, source_id: str, *, after: int = 0, limit: int = 500,\n               local_evidence_source: str | None = None) -> dict:
     if not source_id or after < 0 or not 1 <= limit <= 500:
         raise ValueError("Invalid relay source, cursor or limit")
-    with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
+    if local_evidence_source is not None:\n        if not local_evidence_source:\n            raise ValueError("Empty local evidence source")\n        page = changes_page(database, local_evidence_source, after=after, limit=limit)\n        page["source_id"] = source_id\n        return page\n    with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA query_only=ON")
         db.execute("BEGIN")
@@ -44,7 +45,7 @@ def relay_page(database: Path, source_id: str, *, after: int = 0, limit: int = 5
 
 def relay_once(database: Path, state: Path, source_id: str, endpoint: str,
                token: str, *, destination_id: str, limit: int = 500,
-               client: httpx.Client | None = None) -> int:
+               client: httpx.Client | None = None,\n               local_evidence_source: str | None = None) -> int:
     """Send one page; persist ACK only after the downstream collector confirms it."""
     validate_endpoint(endpoint)
     if not source_id or not token or not destination_id:
@@ -56,7 +57,7 @@ def relay_once(database: Path, state: Path, source_id: str, endpoint: str,
     # A destination-qualified cursor prevents unrelated collectors sharing ACK state.
     cursor_key = json.dumps([destination_id, hashlib.sha256(endpoint.encode("utf-8")).hexdigest(), source_id], separators=(",", ":"))
     after = confirmed_cursor(state, cursor_key)
-    batch = relay_page(database, source_id, after=after, limit=limit)
+    batch = relay_page(database, source_id, after=after, limit=limit,\n                       local_evidence_source=local_evidence_source)
     if not batch["changes"]:
         return after
     owned = client is None
