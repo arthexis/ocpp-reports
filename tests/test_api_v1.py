@@ -93,3 +93,27 @@ def test_v1_transactions_share_dashboard_sql_filter_contract(monkeypatch, tmp_pa
         "date_from": "2026-11-09", "date_to": "2026-11-08"}).status_code == 422
     assert client.get("/api/v1/transactions", params={
         "date_from": "not-a-date"}).status_code == 422
+
+
+def test_v1_transaction_detail_matches_html_and_hides_cross_tenant(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_detail(path, *, source_id, charger_id, transaction_id,
+                    allowed_source_ids=None):
+        calls.append((source_id, charger_id, transaction_id, allowed_source_ids))
+        return {"source_id": source_id, "charger_id": charger_id,
+                "transaction_id": transaction_id, "energy_wh": 1500}
+
+    monkeypatch.setattr(web, "transaction_detail", fake_detail)
+    client = TestClient(web.create_app(tmp_path / "unused.sqlite",
+                                       allowed_source_ids=("tenant-a",),
+                                       timezones=("UTC", "America/Monterrey")))
+    url = "/api/v1/transactions/tenant-a/CP1/42"
+    result = client.get(url, params={"tz": "America/Monterrey"})
+    assert result.status_code == 200
+    assert result.json()["transaction"]["energy_wh"] == 1500
+    assert result.json()["timezone"] == "America/Monterrey"
+    assert calls == [("tenant-a", "CP1", 42, ("tenant-a",))]
+    assert client.get("/api/v1/transactions/tenant-b/CP1/42").status_code == 404
+    assert client.get(url, params={"tz": "Europe/Berlin"}).status_code == 422
+    assert len(calls) == 1

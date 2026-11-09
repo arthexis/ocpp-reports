@@ -573,6 +573,26 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         except (OSError, sqlite3.Error) as exc:
             raise HTTPException(503, "Event history unavailable") from exc
 
+    @app.get("/api/v1/transactions/{source_id}/{charger_id}/{transaction_id}",
+             tags=["Dashboard API v1"])
+    def api_transaction_detail(source_id: str, charger_id: str, transaction_id: int,
+                               tz: str | None = None):
+        selected_zone = tz or zones[0]
+        if selected_zone not in zones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
+        # Identical scope and not-found semantics to the existing HTML detail.
+        if allowed_source_ids is not None and source_id not in allowed_source_ids:
+            raise HTTPException(404, "Transaction not found")
+        try:
+            transaction = transaction_detail(
+                warehouse, source_id=source_id, charger_id=charger_id,
+                transaction_id=transaction_id, allowed_source_ids=allowed_source_ids)
+        except (FileNotFoundError, OSError, sqlite3.Error, ValueError) as exc:
+            raise HTTPException(503, "Warehouse unavailable") from exc
+        if transaction is None:
+            raise HTTPException(404, "Transaction not found")
+        return {"transaction": transaction, "timezone": selected_zone}
+
     @app.get("/transactions/{source_id}/{charger_id}/{transaction_id}", response_class=HTMLResponse)
     def transaction_page(request: Request, source_id: str, charger_id: str,
                          transaction_id: int, tz: str | None = None):
