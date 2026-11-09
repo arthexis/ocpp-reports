@@ -404,3 +404,40 @@ def test_html_event_panel_and_api_v1_share_group_query(monkeypatch, tmp_path):
     assert calls[0] == calls[1]
     assert calls[0]["page"] == 2
     assert calls[0]["allowed_source_ids"] == ("tenant-a",)
+
+
+
+def test_dashboard_event_fetch_contract_and_partial_refresh(monkeypatch, tmp_path):
+    """Guard the actual browser fetch/DOM contract (the dashboard does not use htmx)."""
+    def fake_snapshot(path, **kwargs):
+        return {
+            "connectors": [], "transactions": [], "events": [], "sources": [],
+            "transaction_pagination": {
+                "total": 0, "page": 1, "pages": 1,
+                "counts": {"all": 0, "success": 0, "failed": 0}},
+        }
+
+    def fake_groups(path, **kwargs):
+        return {"groups": [{"source_id": "tenant-a", "charger_id": "CP1",
+                            "location": "North", "action": "Heartbeat",
+                            "at": "2026-11-09T12:00:00Z",
+                            "event_count": 2, "first_event_id": 42}],
+                "page": 1, "has_next": False}
+
+    monkeypatch.setattr(web, "snapshot", fake_snapshot)
+    monkeypatch.setattr(web, "event_groups_page", fake_groups)
+    client = TestClient(web.create_app(tmp_path / "unused.sqlite",
+                                       allowed_source_ids=("tenant-a",)))
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.text
+    assert 'data-source="tenant-a"' in html
+    assert 'data-first-id="42"' in html
+    assert 'new URL("/api/event-group", window.location.origin)' in html
+    assert 'url.searchParams.set("group_source", details.dataset.source)' in html
+    assert 'url.searchParams.set("first_event_id", details.dataset.firstId)' in html
+    assert 'url.searchParams.set("offset", String(offset))' in html
+    assert 'fetch(url, {credentials: "same-origin"})' in html
+    assert 'holder.replaceChildren(wrapper, status, more)' in html
+    assert 'more.hidden = exhausted' in html
+    assert 'details.addEventListener("toggle"' in html
