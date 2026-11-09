@@ -53,11 +53,11 @@ def test_native_rotation_and_role_tenant_scope(monkeypatch, tmp_path):
             assert rotated.status_code == 200
             replacement = rotated.json()["access_token"]
             assert client.get("/api/v1/connectors",
-                              headers={"Authorization": "Bearer " + token}).status_code == (401 if name == "admin-b" else 403)
+                              headers={"Authorization": "Bearer " + token}).status_code == 403
             assert client.get("/api/v1/connectors",
                               headers={"Authorization": "Bearer " + replacement}).status_code == 200
             assert client.get("/api/v1/connectors", params={"source_id": "source-b"},
                               headers={"Authorization": "Bearer " + replacement}).status_code == 403
         else:
             assert client.post("/api/v1/session/rotate",
-                               headers={"Authorization": "Bearer " + token}).status_code == 403
+                               headers={"Authorization": "Bearer " + token}).status_code == (401 if name == "admin-b" else 403)
