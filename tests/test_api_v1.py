@@ -351,3 +351,18 @@ def test_v1_event_groups_operator_denied_before_sql(monkeypatch, tmp_path):
     from ocpp_reports.dashboard_login import route_permission
     assert route_permission("/api/v1/event-groups", "GET") is not None
     assert route_permission("/api/v1/event-groups", "POST") is None
+
+
+
+def test_v1_openapi_declares_typed_operational_station_and_transaction_counts(tmp_path):
+    client = TestClient(web.create_app(tmp_path / "unused.sqlite"))
+    schema = client.get("/api/v1/openapi.json")
+    assert schema.status_code == 200
+    components = schema.json()["components"]["schemas"]
+    assert components["SummaryResponse"]["properties"]["status_counts"]
+    assert components["OperationalCount"]["properties"]["stations"]["type"] == "integer"
+    assert components["OperationalCount"]["properties"]["connectors"]["type"] == "integer"
+    assert components["TransactionCounts"]["properties"]["success"]["type"] == "integer"
+    assert components["TransactionCounts"]["properties"]["failed"]["type"] == "integer"
+    assert components["StationItem"]["properties"]["source_id"]["type"] == "string"
+    assert components["StationsResponse"]["properties"]["items"]["items"]["$ref"].endswith("/StationItem")
