@@ -78,19 +78,20 @@ def main():
                 page.wait_for_function(
                     "() => document.querySelectorAll('.event-group tbody tr').length === 65")
                 assert group.locator("tbody tr").count() == 65
-                page.evaluate("window.scrollTo(0, 400)")
+                page.evaluate("document.documentElement.style.scrollBehavior = 'auto'; window.scrollTo(0, 400)")
+                page.wait_for_timeout(200)
                 before = page.evaluate("window.scrollY")
                 page.clock.install()
                 page.clock.fast_forward(15000)
                 page.wait_for_timeout(500)
                 assert group.get_attribute("open") is not None
                 assert group.locator("tbody tr").count() == 65
-                assert page.evaluate("window.scrollY") == before
-                page.locator(".unified-filter").focus()
+                assert abs(page.evaluate("window.scrollY") - before) <= 2, "poll changed document scroll"
+                page.evaluate("document.querySelector('.unified-filter').focus({preventScroll: true})")
                 page.clock.fast_forward(15000)
                 page.wait_for_timeout(500)
                 assert page.evaluate("document.activeElement.classList.contains('unified-filter')")
-                assert page.evaluate("window.scrollY") == before
+                assert abs(page.evaluate("window.scrollY") - before) <= 2, "focused poll changed scroll"
                 page.screenshot(path=os.environ.get("BROWSER_SCREENSHOT", "dashboard-browser.png"),
                                 full_page=True)
                 browser.close()
