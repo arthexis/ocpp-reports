@@ -79,7 +79,7 @@ class TransactionsResponse(BaseModel):
     counts: TransactionCounts
 
 from fastapi.responses import JSONResponse
-from .web import project_dashboard_connectors, _operational_status_counts, _source_freshness, _filter_dashboard, validate_dashboard_window
+from .web import project_dashboard_connectors, _operational_status_counts, _source_freshness, _filter_dashboard, validate_dashboard_window, dashboard_transaction_page
 
 
 def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
@@ -145,10 +145,10 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
         zone = tz or timezones[0]
         validate_dashboard_window(zone, timezones, date_from, date_to)
         # Use the exact SQL pagination/filter contract consumed by the HTML dashboard.
-        data = visible(request, source_id, charger_id, 100, pagination={
-            "term": filter, "status": status, "location": location,
-            "date_from": date_from, "date_to": date_to,
-            "zone": zone, "view": view, "page": page})
+        data = visible(request, source_id, charger_id, 100, pagination=dashboard_transaction_page(
+            term=filter, status=status, location=location,
+            date_from=date_from, date_to=date_to, zone=zone,
+            view=view, page=page))
         info = data["transaction_pagination"]
         return {"items": data["transactions"], "total": info["total"],
                 "page": info["page"], "pages": info["pages"], "counts": info["counts"]}
