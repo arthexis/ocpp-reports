@@ -79,7 +79,7 @@ class TransactionsResponse(BaseModel):
     counts: TransactionCounts
 
 from fastapi.responses import JSONResponse
-from .web import project_dashboard_connectors, _operational_status_counts, _source_freshness, _filter_dashboard, validate_dashboard_window, dashboard_transaction_page
+from .web import project_dashboard_connectors, dashboard_filtered_connectors, _operational_status_counts, _source_freshness, validate_dashboard_window, dashboard_transaction_page
 
 
 def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
@@ -112,12 +112,10 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
         validate_dashboard_window(zone, timezones, date_from, date_to)
         data = visible(request, source_id, charger_id, 500, source_evidence=True)
         try:
-            source_freshness = {source["source_id"]: _source_freshness(source, datetime.now(timezone.utc))
-                                for source in data["sources"]}
-            data = _filter_dashboard(data, term=filter, status=status, location=location,
-                                     date_from=date_from, date_to=date_to, zone=zone)
-            projected = project_dashboard_connectors(data, now=datetime.now(timezone.utc),
-                                                     connector_view=connector_view, source_freshness=source_freshness)
+            data, projected = dashboard_filtered_connectors(
+                data, term=filter, status=status, location=location,
+                date_from=date_from, date_to=date_to, zone=zone,
+                connector_view=connector_view, now=datetime.now(timezone.utc))
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         return {"items": projected["connectors"]}
