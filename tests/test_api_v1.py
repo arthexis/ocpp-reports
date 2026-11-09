@@ -117,3 +117,27 @@ def test_v1_transaction_detail_matches_html_and_hides_cross_tenant(monkeypatch, 
     assert client.get("/api/v1/transactions/tenant-b/CP1/42").status_code == 404
     assert client.get(url, params={"tz": "Europe/Berlin"}).status_code == 422
     assert len(calls) == 1
+
+
+def test_v1_event_history_matches_legacy_and_scopes_tenant(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_event_details(path, **kwargs):
+        calls.append(kwargs)
+        return {"events": [{"at": "2026-11-08T12:00:00Z", "event_id": 11}],
+                "has_next": False}
+
+    monkeypatch.setattr(web, "event_group_details", fake_event_details)
+    client = TestClient(web.create_app(tmp_path / "unused.sqlite",
+                                       allowed_source_ids=("tenant-a",)))
+    params = {"group_source": "tenant-a", "first_event_id": 11}
+    legacy = client.get("/api/event-group", params=params)
+    versioned = client.get("/api/v1/event-group", params=params)
+    assert legacy.status_code == versioned.status_code == 200
+    assert legacy.json()["events"] == versioned.json()["events"]
+    assert calls[0]["allowed_source_ids"] == calls[1]["allowed_source_ids"] == ("tenant-a",)
+    assert client.get("/api/v1/event-group", params={
+        "group_source": "tenant-b", "first_event_id": 11}).status_code == 403
+    assert client.get("/api/v1/event-group", params={
+        "group_source": "tenant-a", "first_event_id": 0}).status_code == 422
+    assert len(calls) == 2
