@@ -21,7 +21,7 @@ def load_config(path: Path = DEFAULT_CONFIG) -> dict:
         raise ValueError("Relay configuration must be a protected regular file (0640 or stricter)")
     with path.open("rb") as f:
         document = tomllib.load(f)
-    if set(document) != {"relay"} or not isinstance(document["relay"], dict) or set(document["relay"]) != {"destination_id", "endpoint", "sources"}:
+    if set(document) != {"relay"} or not isinstance(document["relay"], dict) or not {"destination_id", "endpoint", "sources"} <= set(document["relay"]) or set(document["relay"]) - {"destination_id", "endpoint", "sources", "local_sources"}:
         raise ValueError("Expected [relay] destination_id, endpoint and sources")
     cfg = document["relay"]
     from .replication.forwarder import validate_endpoint
@@ -74,7 +74,7 @@ def once(
             result = {}
             for source, token in sorted(cfg["sources"].items()):
                 result[source] = relay_once(database, state, source, cfg["endpoint"],
-                                            token, destination_id=cfg["destination_id"])
+                                            token, destination_id=cfg["destination_id"],\n                                            local_evidence_source=cfg.get("local_sources", {}).get(source))
         typer.echo(json.dumps({"acknowledged": result}, sort_keys=True))
     except (OSError, ValueError, httpx.HTTPError, tomllib.TOMLDecodeError) as exc:
         typer.echo(f"Relay refused: {type(exc).__name__}", err=True)
