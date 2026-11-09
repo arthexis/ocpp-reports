@@ -509,5 +509,14 @@ def test_integrated_warehouse_html_api_parity_without_mocks(integrated_dashboard
         "tz": "Europe/Berlin"}).status_code == 422
     assert client.get("/api/v1/transactions", params={
         "date_from": "2026-11-02", "date_to": "2026-11-01"}).status_code == 422
+    second = client.get("/api/v1/transactions", params={"page": 2})
+    assert second.status_code == 200
+    assert second.json()["total"] == 45
+    assert second.json()["pages"] == 3
+    assert second.json()["page"] == 2
+    assert len(second.json()["items"]) == 20
+    assert all(row["source_id"] == "tenant-a" for row in second.json()["items"])
     assert client.get("/api/v1/transactions", params={
-        "page": 2}).status_code == 200
+        "source_id": "tenant-b", "page": 2}).status_code == 403
+    assert client.get("/api/v1/transactions", params={
+        "view": "failed"}).json()["total"] == 4
