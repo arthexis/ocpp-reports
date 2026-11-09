@@ -65,3 +65,19 @@ def test_relay_config_rejects_symlink(tmp_path):
     link.symlink_to(path)
     with pytest.raises(ValueError, match="protected regular file"):
         load_config(link)
+
+
+def test_local_bindings_must_be_unique_and_authorized(tmp_path):
+    path = tmp_path / "relay.toml"
+    base = ('[relay]\ndestination_id="sink"\n'
+            'endpoint="https://collector.test/api/replication"\n'
+            '[relay.sources]\n"origin-a"="token-a"\n"origin-b"="token-b"\n')
+    for mapping in (
+        '[relay.local_sources]\n"unknown"="internal"\n',
+        '[relay.local_sources]\n"origin-a"="internal"\n"origin-b"="internal"\n',
+        '[relay.local_sources]\n"origin-a"="  "\n',
+    ):
+        path.write_text(base + mapping)
+        os.chmod(path, 0o600)
+        with pytest.raises(ValueError, match="Local evidence"):
+            load_config(path)
