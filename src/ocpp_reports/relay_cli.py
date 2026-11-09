@@ -74,7 +74,8 @@ def once(
             result = {}
             for source, token in sorted(cfg["sources"].items()):
                 result[source] = relay_once(database, state, source, cfg["endpoint"],
-                                            token, destination_id=cfg["destination_id"],\n                                            local_evidence_source=cfg.get("local_sources", {}).get(source))
+                                            token, destination_id=cfg["destination_id"],
+                                            local_evidence_source=cfg.get("local_sources", {}).get(source))
         typer.echo(json.dumps({"acknowledged": result}, sort_keys=True))
     except (OSError, ValueError, httpx.HTTPError, tomllib.TOMLDecodeError) as exc:
         typer.echo(f"Relay refused: {type(exc).__name__}", err=True)
