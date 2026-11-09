@@ -12,7 +12,7 @@ from ocpp_reports.replication.collector import Batch, accept_batch
 
 def test_protected_config_and_explicit_sources(tmp_path):
     path = tmp_path / "relay.toml"
-    path.write_text('[relay]\ndestination_id="001"\nterminal_destination=true\nendpoint="https://collector.test/api/replication"\n'
+    path.write_text('[relay]\ndestination_id="001"\nendpoint="https://collector.test/api/replication"\n'
                     '[relay.sources]\n"local"="token-local"\n"002"="token-002"\n"005"="token-005"\n')
     os.chmod(path, 0o644)
     with pytest.raises(ValueError, match="protected"):
@@ -54,14 +54,13 @@ def test_restart_replay_and_downstream_auth_denial(tmp_path):
                           "good", destination_id="001", client=client) == 1
 
 
-def test_relay_config_rejects_symlink_and_nonterminal(tmp_path):
+def test_relay_config_rejects_symlink(tmp_path):
     path = tmp_path / "relay.toml"
-    path.write_text('[relay]\\ndestination_id="001"\\nterminal_destination=false\\n'
+    path.write_text('[relay]\\ndestination_id="sink"\\n'
                     'endpoint="https://collector.test/api/replication"\\n'
-                    '[relay.sources]\\n"002"="token"\\n')
+                    '[relay.sources]\\n"origin"="token"\\n')
     os.chmod(path, 0o600)
-    with pytest.raises(ValueError, match="terminal destination"):
-        load_config(path)
+    assert load_config(path)["sources"] == {"origin": "token"}
     link = tmp_path / "alias.toml"
     link.symlink_to(path)
     with pytest.raises(ValueError, match="protected regular file"):
