@@ -25,6 +25,17 @@ def test_native_rotation_and_role_tenant_scope(monkeypatch, tmp_path):
                         base_url="https://reports.example")
     assert client.get("/api/v1/connectors").status_code == 403
     assert client.post("/api/v1/session/rotate").status_code == 401
+    initial = client.post("/login", data={"username": "operator-a",
+                    "password": "strong-password-b"},
+                    headers={"Origin": "https://reports.example"}, follow_redirects=False)
+    assert initial.status_code == 303
+    issued = client.post("/api/v1/session/rotate",
+                         headers={"Origin": "https://reports.example"})
+    assert issued.status_code == 200
+    assert issued.json()["token_type"] == "bearer"
+    client.cookies.clear()
+    assert client.get("/api/v1/connectors",
+        headers={"Authorization": "Bearer " + issued.json()["access_token"]}).status_code == 200
     for name, role, expected in (
         ("admin-a", "admin", 200), ("operator-a", "operator", 200),
         ("user-a", "user", 403), ("admin-b", "admin", 403),
