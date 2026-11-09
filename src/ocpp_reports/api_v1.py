@@ -7,6 +7,7 @@ from __future__ import annotations
 from fastapi import HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from typing import Any
+from datetime import datetime, timezone
 from fastapi.security import HTTPBearer
 
 
@@ -31,7 +32,7 @@ class TransactionsResponse(ItemsResponse):
     counts: dict[str, int]
 
 from fastapi.responses import JSONResponse
-from .web import _operational_status_counts, _filter_transaction_energy
+from .web import project_dashboard_connectors, _operational_status_counts
 
 
 def register_api_v1(app, read):
@@ -40,23 +41,29 @@ def register_api_v1(app, read):
     from fastapi import Depends
     def documented_auth(_credentials=Depends(bearer)):
         return None
-    def visible(request: Request, source_id, charger_id, limit, *, pagination=None):
+    def visible(request: Request, source_id, charger_id, limit, *, pagination=None, source_evidence=False):
         data = read(source_id, charger_id, limit, transaction_pagination=pagination, skip_events=True)
         principal = getattr(request.state, "principal", None)
         if principal is not None and principal.role.value != "admin":
-            data = {**data, "events": [], "sources": []}
+            data = {**data, "events": [], "sources": data["sources"] if source_evidence else []}
         return data
 
     @app.get("/api/v1/summary", tags=["Dashboard API v1"], response_model=SummaryResponse, dependencies=[Depends(documented_auth)])
     def summary(request: Request, source_id: str | None = None,
                 charger_id: str | None = None):
-        data = visible(request, source_id, charger_id, 500)
+        data = visible(request, source_id, charger_id, 500, source_evidence=True)
         return {"status_counts": _operational_status_counts(data["connectors"])}
 
     @app.get("/api/v1/connectors", tags=["Dashboard API v1"], response_model=ItemsResponse, dependencies=[Depends(documented_auth)])
     def connectors(request: Request, source_id: str | None = None,
-                   charger_id: str | None = None):
-        return {"items": visible(request, source_id, charger_id, 500)["connectors"]}
+                   charger_id: str | None = None, connector_view: str = "combined"):
+        data = visible(request, source_id, charger_id, 500, source_evidence=True)
+        try:
+            projected = project_dashboard_connectors(data, now=datetime.now(timezone.utc),
+                                                     connector_view=connector_view)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {"items": projected["connectors"]}
 
     @app.get("/api/v1/transactions", tags=["Dashboard API v1"], response_model=TransactionsResponse, dependencies=[Depends(documented_auth)])
     def transactions(request: Request, source_id: str | None = None,
