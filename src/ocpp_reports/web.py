@@ -611,7 +611,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         return data
 
     from .api_v1 import register_api_v1
-    register_api_v1(app, read)
+    register_api_v1(app, read, timezones=zones)
 
     # Opt-in: existing nginx Basic Auth remains unchanged.
     import os
