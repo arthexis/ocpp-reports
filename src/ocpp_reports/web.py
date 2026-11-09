@@ -391,6 +391,21 @@ def project_dashboard_connectors(data: dict, *, now: datetime, connector_view: s
     return {"connectors": connector_rows, "status_counts": operational_counts}
 
 
+def validate_dashboard_window(zone: str, timezones: tuple[str, ...],
+                              date_from: str = "", date_to: str = "") -> None:
+    """Shared validation for HTML and versioned JSON dashboard date filters."""
+    if zone not in timezones:
+        raise HTTPException(422, "Unsupported dashboard timezone")
+    for day in (date_from, date_to):
+        if day:
+            try:
+                datetime.strptime(day, "%Y-%m-%d")
+            except ValueError as exc:
+                raise HTTPException(422, "Invalid date") from exc
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(422, "Date range start must not exceed end")
+
+
 def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | None = None,
                title: str = "OCPP Reports", timezones: tuple[str, ...] = ("UTC",)) -> FastAPI:
     if allowed_source_ids is not None and (not allowed_source_ids or
@@ -427,20 +442,11 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
               tx_view: str = "success", tx_page: int = Query(1, ge=1),
               event_page: int = Query(1, ge=1), connector_view: str = "individual"):
         tz = tz or zones[0]
-        if tz not in zones:
-            raise HTTPException(422, "Unsupported dashboard timezone")
+        validate_dashboard_window(tz, zones, date_from, date_to)
         if connector_view not in ("combined", "station", "individual"):
             raise HTTPException(422, "Invalid connector view")
         if tx_view not in ("success", "failed", "all"):
             raise HTTPException(422, "Invalid transaction view")
-        for day in (date_from, date_to):
-            if day:
-                try:
-                    datetime.strptime(day, "%Y-%m-%d")
-                except ValueError as exc:
-                    raise HTTPException(422, str(exc)) from exc
-        if date_from and date_to and date_from > date_to:
-            raise HTTPException(422, "Date range start must not exceed end")
         # Filter and paginate transactions inside SQLite, before decoding JSON.
         sql_page = dict(term=filter, status=status, location=location,
                         date_from=date_from, date_to=date_to, zone=tz,
