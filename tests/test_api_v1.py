@@ -879,3 +879,60 @@ def test_existing_sqlite_observations_survive_schema_upgrade(tmp_path):
     result = client.get("/api/v1/transactions")
     assert result.status_code == 200
     assert any(row.get("id") == 42 for row in result.json()["items"])
+
+
+def test_collector_rebuild_from_forwarder_changefeed_without_migration(tmp_path):
+    """Replay local immutable journal into a fresh collector with matching evidence."""
+    import json
+    import sqlite3
+    from ocpp_reports.changefeed import changes_page
+    from ocpp_reports.replication.collector import Batch, accept_batch
+    from ocpp_reports.warehouse.schema import _schema
+
+    forwarder_db = tmp_path / "forwarder.sqlite"
+    collector_db = tmp_path / "collector-fresh.sqlite"
+    source = "csms-original-uuid"
+    with sqlite3.connect(forwarder_db) as db:
+        _schema(db)
+        db.execute("INSERT INTO sources(source_id,cursor) VALUES (?,?)", (source, 17))
+        db.execute("INSERT INTO events VALUES (?,?,?)",
+                   (source, 17, json.dumps({"event": "BootNotification"})))
+        db.execute("""INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)""",
+                   (source, "CP1", 42, 0, 17, "fp-42",
+                    json.dumps({"id": 42, "charger_id": "CP1"}), "2026-01-01T00:00:00Z"))
+        db.execute("INSERT INTO connector_ratings VALUES (?,?,?,?,?)",
+                   (source, "CP1", 1, 7000, "connector"))
+        expected = db.execute(
+            "SELECT sequence,kind,record_key,payload FROM replication_changes ORDER BY sequence"
+        ).fetchall()
+    assert len(expected) == 3
+    cursor = 0
+    while True:
+        page = changes_page(forwarder_db, source, after=cursor, limit=2)
+        assert page["after"] == cursor
+        if not page["changes"]:
+            break
+        page["source_id"] = "node-a"
+        cursor = accept_batch(collector_db, Batch.model_validate(page))
+        assert cursor == page["next"]
+        if not page["more"]:
+            break
+    with sqlite3.connect(collector_db) as db:
+        actual = db.execute(
+            "SELECT sequence,kind,record_key,payload FROM collector_changes "
+            "WHERE source_id='node-a' ORDER BY sequence"
+        ).fetchall()
+        assert actual == expected
+        assert db.execute(
+            "SELECT sequence FROM collector_cursors WHERE source_id='node-a'"
+        ).fetchone()[0] == cursor
+        assert db.execute(
+            "SELECT count(*) FROM collector_latest WHERE source_id='node-a'"
+        ).fetchone()[0] == 3
+    assert cursor == expected[-1][0]
+    # Replaying an acknowledged page is idempotent, without duplicated evidence.
+    page = changes_page(forwarder_db, source, after=0, limit=2)
+    page["source_id"] = "node-a"
+    assert accept_batch(collector_db, Batch.model_validate(page)) == cursor
+    with sqlite3.connect(collector_db) as db:
+        assert db.execute("SELECT count(*) FROM collector_changes").fetchone()[0] == 3
