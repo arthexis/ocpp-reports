@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
-from ..warehouse.collector_schema import ensure_collector_schema
+from ..warehouse.collector_schema import ensure_collector_schema, collector_generation
 
 
 class Change(BaseModel):
@@ -105,6 +105,35 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
                   openapi_url=None)
     warehouse = Path(database)
 
+
+    @app.post("/api/replication/status")
+    def replication_status(query: ReadyRequest, authorization: str | None = Header(default=None)):
+        """Authenticated idle probe; never interpret cursor zero as proof of reset."""
+        expected = credentials.get(query.source_id)
+        if not expected or not authorization or not hmac.compare_digest(
+            authorization, "Bearer " + expected
+        ):
+            raise HTTPException(401, "Invalid source credentials",
+                                headers={"WWW-Authenticate": "Bearer"})
+        warehouse.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(warehouse) as db:
+            ensure_collector_schema(db)
+            generation = collector_generation(db)
+            cursor_row = db.execute(
+                "SELECT sequence FROM collector_cursors WHERE source_id=?",
+                (query.source_id,),
+            ).fetchone()
+            held = db.execute(
+                "SELECT 1 FROM collector_source_holds WHERE source_id=?",
+                (query.source_id,),
+            ).fetchone() is not None
+            existing = any(db.execute(
+                "SELECT 1 FROM " + table + " WHERE source_id=? LIMIT 1",
+                (query.source_id,),
+            ).fetchone() for table in ("collector_changes", "collector_latest"))
+        return {"schema": "ocpp-reports/status/v1", "source_id": query.source_id,
+                "generation": generation, "cursor": int(cursor_row[0]) if cursor_row else 0,
+                "held": held, "has_evidence": existing}
 
     @app.post("/api/replication/ready")
     def readiness(query: ReadyRequest, authorization: str | None = Header(default=None)):
