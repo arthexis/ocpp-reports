@@ -582,7 +582,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             tx_page = min(tx_page, tx_pages)
             start = (tx_page - 1) * 20
             data["transactions"] = filtered_transactions[start:start + 20]
-        operational_counts = projected["status_counts"]
+        operational_counts = dashboard_summary(data)["status_counts"]
         connector_rows = projected["connectors"]
         is_admin = not hasattr(request.state, "principal") or request.state.principal.role.value == "admin"
         if not is_admin:
