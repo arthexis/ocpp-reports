@@ -79,7 +79,7 @@ class TransactionsResponse(BaseModel):
     counts: TransactionCounts
 
 from fastapi.responses import JSONResponse
-from .web import project_dashboard_connectors, dashboard_filtered_connectors, _operational_status_counts, _source_freshness, validate_dashboard_window, dashboard_transaction_page, dashboard_summary, dashboard_stations, dashboard_filters
+from .web import project_dashboard_connectors, dashboard_filtered_connectors, _operational_status_counts, _source_freshness, validate_dashboard_window, dashboard_transaction_page, dashboard_transaction_results, dashboard_summary, dashboard_stations, dashboard_filters
 
 
 def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
@@ -147,9 +147,7 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
             term=filter, status=status, location=location,
             date_from=date_from, date_to=date_to, zone=zone,
             view=view, page=page))
-        info = data["transaction_pagination"]
-        return {"items": data["transactions"], "total": info["total"],
-                "page": info["page"], "pages": info["pages"], "counts": info["counts"]}
+        return dashboard_transaction_results(data)
 
     @app.get("/api/v1/stations", tags=["Dashboard API v1"], response_model=StationsResponse, dependencies=[Depends(documented_auth)])
     def stations(request: Request, source_id: str | None = None):
