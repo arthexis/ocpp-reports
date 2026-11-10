@@ -729,3 +729,16 @@ def test_canonical_transaction_result_contract_real_sqlite(integrated_dashboard_
         assert len(payload["items"]) <= 20
         assert payload["counts"]["all"] >= len(payload["items"])
     assert callable(dashboard_transaction_results)
+
+
+def test_real_sqlite_detail_timezone_and_tenant_parity(integrated_dashboard_warehouse):
+    """HTML and JSON detail share timezone validation and scoped 404 semantics."""
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",),
+        timezones=("UTC", "America/Monterrey")))
+    api = "/api/v1/transactions/tenant-a/CP1/1"
+    html = "/transactions/tenant-a/CP1/1"
+    for path in (api, html):
+        assert client.get(path, params={"tz": "Not/AZone"}).status_code == 422
+        cross_tenant = path.replace("/tenant-a/", "/tenant-b/")
+        assert client.get(cross_tenant).status_code == 404
