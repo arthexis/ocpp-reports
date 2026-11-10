@@ -33,6 +33,7 @@ class Batch(BaseModel):
 
 class ReadyRequest(BaseModel):
     source_id: str = Field(min_length=1)
+    forward_ack: int | None = Field(default=None, ge=0)
 
 
 def _canonical(value: dict) -> str:
@@ -131,9 +132,13 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
                 "SELECT 1 FROM " + table + " WHERE source_id=? LIMIT 1",
                 (query.source_id,),
             ).fetchone() for table in ("collector_changes", "collector_latest"))
+        cursor = int(cursor_row[0]) if cursor_row else 0
+        reset_required = (query.forward_ack is not None and query.forward_ack > cursor
+                          and not existing and not held)
         return {"schema": "ocpp-reports/status/v1", "source_id": query.source_id,
-                "generation": generation, "cursor": int(cursor_row[0]) if cursor_row else 0,
-                "held": held, "has_evidence": existing}
+                "generation": generation, "cursor": cursor,
+                "held": held, "has_evidence": existing,
+                "reset_required": reset_required}
 
     @app.post("/api/replication/ready")
     def readiness(query: ReadyRequest, authorization: str | None = Header(default=None)):
