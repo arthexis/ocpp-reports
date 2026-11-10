@@ -1001,3 +1001,19 @@ def test_replay_readiness_rejects_existing_evidence_with_zero_cursor(tmp_path):
         "/api/replication/ready", json={"source_id": "node-a"},
         headers={"Authorization": "Bearer wrong"},
     ).status_code == 401
+
+
+def test_replay_rejects_empty_local_journal_without_creating_collector(tmp_path):
+    import sqlite3
+    import pytest
+    from ocpp_reports.replication.forwarder import replay_to_fresh_collector
+    from ocpp_reports.warehouse.schema import _schema
+
+    local = tmp_path / "empty-local.sqlite"
+    with sqlite3.connect(local) as db:
+        _schema(db)
+        db.execute("INSERT INTO sources(source_id,cursor) VALUES (?,?)", ("csms-uuid", 0))
+    with pytest.raises(ValueError, match="no retained journal"):
+        replay_to_fresh_collector(
+            local, "node-a", "http://127.0.0.1:8080/api/replication", "secret"
+        )
