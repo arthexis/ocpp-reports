@@ -69,6 +69,47 @@ def validate_endpoint(endpoint: str) -> None:
         raise ValueError('Forwarder endpoint must use HTTPS (or loopback HTTP)')
 
 
+
+def collector_status(state: Path, source_id: str, endpoint: str, token: str,
+                     client: httpx.Client) -> dict:
+    """Probe even while idle; bind Collector generation durably, fail closed on replacement."""
+    if not endpoint.endswith("/api/replication"):
+        raise ValueError("Invalid collector replication endpoint")
+    response = client.post(
+        endpoint + "/status", json={"source_id": source_id},
+        headers={"Authorization": "Bearer " + token},
+    )
+    response.raise_for_status()
+    status = response.json()
+    if (status.get("schema") != "ocpp-reports/status/v1"
+            or status.get("source_id") != source_id
+            or not isinstance(status.get("generation"), str)
+            or not status["generation"]
+            or type(status.get("cursor")) is not int
+            or status["cursor"] < 0
+            or type(status.get("held")) is not bool
+            or type(status.get("has_evidence")) is not bool):
+        raise ValueError("Invalid authenticated Collector status")
+    if status["held"]:
+        raise ValueError("Collector source held")
+    state.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(state) as db:
+        db.execute("""CREATE TABLE IF NOT EXISTS collector_bindings (
+            source_id TEXT PRIMARY KEY, generation TEXT NOT NULL
+        )""")
+        prior = db.execute(
+            "SELECT generation FROM collector_bindings WHERE source_id=?",
+            (source_id,),
+        ).fetchone()
+        if prior and prior[0] != status["generation"]:
+            raise ValueError("Collector generation changed; recovery handshake required")
+        if not prior and confirmed_cursor(state, source_id) > status["cursor"]:
+            raise ValueError("Cannot bind existing Forwarder ACK to an older Collector")
+        db.execute("INSERT OR IGNORE INTO collector_bindings VALUES (?,?)",
+                   (source_id, status["generation"]))
+    return status
+
+
 def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
                  token: str, *, limit: int = 500,
                  client: httpx.Client | None = None) -> int:
