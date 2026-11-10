@@ -127,6 +127,17 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
                         "SELECT 1 FROM collector_source_holds WHERE source_id=?",
                         (query.source_id,),
                     ).fetchone() is not None
+                # Cursor zero alone is insufficient: refuse a reused or inconsistent target.
+                if "collector_changes" in tables and db.execute(
+                    "SELECT 1 FROM collector_changes WHERE source_id=? LIMIT 1",
+                    (query.source_id,),
+                ).fetchone():
+                    raise HTTPException(409, "Replay target contains existing changes")
+                if "collector_latest" in tables and db.execute(
+                    "SELECT 1 FROM collector_latest WHERE source_id=? LIMIT 1",
+                    (query.source_id,),
+                ).fetchone():
+                    raise HTTPException(409, "Replay target contains existing projections")
                 if "collector_cursors" in tables:
                     row = db.execute(
                         "SELECT sequence FROM collector_cursors WHERE source_id=?",
