@@ -215,11 +215,15 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
     if client is None:
         client = httpx.Client(timeout=10)
     try:
+        status = collector_status(state, source_id, endpoint, token, client)
+        with sqlite3.connect(state) as db:
+            recovery_table = db.execute("SELECT 1 FROM sqlite_master WHERE name='forward_recovery'").fetchone()
+            pending = db.execute("SELECT 1 FROM forward_recovery WHERE source_id=?",
+                                 (source_id,)).fetchone() if recovery_table else None
+        if status.get("reset_required") or pending:
+            return recovery_once(database, state, source_id, evidence_source,
+                                 endpoint, token, status["generation"], client, limit=limit)
         if not batch["changes"]:
-            status = collector_status(state, source_id, endpoint, token, client)
-            if status.get("reset_required"):
-                return recovery_once(database, state, source_id, evidence_source,
-                                     endpoint, token, status["generation"], client, limit=limit)
             return after
         response = client.post(endpoint, json=batch,
                                headers={"Authorization": "Bearer " + token})
