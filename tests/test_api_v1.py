@@ -806,3 +806,38 @@ def test_v1_openapi_validation_errors_and_scoped_denial(integrated_dashboard_war
     assert client.get("/api/v1/connectors", params={"connector_view": "invalid"}).status_code == 422
     assert client.get("/api/v1/connectors", params={"source_id": "tenant-b"}).status_code == 403
     assert client.get("/api/v1/transactions", params={"source_id": "tenant-b"}).status_code == 403
+
+
+def test_legacy_v1_export_empty_dashboard_and_api_contract(tmp_path):
+    """An old v1 export with missing modern meter/SoC fields stays readable."""
+    from ocpp_reports.follow import sync_page
+    page = {
+        "schema": "ocpp-csms/export/v1",
+        "data": {
+            "source_id": "legacy-site",
+            "exported_at": "2026-01-01T00:00:00Z",
+            "cursor": {"after": 0, "next": 0, "more": False},
+            "events": [], "energy": [], "transactions": [],
+            "status": {"chargers": [{
+                "id": "legacy-cp", "connected": True,
+                "connectors": [{"id": 1, "status": "Available", "transaction": None}],
+            }]},
+        },
+    }
+    database = tmp_path / "legacy.sqlite"
+    sync_page(database, page)
+    client = TestClient(web.create_app(database, allowed_source_ids=("legacy-site",)))
+    html = client.get("/")
+    connectors = client.get("/api/v1/connectors")
+    legacy = client.get("/api/snapshot")
+    assert html.status_code == connectors.status_code == legacy.status_code == 200
+    rows = connectors.json()["items"]
+    assert rows and all(row["source_id"] == "legacy-site" for row in rows)
+    assert all(row["power_display_source"] == "unknown" for row in rows)
+    assert all(row["power_display_w"] is None for row in rows)
+    assert all(row["energy_display_wh"] is None for row in rows)
+    assert "legacy-cp" in html.text
+    assert "power_display_source" not in legacy.json()["connectors"][0]
+    assert client.get("/api/v1/transactions").json()["items"] == []
+    assert client.get("/api/v1/filters").json()["source_ids"] == ["legacy-site"]
+    assert client.get("/api/v1/connectors", params={"source_id": "other"}).status_code == 403
