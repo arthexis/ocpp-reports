@@ -712,3 +712,20 @@ def test_real_sqlite_canonical_panel_projections(integrated_dashboard_warehouse)
     assert [(s["source_id"], s["charger_id"]) for s in stations["items"]] == [
         (s["source_id"], s["charger_id"]) for s in expected["items"]]
     assert all(s["source_id"] == "tenant-a" for s in stations["items"])
+
+
+def test_canonical_transaction_result_contract_real_sqlite(integrated_dashboard_warehouse):
+    """API pages expose the warehouse's authoritative SQL counts and pagination."""
+    from ocpp_reports.web import dashboard_transaction_results
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",)))
+    raw = client.get("/api/snapshot").json()
+    assert "transaction_pagination" not in raw
+    for page in (1, 2, 3):
+        response = client.get("/api/v1/transactions", params={"view": "all", "page": page})
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["page"] == page
+        assert len(payload["items"]) <= 20
+        assert payload["counts"]["all"] >= len(payload["items"])
+    assert callable(dashboard_transaction_results)
