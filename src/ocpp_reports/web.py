@@ -725,23 +725,29 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             raise HTTPException(404, "Transaction not found")
         return transaction
 
+    def canonical_transaction_detail(source_id: str, charger_id: str,
+                                     transaction_id: int, tz: str | None) -> dict:
+        """One authorized detail/timezone contract for HTML and JSON."""
+        selected_zone = tz or zones[0]
+        if selected_zone not in zones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
+        return {
+            "transaction": scoped_transaction_detail(source_id, charger_id, transaction_id),
+            "timezone": selected_zone,
+        }
+
     @app.get("/api/v1/transactions/{source_id}/{charger_id}/{transaction_id}",
              tags=["Dashboard API v1"])
     def api_transaction_detail(source_id: str, charger_id: str, transaction_id: int,
                                tz: str | None = None):
-        selected_zone = tz or zones[0]
-        if selected_zone not in zones:
-            raise HTTPException(422, "Unsupported dashboard timezone")
-        transaction = scoped_transaction_detail(source_id, charger_id, transaction_id)
-        return {"transaction": transaction, "timezone": selected_zone}
+        return canonical_transaction_detail(source_id, charger_id, transaction_id, tz)
 
     @app.get("/transactions/{source_id}/{charger_id}/{transaction_id}", response_class=HTMLResponse)
     def transaction_page(request: Request, source_id: str, charger_id: str,
                          transaction_id: int, tz: str | None = None):
-        selected_zone = tz or zones[0]
-        if selected_zone not in zones:
-            raise HTTPException(422, "Unsupported dashboard timezone")
-        transaction = scoped_transaction_detail(source_id, charger_id, transaction_id)
+        detail = canonical_transaction_detail(source_id, charger_id, transaction_id, tz)
+        transaction = detail["transaction"]
+        selected_zone = detail["timezone"]
         active = (bool(transaction.get("active"))
                   and transaction.get("state") in ("open", "active", "charging")
                   and transaction.get("energy_wh") is None)
