@@ -22,6 +22,18 @@ class ConnectorItem(BaseModel):
     source_id: str
     charger_id: str
     connector_id: int
+    power_display_w: float | None = Field(
+        default=None, description="Displayed watts: fresh measured power, else nominal rating, else null",
+        examples=[7200.0])
+    power_display_source: str = Field(
+        default="unknown", description="measured | rated | unknown",
+        examples=["measured"])
+    energy_display_wh: float | None = Field(
+        default=None, description="Displayed Wh: station aggregate for connector 0, connector energy otherwise",
+        examples=[12000.0])
+    energy_display_source: str = Field(
+        default="unknown", description="aggregate | connector | unknown",
+        examples=["connector"])
 
 
 class ConnectorsResponse(BaseModel):
