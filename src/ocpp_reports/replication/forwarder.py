@@ -133,3 +133,49 @@ def forward(database: Path, state: Path, source_id: str, endpoint: str, token: s
         if once:
             return
         sleep(interval)
+
+
+def replay_to_fresh_collector(database: Path, source_id: str, endpoint: str,
+                              token: str, *, limit: int = 500,
+                              client: httpx.Client | None = None) -> int:
+    """Explicit one-shot rebuild; never read or mutate normal forward_cursors.
+
+    The target must prove cursor zero before the first batch. An interrupted
+    replay must be restarted only against a fresh empty target.
+    """
+    validate_endpoint(endpoint)
+    if not source_id or not token or not 1 <= limit <= 500:
+        raise ValueError("Replay requires source, token and bounded batch size")
+    evidence_source = local_evidence_source(database)
+    owns_client = client is None
+    if client is None:
+        client = httpx.Client(timeout=10)
+    try:
+        headers = {"Authorization": "Bearer " + token}
+        base = endpoint.rsplit("/", 1)[0]
+        ready = client.post(base + "/ready", json={"source_id": source_id}, headers=headers)
+        ready.raise_for_status()
+        receipt = ready.json()
+        if (receipt.get("schema") != "ocpp-reports/readiness/v1"
+                or receipt.get("source_id") != source_id
+                or receipt.get("ready") is not True
+                or receipt.get("held") is not False
+                or receipt.get("cursor") != 0):
+            raise ValueError("Replay target must be a fresh, ready collector at cursor zero")
+        cursor = 0
+        while True:
+            batch = changes_page(database, evidence_source, after=cursor, limit=limit)
+            if not batch["changes"]:
+                return cursor
+            batch["source_id"] = source_id
+            response = client.post(endpoint, json=batch, headers=headers)
+            response.raise_for_status()
+            ack = response.json()
+            if ack.get("source_id") != source_id or ack.get("ack") != batch["next"]:
+                raise ValueError("Replay acknowledgement mismatch")
+            cursor = batch["next"]
+            if not batch["more"]:
+                return cursor
+    finally:
+        if owns_client:
+            client.close()
