@@ -151,6 +151,15 @@ def replay_to_fresh_collector(database: Path, source_id: str, endpoint: str,
     initial = changes_page(database, evidence_source, after=0, limit=1)
     if not initial["changes"]:
         raise ValueError("Replay source has no retained journal entries")
+    # Detect obvious missing history, but do not require contiguous sequence IDs:
+    # replication_changes.sequence is a GLOBAL AUTOINCREMENT across sources.
+    with sqlite3.connect(f"file:{database.resolve()}?mode=ro", uri=True) as db:
+        first, count, latest = db.execute(
+            "SELECT MIN(sequence),COUNT(*),MAX(sequence) FROM replication_changes "
+            "WHERE source_id=?", (evidence_source,),
+        ).fetchone()
+        if first is None or count < 1 or latest < first:
+            raise ValueError("Replay journal integrity check failed")
     owns_client = client is None
     if client is None:
         client = httpx.Client(timeout=10)
