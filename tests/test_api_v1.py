@@ -808,8 +808,8 @@ def test_v1_openapi_validation_errors_and_scoped_denial(integrated_dashboard_war
     assert client.get("/api/v1/transactions", params={"source_id": "tenant-b"}).status_code == 403
 
 
-def test_legacy_v1_export_empty_dashboard_and_api_contract(tmp_path):
-    """An old v1 export with missing modern meter/SoC fields stays readable."""
+def test_supported_csms_export_v1_empty_dashboard_and_api_contract(tmp_path):
+    """Current supported producer schema permits absent optional meter/SoC fields."""
     from ocpp_reports.follow import sync_page
     page = {
         "schema": "ocpp-csms/export/v1",
