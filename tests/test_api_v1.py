@@ -994,3 +994,24 @@ def test_collector_status_authenticated_generation_survives_restart(tmp_path):
                                   headers={"Authorization": "Bearer token-a"})
         assert replacement.status_code == 200
         assert replacement.json()["generation"] != result["generation"]
+
+
+
+def test_collector_reset_signal_is_authenticated_and_source_scoped(tmp_path):
+    from ocpp_reports.replication.collector import create_collector
+    database = tmp_path / "collector.sqlite"
+    with TestClient(create_collector(database, {"a": "token-a", "b": "token-b"})) as client:
+        url = "/api/replication/status"
+        assert client.post(url, json={"source_id": "a", "forward_ack": 12},
+                           headers={"Authorization": "Bearer token-b"}).status_code == 401
+        headers = {"Authorization": "Bearer token-a"}
+        initial = client.post(url, json={"source_id": "a", "forward_ack": 0},
+                              headers=headers)
+        assert initial.status_code == 200
+        assert initial.json()["reset_required"] is False
+        reset = client.post(url, json={"source_id": "a", "forward_ack": 12},
+                            headers=headers)
+        assert reset.status_code == 200
+        assert reset.json()["reset_required"] is True
+        assert reset.json()["cursor"] == 0
+        assert reset.json()["generation"] == initial.json()["generation"]
