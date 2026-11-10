@@ -742,3 +742,35 @@ def test_real_sqlite_detail_timezone_and_tenant_parity(integrated_dashboard_ware
         assert client.get(path, params={"tz": "Not/AZone"}).status_code == 422
         cross_tenant = path.replace("/tenant-a/", "/tenant-b/")
         assert client.get(cross_tenant).status_code == 404
+
+
+def test_real_sqlite_power_energy_display_provenance_parity(integrated_dashboard_warehouse):
+    """HTML display values derive from the same measured/rated/aggregate JSON fields."""
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",)))
+    html = client.get("/", params={"connector_view": "combined"})
+    response = client.get("/api/v1/connectors", params={"connector_view": "combined"})
+    assert html.status_code == response.status_code == 200
+    rows = response.json()["items"]
+    assert {r["connector_id"] for r in rows} == {0, 1}
+    for row in rows:
+        assert row["power_display_source"] in ("measured", "rated", "unknown")
+        assert row["energy_display_source"] in ("aggregate", "connector", "unknown")
+        if row["power_display_source"] == "measured":
+            assert row["power_fresh"] and row["power_display_w"] == row["power_w"]
+            assert "medida" in html.text
+        elif row["power_display_source"] == "rated":
+            assert row["power_display_w"] == row["rated_power_w"]
+            assert "nominal" in html.text
+        else:
+            assert row["power_display_w"] is None
+        if row["energy_display_source"] == "aggregate":
+            assert row["connector_id"] == 0
+            assert row["energy_display_wh"] == row["aggregate_energy_wh"]
+        elif row["energy_display_source"] == "connector":
+            assert row["connector_id"] != 0
+            assert row["energy_display_wh"] == row["energy_wh"]
+        else:
+            assert row["energy_display_wh"] is None
+        if row["energy_display_wh"] is not None:
+            assert f'{row["energy_display_wh"] / 1000:.2f} kWh' in html.text
