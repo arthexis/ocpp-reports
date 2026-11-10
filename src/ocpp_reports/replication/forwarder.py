@@ -96,7 +96,7 @@ def collector_status(state: Path, source_id: str, endpoint: str, token: str,
     if type(status.get("reset_required", False)) is not bool:
         raise ValueError("Invalid RESET_REQUIRED signal")
     if status.get("reset_required"):
-        raise ValueError("RESET_REQUIRED: durable recovery session not yet available")
+        return status
     state.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(state) as db:
         db.execute("""CREATE TABLE IF NOT EXISTS collector_bindings (
@@ -106,13 +106,91 @@ def collector_status(state: Path, source_id: str, endpoint: str, token: str,
             "SELECT generation FROM collector_bindings WHERE source_id=?",
             (source_id,),
         ).fetchone()
-        if prior and prior[0] != status["generation"]:
+        if prior and prior[0] != status["generation"] and not status.get("reset_required"):
             raise ValueError("Collector generation changed; recovery handshake required")
-        if not prior and confirmed_cursor(state, source_id) > status["cursor"]:
+        if not prior and confirmed_cursor(state, source_id) > status["cursor"] and not status.get("reset_required"):
             raise ValueError("Cannot bind existing Forwarder ACK to an older Collector")
         db.execute("INSERT OR IGNORE INTO collector_bindings VALUES (?,?)",
                    (source_id, status["generation"]))
     return status
+
+
+
+def recovery_once(database: Path, state: Path, source_id: str, evidence_source: str,
+                  endpoint: str, token: str, generation: str, client: httpx.Client,
+                  *, limit: int) -> int:
+    """Durable recovery cursor independent of monotonic normal ACK."""
+    headers = {"Authorization": "Bearer " + token}
+    with sqlite3.connect(state) as db:
+        db.execute("""CREATE TABLE IF NOT EXISTS forward_recovery (
+            source_id TEXT PRIMARY KEY, generation TEXT NOT NULL,
+            session_id TEXT, cursor INTEGER NOT NULL DEFAULT 0
+        )""")
+        old = db.execute("SELECT generation,session_id,cursor FROM forward_recovery WHERE source_id=?",
+                         (source_id,)).fetchone()
+        if old and old[0] != generation:
+            raise ValueError("Recovery generation changed")
+        if not old:
+            db.execute("INSERT INTO forward_recovery VALUES (?,?,NULL,0)",
+                       (source_id, generation))
+    with sqlite3.connect(state) as db:
+        row = db.execute("SELECT session_id,cursor FROM forward_recovery WHERE source_id=?",
+                         (source_id,)).fetchone()
+    session, cursor = row
+    start = client.post(endpoint + "/recovery/start",
+                        json={"source_id": source_id, "generation": generation,
+                              "session_id": session},
+                        headers=headers)
+    start.raise_for_status()
+    receipt = start.json()
+    if (receipt.get("schema") != "ocpp-reports/recovery/v1"
+            or receipt.get("source_id") != source_id
+            or receipt.get("generation") != generation
+            or not isinstance(receipt.get("session_id"), str)
+            or not receipt["session_id"]
+            or type(receipt.get("cursor")) is not int
+            or receipt["cursor"] < cursor
+            or (session is not None and receipt["session_id"] != session)):
+        raise ValueError("Invalid recovery session receipt")
+    session = receipt["session_id"]
+    cursor = receipt["cursor"]
+    with sqlite3.connect(state) as db:
+        db.execute("UPDATE forward_recovery SET session_id=?,cursor=? WHERE source_id=?",
+                   (session, cursor, source_id))
+    batch = changes_page(database, evidence_source, after=cursor, limit=limit)
+    if not batch["changes"]:
+        if cursor == 0:
+            raise ValueError("Cannot recover without retained journal evidence")
+        finish = client.post(endpoint + "/recovery/finish",
+                             json={"source_id": source_id, "generation": generation,
+                                   "session_id": session, "cursor": cursor}, headers=headers)
+        finish.raise_for_status()
+        done = finish.json()
+        if (done.get("schema") != "ocpp-reports/recovery/v1"
+                or done.get("source_id") != source_id
+                or done.get("generation") != generation
+                or done.get("session_id") != session
+                or done.get("cursor") != cursor
+                or done.get("complete") is not True):
+            raise ValueError("Invalid recovery completion receipt")
+        with sqlite3.connect(state) as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("UPDATE collector_bindings SET generation=? WHERE source_id=?",
+                       (generation, source_id))
+            db.execute("DELETE FROM forward_recovery WHERE source_id=?", (source_id,))
+        return confirmed_cursor(state, source_id)
+    batch["source_id"] = source_id
+    batch["recovery_generation"] = generation
+    batch["recovery_session"] = session
+    response = client.post(endpoint, json=batch, headers=headers)
+    response.raise_for_status()
+    ack = response.json()
+    if ack.get("source_id") != source_id or ack.get("ack") != batch["next"]:
+        raise ValueError("Recovery acknowledgement mismatch")
+    with sqlite3.connect(state) as db:
+        db.execute("UPDATE forward_recovery SET cursor=? WHERE source_id=? AND cursor<=?",
+                   (batch["next"], source_id, batch["next"]))
+    return confirmed_cursor(state, source_id)
 
 
 def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
@@ -138,7 +216,10 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
         client = httpx.Client(timeout=10)
     try:
         if not batch["changes"]:
-            collector_status(state, source_id, endpoint, token, client)
+            status = collector_status(state, source_id, endpoint, token, client)
+            if status.get("reset_required"):
+                return recovery_once(database, state, source_id, evidence_source,
+                                     endpoint, token, status["generation"], client, limit=limit)
             return after
         response = client.post(endpoint, json=batch,
                                headers={"Authorization": "Bearer " + token})
