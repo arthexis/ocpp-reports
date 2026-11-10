@@ -7,12 +7,13 @@ from __future__ import annotations
 import hmac
 import json
 import sqlite3
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
-from ..warehouse.collector_schema import ensure_collector_schema, collector_generation
+from ..warehouse.collector_schema import ensure_collector_schema, collector_generation, ensure_recovery_schema
 
 
 class Change(BaseModel):
@@ -29,6 +30,15 @@ class Batch(BaseModel):
     next: int = Field(ge=0)
     more: bool
     changes: list[Change] = Field(max_length=500)
+    recovery_session: str | None = None
+    recovery_generation: str | None = None
+
+
+class RecoveryRequest(BaseModel):
+    source_id: str = Field(min_length=1)
+    generation: str = Field(min_length=1)
+    session_id: str | None = None
+    cursor: int | None = Field(default=None, ge=0)
 
 
 class ReadyRequest(BaseModel):
@@ -58,7 +68,18 @@ def accept_batch(database: Path, batch: Batch) -> int:
     with sqlite3.connect(database) as db:
         ensure_collector_schema(db)
         db.commit()
+        ensure_recovery_schema(db)
+        db.commit()
         db.execute("BEGIN IMMEDIATE")
+        session = db.execute("SELECT generation,session_id,cursor,state FROM collector_recovery WHERE source_id=?",
+                             (batch.source_id,)).fetchone()
+        if session and session[3] == "active":
+            if (batch.recovery_generation, batch.recovery_session) != session[:2]:
+                raise SourceHeldError("Recovery writer fence active")
+            if batch.after > session[2]:
+                raise ValueError("Recovery cursor gap")
+        elif batch.recovery_session or batch.recovery_generation:
+            raise ValueError("Recovery session not active")
         if db.execute("SELECT 1 FROM collector_source_holds WHERE source_id=?",
                       (batch.source_id,)).fetchone():
             raise SourceHeldError("Source forwarding held for maintenance")
@@ -86,6 +107,9 @@ def accept_batch(database: Path, batch: Batch) -> int:
                 WHERE excluded.sequence > collector_latest.sequence""",
                 (batch.source_id, change.kind, change.record_key, change.sequence, encoded))
         cursor = max(cursor, batch.next)
+        if session and session[3] == "active":
+            db.execute("UPDATE collector_recovery SET cursor=? WHERE source_id=?",
+                       (cursor, batch.source_id))
         # Receipt freshness advances only when new contiguous evidence is stored.
         if positions and any(position > (row[0] if row else 0) for position in positions):
             db.execute("""INSERT INTO collector_receipts VALUES (?,?,?)
@@ -106,6 +130,68 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
                   openapi_url=None)
     warehouse = Path(database)
 
+
+    def authenticate(source_id: str, authorization: str | None) -> None:
+        expected = credentials.get(source_id)
+        if not expected or not authorization or not hmac.compare_digest(
+            authorization, "Bearer " + expected
+        ):
+            raise HTTPException(401, "Invalid source credentials",
+                                headers={"WWW-Authenticate": "Bearer"})
+
+    @app.post("/api/replication/recovery/start")
+    def recovery_start(query: RecoveryRequest, authorization: str | None = Header(default=None)):
+        authenticate(query.source_id, authorization)
+        with sqlite3.connect(warehouse) as db:
+            ensure_collector_schema(db)
+            ensure_recovery_schema(db)
+            generation = collector_generation(db)
+            db.commit()
+            db.execute("BEGIN IMMEDIATE")
+            if generation != query.generation:
+                raise HTTPException(409, "Collector generation mismatch")
+            if db.execute("SELECT 1 FROM collector_source_holds WHERE source_id=?",
+                          (query.source_id,)).fetchone():
+                raise HTTPException(409, "Source held")
+            old = db.execute("SELECT generation,session_id,cursor,state FROM collector_recovery WHERE source_id=?",
+                             (query.source_id,)).fetchone()
+            if old:
+                if old[0] != generation or old[3] != "active":
+                    raise HTTPException(409, "Recovery already completed or incompatible")
+                if query.session_id and query.session_id != old[1]:
+                    raise HTTPException(409, "Recovery session mismatch")
+                session_id, cursor = old[1], old[2]
+            else:
+                if query.session_id:
+                    raise HTTPException(409, "Unknown recovery session")
+                if any(db.execute("SELECT 1 FROM " + table + " WHERE source_id=? LIMIT 1",
+                                  (query.source_id,)).fetchone()
+                       for table in ("collector_changes", "collector_latest", "collector_cursors")):
+                    raise HTTPException(409, "Recovery requires empty source")
+                session_id, cursor = str(uuid.uuid4()), 0
+                db.execute("INSERT INTO collector_recovery VALUES (?,?,?,?,?)",
+                           (query.source_id, generation, session_id, 0, "active"))
+        return {"schema": "ocpp-reports/recovery/v1", "source_id": query.source_id,
+                "generation": generation, "session_id": session_id, "cursor": cursor}
+
+    @app.post("/api/replication/recovery/finish")
+    def recovery_finish(query: RecoveryRequest, authorization: str | None = Header(default=None)):
+        authenticate(query.source_id, authorization)
+        with sqlite3.connect(warehouse) as db:
+            ensure_recovery_schema(db)
+            db.commit()
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT generation,session_id,cursor,state FROM collector_recovery WHERE source_id=?",
+                             (query.source_id,)).fetchone()
+            if (not row or (query.generation, query.session_id) != row[:2]
+                    or query.cursor != row[2]):
+                raise HTTPException(409, "Recovery finish mismatch")
+            if row[3] == "active":
+                db.execute("UPDATE collector_recovery SET state='complete' WHERE source_id=?",
+                           (query.source_id,))
+        return {"schema": "ocpp-reports/recovery/v1", "source_id": query.source_id,
+                "generation": query.generation, "session_id": query.session_id,
+                "cursor": query.cursor, "complete": True}
 
     @app.post("/api/replication/status")
     def replication_status(query: ReadyRequest, authorization: str | None = Header(default=None)):
