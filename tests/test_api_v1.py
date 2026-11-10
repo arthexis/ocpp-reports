@@ -696,3 +696,19 @@ def test_real_sqlite_soc_energy_html_api_parity_and_missing_values(
     assert "31%" in html.text and "79%" in html.text
     assert "2.50" in html.text
     assert "—" in html.text
+
+
+def test_real_sqlite_canonical_panel_projections(integrated_dashboard_warehouse):
+    """Summary, station and filter endpoints must use canonical panel projections."""
+    from datetime import datetime, timezone
+    from ocpp_reports.web import dashboard_summary, dashboard_stations, dashboard_filters
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",)))
+    snapshot = client.get("/api/snapshot").json()
+    assert client.get("/api/v1/summary").json() == dashboard_summary(snapshot)
+    assert client.get("/api/v1/filters").json() == dashboard_filters(snapshot)
+    stations = client.get("/api/v1/stations").json()
+    expected = dashboard_stations(snapshot, now=datetime.now(timezone.utc))
+    assert [(s["source_id"], s["charger_id"]) for s in stations["items"]] == [
+        (s["source_id"], s["charger_id"]) for s in expected["items"]]
+    assert all(s["source_id"] == "tenant-a" for s in stations["items"])
