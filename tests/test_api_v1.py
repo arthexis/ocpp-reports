@@ -841,3 +841,41 @@ def test_supported_csms_export_v1_empty_dashboard_and_api_contract(tmp_path):
     assert client.get("/api/v1/transactions").json()["items"] == []
     assert client.get("/api/v1/filters").json()["source_ids"] == ["legacy-site"]
     assert client.get("/api/v1/connectors", params={"source_id": "other"}).status_code == 403
+
+
+def test_existing_sqlite_observations_survive_schema_upgrade(tmp_path):
+    """Upgrade an existing warehouse in place without losing historical evidence."""
+    import json
+    import sqlite3
+    from ocpp_reports.warehouse.schema import _schema
+
+    database = tmp_path / "existing-reports.sqlite"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE sources (source_id TEXT PRIMARY KEY, cursor INTEGER NOT NULL DEFAULT 0)")
+        db.execute("INSERT INTO sources(source_id,cursor) VALUES ('site-a', 12)")
+        db.execute("""CREATE TABLE transaction_observations (
+            source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
+            transaction_id INTEGER NOT NULL, page_after INTEGER NOT NULL,
+            page_next INTEGER NOT NULL, fingerprint TEXT NOT NULL,
+            payload TEXT NOT NULL, imported_at TEXT NOT NULL,
+            PRIMARY KEY(source_id,charger_id,transaction_id,page_after,page_next,fingerprint)
+        )""")
+        db.execute("""INSERT INTO transaction_observations VALUES (?,?,?,?,?,?,?,?)""",
+                   ("site-a", "CP1", 42, 0, 12, "old-fingerprint",
+                    json.dumps({"id": 42, "charger_id": "CP1", "energy_wh": 2000}),
+                    "2026-01-01T00:00:00Z"))
+    with sqlite3.connect(database) as db:
+        _schema(db)
+        _schema(db)
+        assert db.execute("SELECT cursor FROM sources WHERE source_id='site-a'").fetchone()[0] == 12
+        assert db.execute("SELECT count(*) FROM transaction_observations").fetchone()[0] == 1
+        assert db.execute("SELECT count(*) FROM current_transactions").fetchone()[0] == 1
+        assert db.execute("SELECT transaction_id FROM current_transactions").fetchone()[0] == 42
+        assert "last_ingested_at" in {
+            row[1] for row in db.execute("PRAGMA table_info(sources)")
+        }
+    client = TestClient(web.create_app(database, allowed_source_ids=("site-a",)))
+    assert client.get("/").status_code == 200
+    result = client.get("/api/v1/transactions")
+    assert result.status_code == 200
+    assert any(row.get("id") == 42 for row in result.json()["items"])
