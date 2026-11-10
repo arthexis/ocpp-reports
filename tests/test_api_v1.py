@@ -942,7 +942,6 @@ def test_collector_rebuild_from_forwarder_changefeed_without_migration(tmp_path)
 
 def test_explicit_replay_to_fresh_collector_keeps_forwarder_ack(tmp_path):
     """Rebuild through authenticated HTTP without changing production ACK state."""
-    import httpx
     import json
     import sqlite3
     import pytest
@@ -970,12 +969,12 @@ def test_explicit_replay_to_fresh_collector_keeps_forwarder_ack(tmp_path):
             "test-secret", limit=1, client=client,
         ) == 2
         assert confirmed_cursor(state, "node-a") == 999
-        with pytest.raises(httpx.HTTPStatusError) as rejected:
+        with pytest.raises(Exception) as rejected:
             replay_to_fresh_collector(
                 local, "node-a", "http://127.0.0.1:8080/api/replication",
                 "test-secret", limit=1, client=client,
             )
-        assert rejected.value.response.status_code == 409
+        assert getattr(getattr(rejected.value, "response", None), "status_code", None) == 409
     with sqlite3.connect(remote) as db:
         assert db.execute("SELECT count(*) FROM collector_changes").fetchone()[0] == 2
         assert db.execute("SELECT sequence FROM collector_cursors").fetchone()[0] == 2
