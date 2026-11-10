@@ -31,6 +31,10 @@ def test_forwarder_retries_without_advancing_cursor(tmp_path):
     assert confirmed_cursor(state, "sat-a") == 0
 
     def success(request):
+        if request.url.path.endswith("/status"):
+            return httpx.Response(200, json={"schema": "ocpp-reports/status/v1",
+                "source_id": "sat-a", "generation": "collector-one",
+                "cursor": 1, "held": False, "has_evidence": True})
         return httpx.Response(200, json={"source_id": "sat-a", "ack": 1})
 
     with httpx.Client(transport=httpx.MockTransport(success)) as client:
@@ -79,3 +83,31 @@ def test_forwarder_refuses_ambiguous_local_sources(tmp_path):
         forward_once(warehouse, state, "source-b",
                      "https://collector.test/api/replication", "secret")
     assert not state.exists()
+
+
+
+def test_idle_probe_rejects_wrong_source_and_generation_change(tmp_path):
+    from ocpp_reports.replication.forwarder import collector_status, save_cursor
+    state = tmp_path / "state.sqlite"
+    def handler(request):
+        return httpx.Response(200, json={
+            "schema": "ocpp-reports/status/v1", "source_id": "node-a",
+            "generation": "first", "cursor": 0, "held": False, "has_evidence": False,
+        })
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        assert collector_status(state, "node-a", "https://example.test/api/replication",
+                                "token", client)["generation"] == "first"
+    def replaced(request):
+        return httpx.Response(200, json={
+            "schema": "ocpp-reports/status/v1", "source_id": "node-a",
+            "generation": "second", "cursor": 0, "held": False, "has_evidence": False,
+        })
+    with httpx.Client(transport=httpx.MockTransport(replaced)) as client:
+        with pytest.raises(ValueError, match="generation changed"):
+            collector_status(state, "node-a", "https://example.test/api/replication",
+                             "token", client)
+    assert not (tmp_path / "missing.sqlite").exists()
+    save_cursor(state, "node-a", 12)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        assert collector_status(state, "node-a", "https://example.test/api/replication",
+                                "token", client)["generation"] == "first"
