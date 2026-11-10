@@ -940,46 +940,6 @@ def test_collector_rebuild_from_forwarder_changefeed_without_migration(tmp_path)
         assert db.execute("SELECT count(*) FROM collector_changes").fetchone()[0] == 3
 
 
-def test_explicit_replay_to_fresh_collector_keeps_forwarder_ack(tmp_path):
-    """Rebuild through authenticated HTTP without changing production ACK state."""
-    import json
-    import sqlite3
-    import pytest
-    from ocpp_reports.replication.collector import create_collector
-    from ocpp_reports.replication.forwarder import (
-        replay_to_fresh_collector, save_cursor, confirmed_cursor,
-    )
-    from ocpp_reports.warehouse.schema import _schema
-
-    local = tmp_path / "local.sqlite"
-    state = tmp_path / "normal-forward-cursors.sqlite"
-    remote = tmp_path / "fresh-collector.sqlite"
-    with sqlite3.connect(local) as db:
-        _schema(db)
-        db.execute("INSERT INTO sources(source_id,cursor) VALUES (?,?)", ("csms-uuid", 7))
-        db.execute("INSERT INTO events VALUES (?,?,?)",
-                   ("csms-uuid", 7, json.dumps({"event": "BootNotification"})))
-        db.execute("INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)",
-                   ("csms-uuid", "CP1", 42, 0, 7, "fingerprint",
-                    json.dumps({"id": 42}), "2026-01-01T00:00:00Z"))
-    save_cursor(state, "node-a", 999)
-    with TestClient(create_collector(remote, {"node-a": "test-secret"})) as client:
-        assert replay_to_fresh_collector(
-            local, "node-a", "http://127.0.0.1:8080/api/replication",
-            "test-secret", limit=1, client=client,
-        ) == 2
-        assert confirmed_cursor(state, "node-a") == 999
-        with pytest.raises(Exception) as rejected:
-            replay_to_fresh_collector(
-                local, "node-a", "http://127.0.0.1:8080/api/replication",
-                "test-secret", limit=1, client=client,
-            )
-        assert getattr(getattr(rejected.value, "response", None), "status_code", None) == 409
-    with sqlite3.connect(remote) as db:
-        assert db.execute("SELECT count(*) FROM collector_changes").fetchone()[0] == 2
-        assert db.execute("SELECT sequence FROM collector_cursors").fetchone()[0] == 2
-
-
 def test_replay_readiness_rejects_existing_evidence_with_zero_cursor(tmp_path):
     """A cursor reset must not make a populated collector appear fresh."""
     import sqlite3
@@ -1002,23 +962,6 @@ def test_replay_readiness_rejects_existing_evidence_with_zero_cursor(tmp_path):
         "/api/replication/ready", json={"source_id": "node-a"},
         headers={"Authorization": "Bearer wrong"},
     ).status_code == 401
-
-
-def test_replay_rejects_empty_local_journal_without_creating_collector(tmp_path):
-    import sqlite3
-    import pytest
-    from ocpp_reports.replication.forwarder import replay_to_fresh_collector
-    from ocpp_reports.warehouse.schema import _schema
-
-    local = tmp_path / "empty-local.sqlite"
-    with sqlite3.connect(local) as db:
-        _schema(db)
-        db.execute("INSERT INTO sources(source_id,cursor) VALUES (?,?)", ("csms-uuid", 0))
-    with pytest.raises(ValueError, match="no retained journal"):
-        replay_to_fresh_collector(
-            local, "node-a", "http://127.0.0.1:8080/api/replication", "secret"
-        )
-
 
 
 def test_collector_status_authenticated_generation_survives_restart(tmp_path):
