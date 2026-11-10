@@ -57,6 +57,10 @@ def test_forwarder_uses_node_name_with_distinct_local_evidence_uuid(tmp_path):
     def received(request):
         import json
         body = json.loads(request.content)
+        if request.url.path.endswith("/status"):
+            return httpx.Response(200, json={"schema": "ocpp-reports/status/v1",
+                "source_id": "source-b", "generation": "collector-one",
+                "cursor": 1, "held": False, "has_evidence": True})
         assert body["source_id"] == "source-b"
         assert body["changes"]
         return httpx.Response(200, json={"source_id": "source-b", "ack": body["next"]})
@@ -111,3 +115,42 @@ def test_idle_probe_rejects_wrong_source_and_generation_change(tmp_path):
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         assert collector_status(state, "node-a", "https://example.test/api/replication",
                                 "token", client)["generation"] == "first"
+
+
+
+@pytest.mark.parametrize("response", [
+    {"schema": "ocpp-reports/status/v1", "source_id": "other",
+     "generation": "first", "cursor": 0, "held": False, "has_evidence": False},
+    {"schema": "ocpp-reports/status/v1", "source_id": "node-a",
+     "generation": "first", "cursor": True, "held": False, "has_evidence": False},
+    {"schema": "ocpp-reports/status/v1", "source_id": "node-a",
+     "generation": "first", "cursor": 0, "held": "false", "has_evidence": False},
+    {"schema": "ocpp-reports/status/v1", "source_id": "node-a",
+     "generation": "", "cursor": 0, "held": False, "has_evidence": False},
+])
+def test_collector_status_rejects_invalid_or_cross_source_receipts(tmp_path, response):
+    from ocpp_reports.replication.forwarder import collector_status
+    state = tmp_path / "state.sqlite"
+    with httpx.Client(transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, json=response)
+    )) as client:
+        with pytest.raises(ValueError, match="Invalid authenticated"):
+            collector_status(state, "node-a", "https://example.test/api/replication",
+                             "secret", client)
+    assert not state.exists()
+
+
+def test_collector_status_refuses_unbound_ack_regression(tmp_path):
+    from ocpp_reports.replication.forwarder import collector_status, save_cursor
+    state = tmp_path / "state.sqlite"
+    save_cursor(state, "node-a", 77)
+    receipt = {"schema": "ocpp-reports/status/v1", "source_id": "node-a",
+               "generation": "new", "cursor": 0,
+               "held": False, "has_evidence": False}
+    with httpx.Client(transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, json=receipt)
+    )) as client:
+        with pytest.raises(ValueError, match="older Collector"):
+            collector_status(state, "node-a", "https://example.test/api/replication",
+                             "secret", client)
+    assert confirmed_cursor(state, "node-a") == 77
