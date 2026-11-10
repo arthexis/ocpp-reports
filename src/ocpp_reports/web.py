@@ -333,6 +333,33 @@ def _group_events(events: list[dict]) -> list[dict]:
     return groups
 
 
+def dashboard_summary(data: dict) -> dict:
+    """Canonical operational summary across all scoped connectors."""
+    return {"status_counts": _operational_status_counts(data["connectors"])}
+
+
+def dashboard_stations(data: dict, *, now: datetime) -> dict:
+    """Canonical station grouping from the same connector projection as HTML."""
+    rows = project_dashboard_connectors(data, now=now)["connectors"]
+    grouped: dict[tuple[str, str], list[dict]] = {}
+    for row in rows:
+        grouped.setdefault((row["source_id"], row["charger_id"]), []).append(row)
+    return {"items": [
+        {"source_id": source, "charger_id": charger, "connectors": connectors}
+        for (source, charger), connectors in grouped.items()
+    ]}
+
+
+def dashboard_filters(data: dict) -> dict:
+    """Canonical source-scoped filter options from visible connectors."""
+    rows = data["connectors"]
+    return {
+        "source_ids": sorted({r["source_id"] for r in rows if r.get("source_id")}),
+        "charger_ids": sorted({r["charger_id"] for r in rows if r.get("charger_id")}),
+        "locations": sorted({r["location"] for r in rows if r.get("location")}),
+    }
+
+
 def dashboard_transaction_page(*, term: str, status: str, location: str,
                                date_from: str, date_to: str, zone: str,
                                view: str, page: int) -> dict:
