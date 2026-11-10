@@ -115,8 +115,11 @@ def test_conversion_then_forwarding_has_no_replay_or_gap(tmp_path):
     sent = []
 
     def receive(request):
-        sent.append(json.loads(request.content))
-        response = receiver.post("/api/replication", json=sent[-1],
+        payload = json.loads(request.content)
+        is_status = request.url.path.endswith("/status")
+        if not is_status:
+            sent.append(payload)
+        response = receiver.post("/api/replication" + ("/status" if is_status else ""), json=payload,
                                  headers={"Authorization": request.headers["Authorization"]})
         return httpx.Response(response.status_code, json=response.json())
 
