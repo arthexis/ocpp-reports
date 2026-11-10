@@ -1018,3 +1018,36 @@ def test_replay_rejects_empty_local_journal_without_creating_collector(tmp_path)
         replay_to_fresh_collector(
             local, "node-a", "http://127.0.0.1:8080/api/replication", "secret"
         )
+
+
+
+def test_collector_status_authenticated_generation_survives_restart(tmp_path):
+    """Idle probe binds to source and stable on-disk generation."""
+    from ocpp_reports.replication.collector import create_collector
+    database = tmp_path / "collector.sqlite"
+    app = create_collector(database, {"node-a": "token-a", "node-b": "token-b"})
+    with TestClient(app) as client:
+        url = "/api/replication/status"
+        assert client.post(url, json={"source_id": "node-a"}).status_code == 401
+        assert client.post(url, json={"source_id": "node-b"},
+                           headers={"Authorization": "Bearer token-a"}).status_code == 401
+        first = client.post(url, json={"source_id": "node-a"},
+                            headers={"Authorization": "Bearer token-a"})
+        assert first.status_code == 200
+        result = first.json()
+        assert result["schema"] == "ocpp-reports/status/v1"
+        assert result["source_id"] == "node-a"
+        assert result["cursor"] == 0
+        assert result["has_evidence"] is False
+        assert result["held"] is False
+        assert isinstance(result["generation"], str) and result["generation"]
+    with TestClient(create_collector(database, {"node-a": "token-a"})) as client:
+        second = client.post("/api/replication/status", json={"source_id": "node-a"},
+                             headers={"Authorization": "Bearer token-a"})
+        assert second.status_code == 200
+        assert second.json()["generation"] == result["generation"]
+    with TestClient(create_collector(tmp_path / "new.sqlite", {"node-a": "token-a"})) as client:
+        replacement = client.post("/api/replication/status", json={"source_id": "node-a"},
+                                  headers={"Authorization": "Bearer token-a"})
+        assert replacement.status_code == 200
+        assert replacement.json()["generation"] != result["generation"]
