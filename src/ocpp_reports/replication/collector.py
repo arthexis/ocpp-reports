@@ -156,8 +156,8 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
             old = db.execute("SELECT generation,session_id,cursor,state FROM collector_recovery WHERE source_id=?",
                              (query.source_id,)).fetchone()
             if old:
-                if old[0] != generation or old[3] != "active":
-                    raise HTTPException(409, "Recovery already completed or incompatible")
+                if old[0] != generation:
+                    raise HTTPException(409, "Recovery generation incompatible")
                 if query.session_id and query.session_id != old[1]:
                     raise HTTPException(409, "Recovery session mismatch")
                 session_id, cursor = old[1], old[2]
