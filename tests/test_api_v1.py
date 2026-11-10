@@ -942,6 +942,7 @@ def test_collector_rebuild_from_forwarder_changefeed_without_migration(tmp_path)
 
 def test_explicit_replay_to_fresh_collector_keeps_forwarder_ack(tmp_path):
     """Rebuild through authenticated HTTP without changing production ACK state."""
+    import httpx
     import json
     import sqlite3
     import pytest
