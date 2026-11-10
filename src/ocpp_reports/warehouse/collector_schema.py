@@ -1,6 +1,7 @@
 """Idempotent collector table initialization, separate from request processing."""
 from __future__ import annotations
 import sqlite3
+import uuid
 
 
 def ensure_collector_schema(db: sqlite3.Connection) -> None:
@@ -25,3 +26,13 @@ def ensure_collector_schema(db: sqlite3.Connection) -> None:
         db.execute("""CREATE TABLE IF NOT EXISTS collector_source_holds (
             source_id TEXT PRIMARY KEY, held_at TEXT NOT NULL
         )""")
+
+
+def collector_generation(db: sqlite3.Connection) -> str:
+    """Durable identity of a Collector database; unchanged across process restarts."""
+    db.execute("""CREATE TABLE IF NOT EXISTS collector_identity (
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+        generation TEXT NOT NULL
+    )""")
+    db.execute("INSERT OR IGNORE INTO collector_identity VALUES (1, ?)", (str(uuid.uuid4()),))
+    return db.execute("SELECT generation FROM collector_identity WHERE singleton=1").fetchone()[0]
