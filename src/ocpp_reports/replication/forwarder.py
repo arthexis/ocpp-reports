@@ -106,7 +106,10 @@ def collector_status(state: Path, source_id: str, endpoint: str, token: str,
             "SELECT generation FROM collector_bindings WHERE source_id=?",
             (source_id,),
         ).fetchone()
-        if prior and prior[0] != status["generation"] and not status.get("reset_required"):
+        active_recovery = (db.execute("SELECT 1 FROM sqlite_master WHERE name='forward_recovery'").fetchone()
+                           and db.execute("SELECT 1 FROM forward_recovery WHERE source_id=? AND generation=?",
+                                          (source_id, status["generation"])).fetchone())
+        if prior and prior[0] != status["generation"] and not (status.get("reset_required") or active_recovery):
             raise ValueError("Collector generation changed; recovery handshake required")
         if not prior and confirmed_cursor(state, source_id) > status["cursor"] and not status.get("reset_required"):
             raise ValueError("Cannot bind existing Forwarder ACK to an older Collector")
