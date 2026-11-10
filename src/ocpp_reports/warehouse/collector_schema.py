@@ -36,3 +36,11 @@ def collector_generation(db: sqlite3.Connection) -> str:
     )""")
     db.execute("INSERT OR IGNORE INTO collector_identity VALUES (1, ?)", (str(uuid.uuid4()),))
     return db.execute("SELECT generation FROM collector_identity WHERE singleton=1").fetchone()[0]
+
+
+def ensure_recovery_schema(db: sqlite3.Connection) -> None:
+    db.execute("""CREATE TABLE IF NOT EXISTS collector_recovery (
+        source_id TEXT PRIMARY KEY, generation TEXT NOT NULL,
+        session_id TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0,
+        state TEXT NOT NULL CHECK(state IN ('active','complete'))
+    )""")
