@@ -154,3 +154,58 @@ def test_collector_status_refuses_unbound_ack_regression(tmp_path):
             collector_status(state, "node-a", "https://example.test/api/replication",
                              "secret", client)
     assert confirmed_cursor(state, "node-a") == 77
+
+
+
+def test_generic_recovery_rebuilds_and_keeps_normal_ack(tmp_path):
+    import json
+    import sqlite3
+    from fastapi.testclient import TestClient
+    from ocpp_reports.replication.collector import create_collector
+    from ocpp_reports.replication.forwarder import save_cursor
+    warehouse, state, collector = (tmp_path / x for x in
+                                    ("local.sqlite", "state.sqlite", "collector.sqlite"))
+    sync_page(warehouse, page())
+    save_cursor(state, "sat-a", 1)
+    receiver = TestClient(create_collector(collector, {"sat-a": "secret"}))
+    def relay(request):
+        reply = receiver.post(request.url.path, json=json.loads(request.content),
+                              headers={"Authorization": request.headers["Authorization"]})
+        return httpx.Response(reply.status_code, json=reply.json())
+    with httpx.Client(transport=httpx.MockTransport(relay)) as client:
+        for _ in range(4):
+            assert forward_once(warehouse, state, "sat-a",
+                                "https://collector.test/api/replication",
+                                "secret", client=client) == 1
+    with sqlite3.connect(collector) as db:
+        assert db.execute("SELECT sequence FROM collector_cursors WHERE source_id='sat-a'").fetchone() == (1,)
+        assert db.execute("SELECT state FROM collector_recovery WHERE source_id='sat-a'").fetchone() == ("complete",)
+    assert confirmed_cursor(state, "sat-a") == 1
+
+
+def test_recovery_fences_normal_writers_and_rejects_wrong_generation(tmp_path):
+    from fastapi.testclient import TestClient
+    from ocpp_reports.replication.collector import create_collector
+    with TestClient(create_collector(tmp_path / "collector.sqlite", {"a": "secret"})) as client:
+        auth = {"Authorization": "Bearer secret"}
+        status = client.post("/api/replication/status",
+                             json={"source_id": "a", "forward_ack": 12}, headers=auth).json()
+        generation = status["generation"]
+        assert client.post("/api/replication/recovery/start",
+                           json={"source_id": "a", "generation": "wrong"}, headers=auth).status_code == 409
+        start = client.post("/api/replication/recovery/start",
+                            json={"source_id": "a", "generation": generation}, headers=auth)
+        assert start.status_code == 200
+        session = start.json()["session_id"]
+        assert client.post("/api/replication/recovery/start",
+                           json={"source_id": "a", "generation": generation,
+                                 "session_id": session}, headers=auth).json()["session_id"] == session
+        assert client.post("/api/replication", json={
+            "schema": "ocpp-reports/replication/v1", "source_id": "a",
+            "after": 0, "next": 1, "more": False,
+            "changes": [{"sequence": 1, "kind": "event",
+                         "record_key": "one", "payload": {}}]
+        }, headers=auth).status_code == 503
+        assert client.post("/api/replication/recovery/finish",
+                           json={"source_id": "a", "generation": generation,
+                                 "session_id": "wrong", "cursor": 0}, headers=auth).status_code == 409
