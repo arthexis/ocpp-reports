@@ -128,12 +128,13 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
     # Collector identity and cursor use the stable configured node name.
     # The local warehouse retains the CSMS UUID unchanged.
     batch["source_id"] = source_id
-    if not batch["changes"]:
-        return after
     owns_client = client is None
     if client is None:
         client = httpx.Client(timeout=10)
     try:
+        if not batch["changes"]:
+            collector_status(state, source_id, endpoint, token, client)
+            return after
         response = client.post(endpoint, json=batch,
                                headers={"Authorization": "Bearer " + token})
         response.raise_for_status()
