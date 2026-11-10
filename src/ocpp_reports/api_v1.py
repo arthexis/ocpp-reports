@@ -79,7 +79,7 @@ class TransactionsResponse(BaseModel):
     counts: TransactionCounts
 
 from fastapi.responses import JSONResponse
-from .web import project_dashboard_connectors, dashboard_filtered_connectors, _operational_status_counts, _source_freshness, validate_dashboard_window, dashboard_transaction_page
+from .web import project_dashboard_connectors, dashboard_filtered_connectors, _operational_status_counts, _source_freshness, validate_dashboard_window, dashboard_transaction_page, dashboard_summary, dashboard_stations, dashboard_filters
 
 
 def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
@@ -99,7 +99,7 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
     def summary(request: Request, source_id: str | None = None,
                 charger_id: str | None = None):
         data = visible(request, source_id, charger_id, 500, source_evidence=True)
-        return {"status_counts": _operational_status_counts(data["connectors"])}
+        return dashboard_summary(data)
 
     @app.get("/api/v1/connectors", tags=["Dashboard API v1"], response_model=ConnectorsResponse, dependencies=[Depends(documented_auth)])
     def connectors(request: Request, source_id: str | None = None,
@@ -154,20 +154,11 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
     @app.get("/api/v1/stations", tags=["Dashboard API v1"], response_model=StationsResponse, dependencies=[Depends(documented_auth)])
     def stations(request: Request, source_id: str | None = None):
         data = visible(request, source_id, None, 500, source_evidence=True)
-        rows = project_dashboard_connectors(data, now=datetime.now(timezone.utc))["connectors"]
-        groups = {}
-        for row in rows:
-            key = (row.get("source_id"), row.get("charger_id"))
-            groups.setdefault(key, []).append(row)
-        return {"items": [{"source_id": source, "charger_id": charger,
-                           "connectors": items} for (source, charger), items in groups.items()]}
+        return dashboard_stations(data, now=datetime.now(timezone.utc))
 
     @app.get("/api/v1/filters", tags=["Dashboard API v1"], response_model=FiltersResponse, dependencies=[Depends(documented_auth)])
     def filters(request: Request, source_id: str | None = None):
-        rows = visible(request, source_id, None, 500)["connectors"]
-        return {"source_ids": sorted({r["source_id"] for r in rows if r.get("source_id")}),
-                "charger_ids": sorted({r["charger_id"] for r in rows if r.get("charger_id")}),
-                "locations": sorted({r["location"] for r in rows if r.get("location")})}
+        return dashboard_filters(visible(request, source_id, None, 500))
 
     @app.get("/api/v1/openapi.json", include_in_schema=False)
     def openapi_v1():
