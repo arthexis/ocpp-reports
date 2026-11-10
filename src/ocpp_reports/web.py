@@ -360,6 +360,20 @@ def dashboard_filters(data: dict) -> dict:
     }
 
 
+def dashboard_transaction_results(data: dict) -> dict:
+    """Canonical SQL-paginated transaction response for HTML and API.
+
+    Keep the warehouse's counts and page metadata authoritative; do not
+    re-filter or re-page already paginated rows in Python.
+    """
+    info = data["transaction_pagination"]
+    return {
+        "items": data["transactions"], "total": info["total"],
+        "page": info["page"], "pages": info["pages"],
+        "counts": info["counts"],
+    }
+
+
 def dashboard_transaction_page(*, term: str, status: str, location: str,
                                date_from: str, date_to: str, zone: str,
                                view: str, page: int) -> dict:
@@ -567,8 +581,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         if paginated is not None:
-            transaction_counts = paginated["counts"]
-            tx_total, tx_pages, tx_page = paginated["total"], paginated["pages"], paginated["page"]
+            tx_contract = dashboard_transaction_results(data)
+            transaction_counts = tx_contract["counts"]
+            tx_total, tx_pages, tx_page = tx_contract["total"], tx_contract["pages"], tx_contract["page"]
         else:
             # Backward-compatible path for external/injected snapshot providers.
             transaction_counts = {
