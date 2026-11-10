@@ -147,6 +147,10 @@ def replay_to_fresh_collector(database: Path, source_id: str, endpoint: str,
     if not source_id or not token or not 1 <= limit <= 500:
         raise ValueError("Replay requires source, token and bounded batch size")
     evidence_source = local_evidence_source(database)
+    # Reject empty local evidence: an empty replay must not be mistaken for a full rebuild.
+    initial = changes_page(database, evidence_source, after=0, limit=1)
+    if not initial["changes"]:
+        raise ValueError("Replay source has no retained journal entries")
     owns_client = client is None
     if client is None:
         client = httpx.Client(timeout=10)
