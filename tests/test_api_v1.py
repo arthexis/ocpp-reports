@@ -922,7 +922,9 @@ def test_collector_rebuild_from_forwarder_changefeed_without_migration(tmp_path)
             "SELECT sequence,kind,record_key,payload FROM collector_changes "
             "WHERE source_id='node-a' ORDER BY sequence"
         ).fetchall()
-        assert actual == expected
+        assert [(s, k, r, json.loads(p)) for s, k, r, p in actual] == [
+            (s, k, r, json.loads(p)) for s, k, r, p in expected
+        ]
         assert db.execute(
             "SELECT sequence FROM collector_cursors WHERE source_id='node-a'"
         ).fetchone()[0] == cursor
