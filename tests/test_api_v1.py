@@ -774,3 +774,19 @@ def test_real_sqlite_power_energy_display_provenance_parity(integrated_dashboard
             assert row["energy_display_wh"] is None
         if row["energy_display_wh"] is not None:
             assert f'{row["energy_display_wh"] / 1000:.2f} kWh' in html.text
+
+
+def test_real_sqlite_openapi_nullable_provenance_contract(integrated_dashboard_warehouse):
+    """Document stable display fields, including explicit nullable values."""
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",)))
+    schema = client.get("/api/v1/openapi.json").json()["components"]["schemas"]["ConnectorItem"]
+    fields = schema["properties"]
+    for field in ("power_display_w", "energy_display_wh"):
+        assert field in fields
+        assert {"number", "null"} <= {
+            variant.get("type") for variant in fields[field].get("anyOf", [])
+        }
+    for field in ("power_display_source", "energy_display_source"):
+        assert fields[field]["type"] == "string"
+        assert fields[field]["examples"]
