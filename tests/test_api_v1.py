@@ -965,13 +965,13 @@ def test_explicit_replay_to_fresh_collector_keeps_forwarder_ack(tmp_path):
     save_cursor(state, "node-a", 999)
     with TestClient(create_collector(remote, {"node-a": "test-secret"})) as client:
         assert replay_to_fresh_collector(
-            local, "node-a", "http://127.0.0.1/api/replication",
+            local, "node-a", "http://127.0.0.1:8080/api/replication",
             "test-secret", limit=1, client=client,
         ) == 2
         assert confirmed_cursor(state, "node-a") == 999
         with pytest.raises(ValueError, match="fresh"):
             replay_to_fresh_collector(
-                local, "node-a", "http://127.0.0.1/api/replication",
+                local, "node-a", "http://127.0.0.1:8080/api/replication",
                 "test-secret", limit=1, client=client,
             )
     with sqlite3.connect(remote) as db:
