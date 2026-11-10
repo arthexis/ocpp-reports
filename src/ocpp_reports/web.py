@@ -457,6 +457,29 @@ def project_dashboard_connectors(data: dict, *, now: datetime, connector_view: s
         or (connector_view == "individual" and connector.get("connector_id") != 0)
     ]
     for connector in connector_rows:
+        # Explicit display provenance for JSON consumers; keep raw meter fields.
+        if connector.get("power_fresh") and connector.get("power_w") is not None:
+            connector["power_display_w"] = connector["power_w"]
+            connector["power_display_source"] = "measured"
+        elif connector.get("rated_power_w") is not None:
+            connector["power_display_w"] = connector["rated_power_w"]
+            connector["power_display_source"] = "rated"
+        else:
+            connector["power_display_w"] = None
+            connector["power_display_source"] = "unknown"
+        connector["energy_display_wh"] = (
+            connector.get("aggregate_energy_wh")
+            if connector.get("connector_id") == 0
+            else connector.get("energy_wh")
+        )
+        connector["energy_display_source"] = (
+            "aggregate" if connector.get("connector_id") == 0
+            and connector.get("aggregate_energy_wh") is not None
+            else "connector" if connector.get("connector_id") != 0
+            and connector.get("energy_wh") is not None
+            else "unknown"
+        )
+    for connector in connector_rows:
         connector["status_discrepancy_badge"] = discrepancy_badges.get((
             connector.get("source_id"), connector.get("charger_id"),
             connector.get("connector_id")))
