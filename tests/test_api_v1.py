@@ -798,7 +798,10 @@ def test_v1_openapi_validation_errors_and_scoped_denial(integrated_dashboard_war
         integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",)))
     spec = client.get("/api/v1/openapi.json").json()
     for route in ("/api/v1/connectors", "/api/v1/transactions"):
-        assert "422" in spec["paths"][route]["get"]["responses"]
+        responses = spec["paths"][route]["get"]["responses"]
+        assert "422" in responses and "403" in responses
+        assert "tenant" in responses["403"]["description"].lower()
+        assert "validation" in responses["422"]["description"].lower() or "invalid" in responses["422"]["description"].lower()
     assert client.get("/api/v1/transactions", params={"page": 0}).status_code == 422
     assert client.get("/api/v1/connectors", params={"connector_view": "invalid"}).status_code == 422
     assert client.get("/api/v1/connectors", params={"source_id": "tenant-b"}).status_code == 403
