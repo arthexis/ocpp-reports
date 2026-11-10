@@ -76,7 +76,8 @@ def collector_status(state: Path, source_id: str, endpoint: str, token: str,
     if not endpoint.endswith("/api/replication"):
         raise ValueError("Invalid collector replication endpoint")
     response = client.post(
-        endpoint + "/status", json={"source_id": source_id},
+        endpoint + "/status", json={"source_id": source_id,
+                                    "forward_ack": confirmed_cursor(state, source_id)},
         headers={"Authorization": "Bearer " + token},
     )
     response.raise_for_status()
@@ -92,6 +93,10 @@ def collector_status(state: Path, source_id: str, endpoint: str, token: str,
         raise ValueError("Invalid authenticated Collector status")
     if status["held"]:
         raise ValueError("Collector source held")
+    if type(status.get("reset_required", False)) is not bool:
+        raise ValueError("Invalid RESET_REQUIRED signal")
+    if status.get("reset_required"):
+        raise ValueError("RESET_REQUIRED: durable recovery session not yet available")
     state.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(state) as db:
         db.execute("""CREATE TABLE IF NOT EXISTS collector_bindings (
