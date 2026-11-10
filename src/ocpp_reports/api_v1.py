@@ -113,7 +113,7 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
         data = visible(request, source_id, charger_id, 500, source_evidence=True)
         return dashboard_summary(data)
 
-    @app.get("/api/v1/connectors", tags=["Dashboard API v1"], response_model=ConnectorsResponse, dependencies=[Depends(documented_auth)])
+    @app.get("/api/v1/connectors", responses={403: {"description": "Source outside authorized tenant scope"}, 422: {"description": "Invalid filter, view, pagination or timezone"}}, tags=["Dashboard API v1"], response_model=ConnectorsResponse, dependencies=[Depends(documented_auth)])
     def connectors(request: Request, source_id: str | None = None,
                    charger_id: str | None = None, connector_view: str = "combined",
                    filter: str = "", status: str = "", location: str = "",
@@ -144,7 +144,7 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
         return {"items": [{**source, "freshness": _source_freshness(source, now)}
                           for source in data["sources"]]}
 
-    @app.get("/api/v1/transactions", tags=["Dashboard API v1"], response_model=TransactionsResponse, dependencies=[Depends(documented_auth)])
+    @app.get("/api/v1/transactions", responses={403: {"description": "Source outside authorized tenant scope"}, 422: {"description": "Invalid filter, view, pagination or timezone"}}, tags=["Dashboard API v1"], response_model=TransactionsResponse, dependencies=[Depends(documented_auth)])
     def transactions(request: Request, source_id: str | None = None,
                      charger_id: str | None = None,
                      view: str = "all", page: int = Query(1, ge=1),
