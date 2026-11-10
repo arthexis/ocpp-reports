@@ -977,3 +977,27 @@ def test_explicit_replay_to_fresh_collector_keeps_forwarder_ack(tmp_path):
     with sqlite3.connect(remote) as db:
         assert db.execute("SELECT count(*) FROM collector_changes").fetchone()[0] == 2
         assert db.execute("SELECT sequence FROM collector_cursors").fetchone()[0] == 2
+
+
+def test_replay_readiness_rejects_existing_evidence_with_zero_cursor(tmp_path):
+    """A cursor reset must not make a populated collector appear fresh."""
+    import sqlite3
+    from ocpp_reports.replication.collector import create_collector
+    from ocpp_reports.warehouse.collector_schema import ensure_collector_schema
+
+    database = tmp_path / "populated.sqlite"
+    with sqlite3.connect(database) as db:
+        ensure_collector_schema(db)
+        db.execute("INSERT INTO collector_cursors VALUES (?,?)", ("node-a", 0))
+        db.execute("INSERT INTO collector_changes VALUES (?,?,?,?,?)",
+                   ("node-a", 1, "event", "1", '{"event":"BootNotification"}'))
+    client = TestClient(create_collector(database, {"node-a": "secret"}))
+    response = client.post(
+        "/api/replication/ready", json={"source_id": "node-a"},
+        headers={"Authorization": "Bearer secret"},
+    )
+    assert response.status_code == 409
+    assert client.post(
+        "/api/replication/ready", json={"source_id": "node-a"},
+        headers={"Authorization": "Bearer wrong"},
+    ).status_code == 401
