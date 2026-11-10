@@ -790,3 +790,16 @@ def test_real_sqlite_openapi_nullable_provenance_contract(integrated_dashboard_w
     for field in ("power_display_source", "energy_display_source"):
         assert fields[field]["type"] == "string"
         assert fields[field]["examples"]
+
+
+def test_v1_openapi_validation_errors_and_scoped_denial(integrated_dashboard_warehouse):
+    """Document validation failures and reject out-of-scope tenants without leaking data."""
+    client = TestClient(web.create_app(
+        integrated_dashboard_warehouse, allowed_source_ids=("tenant-a",)))
+    spec = client.get("/api/v1/openapi.json").json()
+    for route in ("/api/v1/connectors", "/api/v1/transactions"):
+        assert "422" in spec["paths"][route]["get"]["responses"]
+    assert client.get("/api/v1/transactions", params={"page": 0}).status_code == 422
+    assert client.get("/api/v1/connectors", params={"connector_view": "invalid"}).status_code == 422
+    assert client.get("/api/v1/connectors", params={"source_id": "tenant-b"}).status_code == 403
+    assert client.get("/api/v1/transactions", params={"source_id": "tenant-b"}).status_code == 403
