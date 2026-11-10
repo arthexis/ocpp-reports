@@ -165,8 +165,9 @@ def replay_to_fresh_collector(database: Path, source_id: str, endpoint: str,
         client = httpx.Client(timeout=10)
     try:
         headers = {"Authorization": "Bearer " + token}
-        base = endpoint.rsplit("/", 1)[0]
-        ready = client.post(base + "/ready", json={"source_id": source_id}, headers=headers)
+        if not endpoint.endswith("/api/replication"):
+            raise ValueError("Replay endpoint must end with /api/replication")
+        ready = client.post(endpoint + "/ready", json={"source_id": source_id}, headers=headers)
         ready.raise_for_status()
         receipt = ready.json()
         if (receipt.get("schema") != "ocpp-reports/readiness/v1"
