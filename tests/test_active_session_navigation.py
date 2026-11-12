@@ -45,6 +45,7 @@ def _seed(path, *, tx_id=7, source="a"):
     with sqlite3.connect(path) as db:
         _add(db, source, "transaction", f"cp:{tx_id}", _active(tx_id, (now - timedelta(minutes=12)).isoformat()))
         _add(db, source, "connector", "cp:1", _connector(tx_id, now.isoformat()))
+        db.execute("INSERT INTO collector_receipts VALUES (?,?,?)", (source, now.isoformat(), 1))
     return now
 
 
@@ -58,11 +59,15 @@ def test_current_link_and_progress_with_confirmed_scope(tmp_path):
     assert '/transactions/a/cp/7?tz=UTC' in page.text
     assert "En curso (1)" in page.text
     assert "Mostrando 1–1 de 1" in page.text
+    assert 'href="/?tx_view=active&amp;tz=UTC#transactions"' in page.text
     detail = client.get("/transactions/a/cp/7")
     assert detail.status_code == 200
     assert "34.75 kWh" in detail.text and "Estimada" in detail.text
     assert "7.20 kW" in detail.text and "Medición reciente" in detail.text
     assert "Duración transcurrida (aprox.)" in detail.text
+    assert "window.setInterval(refreshTransaction, 15000)" in detail.text
+    assert "new DOMParser()" in detail.text
+    assert 'http-equiv="refresh"' not in detail.text
     assert "0:12:" in detail.text
     assert "71%" in detail.text
     assert "sin hora de medición verificada" in detail.text
@@ -138,4 +143,5 @@ def test_mobile_navigation_labels_and_source_isolation(tmp_path):
     assert "/transactions/b/cp/7" not in page
     assert "current-session-link" in page
     assert '@media(max-width:520px)' in page
+    assert "min-height:44px" in page
     assert client.get("/transactions/b/cp/7").status_code == 404
