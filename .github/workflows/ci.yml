@@ -50,6 +50,33 @@ jobs:
       - name: Fast preflight (rendered artifacts, shell, Ansible)
         run: bash scripts/preflight.sh --quick
 
+  browser_offline:
+    name: Offline Chromium UI (synthetic fixtures)
+    needs: static_validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install isolated test dependencies
+        run: python -m pip install '.[test]' 'playwright>=1.53,<2'
+      - name: Install Chromium exclusively on temporary CI runner
+        run: python -m playwright install --with-deps chromium
+      - name: Browser acceptance against intercepted synthetic HTTP only
+        env:
+          OCPP_BROWSER_ARTIFACT_DIR: browser-evidence
+        run: python -m pytest tests/test_active_session_browser.py -v
+      - name: Retain synthetic screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-209-offline-chromium
+          path: browser-evidence/*.png
+          if-no-files-found: warn
+          retention-days: 7
+
   systemd_integration:
     name: systemd lifecycle integration
     needs: static_validation
@@ -86,7 +113,7 @@ jobs:
   general:
     name: CI
     if: always()
-    needs: [test, static_validation, systemd_integration, ansible_integration]
+    needs: [test, static_validation, systemd_integration, ansible_integration, browser_offline]
     runs-on: ubuntu-latest
     steps:
       - name: Require all test matrix jobs
@@ -95,8 +122,10 @@ jobs:
           STATIC_RESULT: ${{ needs.static_validation.result }}
           ANSIBLE_RESULT: ${{ needs.ansible_integration.result }}
           SYSTEMD_RESULT: ${{ needs.systemd_integration.result }}
+          BROWSER_RESULT: ${{ needs.browser_offline.result }}
         run: |
           test "$RESULT" = success
           test "$STATIC_RESULT" = success
           test "$ANSIBLE_RESULT" = success
           test "$SYSTEMD_RESULT" = success
+          test "$BROWSER_RESULT" = success
