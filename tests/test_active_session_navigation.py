@@ -55,7 +55,11 @@ def test_current_link_and_progress_with_confirmed_scope(tmp_path):
     client = TestClient(create_app(path, allowed_source_ids=("a",)))
     page = client.get("/?tx_view=active")
     assert page.status_code == 200
-    assert 'aria-label="Ver carga actual del conector 1"' in page.text
+    assert 'class="charger-session-link"' in page.text
+    assert 'class="status-session-link"' in page.text
+    assert "current-session-link" not in page.text
+    assert 'aria-label="Ver carga actual del cargador cp, conector 1"' in page.text
+    assert 'aria-label="Ver carga actual desde el estado del cargador cp, conector 1"' in page.text
     assert '/transactions/a/cp/7?tz=UTC' in page.text
     assert "En curso (1)" in page.text
     assert "Mostrando 1–1 de 1" in page.text
@@ -140,9 +144,12 @@ def test_mobile_navigation_labels_and_source_isolation(tmp_path):
         _add(db, "b", "transaction", "cp:7", _active(7, now.isoformat()))
     client = TestClient(create_app(path, allowed_source_ids=("a",)))
     page = client.get("/?connector_view=individual").text
-    assert page.count('aria-label="Ver carga actual del conector 1"') == 1
+    assert page.count('class="charger-session-link"') == 1
+    assert page.count('class="status-session-link"') == 1
+    assert "current-session-link" not in page
     assert "/transactions/b/cp/7" not in page
-    assert "current-session-link" in page
+    assert "charger-session-link" in page and "status-session-link" in page
     assert '@media(max-width:520px)' in page
     assert "min-height:44px" in page
+    assert "--nav:#203247" in client.get("/transactions/a/cp/7").text
     assert client.get("/transactions/b/cp/7").status_code == 404
