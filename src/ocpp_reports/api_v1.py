@@ -92,7 +92,7 @@ def register_api_v1(app, read, *, timezones: tuple[str, ...] = ("UTC",)):
                      view: str = "all", page: int = Query(1, ge=1),
                      filter: str = "", status: str = "", location: str = "",
                      date_from: str = "", date_to: str = "", tz: str | None = None):
-        if view not in ("all", "success", "failed"):
+        if view not in ("all", "success", "failed", "active"):
             raise HTTPException(422, "Invalid transaction view")
         zone = tz or timezones[0]
         if zone not in timezones:
