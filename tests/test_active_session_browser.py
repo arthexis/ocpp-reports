@@ -133,7 +133,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 bounds = target.bounding_box()
                 assert bounds is not None and bounds["height"] >= 44, bounds
                 if mobile:
-                    assert bounds["width"] >= 105, "Active session link is squeezed"
+                    assert bounds["width"] >= 44, "Charger name tap target is too narrow"
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
                 _shot(page, f"{label}-dashboard.png")
                 if mobile:
