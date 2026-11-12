@@ -111,9 +111,19 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 page.goto("http://reports.test/?tx_view=active", wait_until="load")
                 assert page.get_by_role("button", name="En curso (1)").count() == 1
                 assert page.get_by_role("link", name="Ver carga actual del conector 1").count() == 1
+                if mobile:
+                    badge = page.locator('.connectors-panel td[data-label="Estado"] .status').first
+                    assert badge.evaluate("(node) => getComputedStyle(node).whiteSpace") == "nowrap"
+                    assert badge.evaluate("(node) => node.scrollWidth <= node.clientWidth + 2")
+                    assert badge.bounding_box()["width"] >= 65, "Charging badge too narrow"
+                    for text in ("En curso (1)", "Exitosas (0)", "Fallidas (0)", "Todas (1)"):
+                        button = page.get_by_role("button", name=text)
+                        assert button.is_visible() and button.bounding_box()["width"] >= 55
                 target = page.locator("a.current-session-link").first
                 bounds = target.bounding_box()
                 assert bounds is not None and bounds["height"] >= 44, bounds
+                if mobile:
+                    assert bounds["width"] >= 105, "Active session link is squeezed"
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
                 _shot(page, f"{label}-dashboard.png")
                 if mobile:
