@@ -3,27 +3,60 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Transacción #{{ transaction.id }} · {{ title }}</title>
 <style>
-:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color-scheme:light dark}
-body{margin:0;background:Canvas;color:CanvasText;line-height:1.5}
-main{max-width:850px;margin:auto;padding:1rem}
-a{color:LinkText}header{margin:1rem 0 1.5rem}
-h1{margin:.5rem 0;font-size:1.7rem;overflow-wrap:anywhere}
-.note{color:GrayText;font-size:.88rem}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
-.card{border:1px solid GrayText;border-radius:.65rem;padding:1rem;min-width:0;overflow-wrap:anywhere}
-.big{font-size:1.8rem;font-weight:750;font-variant-numeric:tabular-nums}
-dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem}
-dt{font-size:.85rem;color:GrayText}dd{margin:.15rem 0 0;font-weight:600;overflow-wrap:anywhere}
-@media(max-width:540px){.grid,dl{grid-template-columns:1fr}.big{font-size:1.5rem}}
-</style></head><body><main data-transaction-detail="true" data-active="{{ 'true' if refresh_active else 'false' }}">
-<header><a href="/">← Volver al dashboard</a>
-<h1>Transacción #{{ transaction.id }}</h1>
-<p class="note">{{ transaction.location }} · {{ transaction.charger_id }} · Conector {{ transaction.connector_id if transaction.connector_id is defined and transaction.connector_id is not none else "desconocido" }}</p>
-<p id="transaction-status" aria-live="polite"><strong>Estado: {{ transaction.state or "Desconocido" }}</strong>
-{% if refresh_active %} · En curso, datos consultados cada 15 s{% endif %}</p>
+/* Same design tokens and chrome as the Reports dashboard. */
+:root{color-scheme:light;--bg:#f5f7fa;--surface:#fff;--ink:#172437;--muted:#637286;--line:#e2e8f0;--nav:#203247;--accent:#1268c7;--warning:#a96700;font:16px system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.45}
+a{color:var(--accent)}a:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.site-header{background:var(--nav);color:white;padding:1.2rem max(1.25rem,calc((100vw - 1280px)/2));display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+.site-header h1{margin:0;font-size:1.55rem;letter-spacing:-.03em}
+.site-header .muted{color:#d0dbe6;margin:.2rem 0 0}
+.back-link{color:white;border:1px solid #718096;border-radius:8px;min-height:44px;display:inline-flex;align-items:center;padding:.5rem .75rem;text-decoration:none;font-weight:600}
+.back-link:hover,.back-link:focus-visible{background:#ffffff18;text-decoration:underline}
+.skip-link{position:absolute;left:1rem;top:-5rem;background:white;color:#172437;padding:.6rem 1rem;z-index:10;border-radius:6px}
+.skip-link:focus{top:.5rem}
+main{max-width:960px;margin:auto;padding:1.4rem 1.25rem 3rem}
+.detail-heading,section.card{margin:0 0 1rem;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1.25rem;box-shadow:0 2px 10px #152c4608}
+.detail-heading h2{margin:0 0 .4rem;font-size:1.55rem;letter-spacing:-.03em;overflow-wrap:anywhere}
+.detail-heading p{margin:.35rem 0}
+.note{font-size:.83rem;color:var(--muted)}
+.stale{color:var(--warning);font-weight:650}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.grid .card{margin:0;min-width:0;overflow-wrap:anywhere}
+.card h2{font-size:1.05rem;margin:0 0 1rem}
+.card .metric-label{color:var(--muted);font-size:.86rem;font-weight:600;margin-bottom:.35rem}
+.big{font-size:2rem;line-height:1.15;font-weight:750;font-variant-numeric:tabular-nums;margin:.15rem 0 .6rem}
+.card .note+.note{margin-top:.35rem}
+.status{display:inline-flex;align-items:center;gap:.4rem;border-radius:999px;padding:.3rem .55rem;font-size:.82rem;font-weight:650;background:#edf1f5}
+.status::before{content:"";width:.5rem;height:.5rem;border-radius:50%;background:#8795a7}
+.status--active{background:#e4f0ff;color:#155bad}.status--active::before{background:#1976e9}
+.status--ok{background:#e3f6ed;color:#087342}.status--ok::before{background:#0b9960}
+.status--historic{background:#e9edf2;color:#4c5969}.status--historic::before{background:#7c8998}
+.refresh-note{margin-left:.4rem}
+.session-details{margin-top:1rem!important}
+dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem 1rem;margin:0}
+dl>div{min-width:0;border-bottom:1px solid var(--line);padding-bottom:.65rem}
+dt{font-size:.82rem;color:var(--muted)}dd{margin:.15rem 0 0;font-weight:600;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.detail-disclaimer{margin:1rem 0;color:var(--muted);font-size:.83rem}
+@media(max-width:900px){.site-header{padding:1.1rem 1.25rem}}
+@media(max-width:540px){.site-header{padding:.65rem .9rem;gap:.55rem}.site-header h1{font-size:1.12rem}.site-header .muted{font-size:.76rem}.back-link{min-height:44px}main{padding:.65rem}.detail-heading,section.card{padding:1rem}.grid,dl{grid-template-columns:1fr;gap:.65rem}.big{font-size:1.65rem}.detail-heading h2{font-size:1.3rem}}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}.status{background:#354657;color:#e1e9f3}.status--active{background:#193c62;color:#a9d4ff}.status--ok{background:#164333;color:#9ce7c1}.status--historic{background:#364354;color:#c1cbd8}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+</style></head><body>
+<a class="skip-link" href="#content">Ir al contenido</a>
+<header class="site-header">
+  <div class="brand"><h1>{{ title }}</h1><div class="muted">Solo lectura · Datos consultados cada 15 s durante cargas activas</div></div>
+  <a class="back-link" href="/?tz={{ timezone|urlencode }}#transactions">← Volver al dashboard</a>
 </header>
+<main id="content" data-transaction-detail="true" data-active="{{ 'true' if refresh_active else 'false' }}">
+<section class="detail-heading" aria-labelledby="transaction-heading">
+<h2 id="transaction-heading">Transacción #{{ transaction.id }}</h2>
+<p class="note">{{ transaction.location }} · {{ transaction.charger_id }} · Conector {{ transaction.connector_id if transaction.connector_id is defined and transaction.connector_id is not none else "desconocido" }}</p>
+<p id="transaction-status" aria-live="polite"><span class="status {{ 'status--active' if refresh_active else 'status--ok' if (transaction.state or '')|lower in ['closed','stopped','completed'] else 'status--historic' }}">{{ transaction.state or "Desconocido" }}</span>
+{% if refresh_active %}<span class="note refresh-note">En curso · consulta cada 15 s (sin garantía de telemetría nueva)</span>{% endif %}</p>
+</section>
 <div class="grid">
-<section class="card" id="transaction-energy" aria-label="Energía de sesión"><div class="note">Energía de sesión</div>
+<section class="card" id="transaction-energy" aria-label="Energía de sesión"><div class="metric-label">Energía de sesión</div>
 {% if transaction.energy_wh is defined and transaction.energy_wh is not none %}
 <div class="big">{{ "%.2f"|format(transaction.energy_wh / 1000) }} kWh</div>
 <div class="note">Final · medición al cierre</div>
@@ -37,20 +70,20 @@ dt{font-size:.85rem;color:GrayText}dd{margin:.15rem 0 0;font-weight:600;overflow
 <div class="big">—</div><div class="note">Sin energía final verificada</div>
 {% endif %}
 </section>
-<section class="card" id="transaction-soc" aria-label="Estado de carga"><div class="note">Estado de carga (SoC)</div>
+<section class="card" id="transaction-soc" aria-label="Estado de carga"><div class="metric-label">Estado de carga (SoC)</div>
 <div class="big">{{ (transaction.soc_end|string ~ "%") if transaction.soc_end is defined and transaction.soc_end is not none else "—" }}</div>
 <div class="note">Última lectura reportada; no necesariamente al cierre · {{ transaction.soc_observed_at|display_date(timezone) if transaction.soc_observed_at is defined and transaction.soc_observed_at else "sin hora de medición verificada" }}</div>
 <div class="note">Procedencia SoC: {{ "OCPP MeterValues (metadato histórico)" if transaction.soc_metadata_provenance is defined and transaction.soc_metadata_provenance == "ocpp-meter-values" else "no documentada" }}. La fecha de actualización de metadatos no equivale a la hora de lectura.</div>
 <div class="note">Inicial: {{ (transaction.soc_start|string ~ "%") if transaction.soc_start is defined and transaction.soc_start is not none else "Desconocido" }}</div>
 </section>
-<section class="card" id="transaction-power" aria-label="Potencia medida"><div class="note">Potencia medida del conector</div>
+<section class="card" id="transaction-power" aria-label="Potencia medida"><div class="metric-label">Potencia medida del conector</div>
 {% if refresh_active and transaction.live_power_w is defined and transaction.live_power_w is not none %}
 <div class="big">{{ "%.2f"|format(transaction.live_power_w / 1000) }} kW</div>
 <div class="note">{{ "Medición antigua / no verificada" if transaction.live_power_stale else "Medición reciente" }}</div>
 <div class="note">Hora del medidor: {{ transaction.live_power_observed_at|display_date(timezone) }}</div>
 {% else %}<div class="big">—</div><div class="note">Sin potencia atribuible a esta sesión</div>{% endif %}
 </section></div>
-<section class="card" id="transaction-session-data" style="margin-top:1rem"><h2>Datos de la sesión</h2><dl>
+<section class="card session-details" id="transaction-session-data"><h2>Datos de la sesión</h2><dl>
 <div><dt>Origen</dt><dd>{{ transaction.source_id }}</dd></div>
 <div><dt>Cargador</dt><dd>{{ transaction.charger_id }}</dd></div>
 <div><dt>Inicio</dt><dd>{{ transaction.started_at|display_date(timezone) }}</dd></div>
@@ -58,7 +91,7 @@ dt{font-size:.85rem;color:GrayText}dd{margin:.15rem 0 0;font-weight:600;overflow
 <div><dt>{{ "Duración transcurrida (aprox.)" if refresh_active else "Duración final" }}</dt><dd>{{ elapsed_duration if refresh_active else transaction.started_at|session_duration(transaction.stopped_at) if transaction.stopped_at else "—" }}</dd></div>
 <div><dt>Zona horaria</dt><dd>{{ timezone }}</dd></div>
 </dl></section>
-<p class="note">Solo lectura. La actualización de la página no significa que se recibieron datos nuevos del cargador. Las estimaciones no son energía final facturable.</p>
+<p class="detail-disclaimer">Solo lectura. La actualización de la página no significa que se recibieron datos nuevos del cargador. Las estimaciones no son energía final facturable.</p>
 </main>
 <script>
 (() => {
