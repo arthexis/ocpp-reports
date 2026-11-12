@@ -37,10 +37,9 @@ def _lookup_transaction(db, tables: set[str], source: str, charger: str, tx_id: 
             # Legacy records may have an ID-only key. Preserve read compatibility
             # without changing stored replication data.
             row = db.execute(
-                "SELECT payload FROM collector_latest WHERE source_id=? AND kind='transaction' "
-                "AND json_extract(payload,'$.charger_id')=? "
-                "AND json_extract(payload,'$.id')=? LIMIT 1",
-                (source, charger, tx_id),
+                "SELECT payload FROM collector_latest WHERE source_id=? "
+                "AND kind='transaction' AND record_key=? LIMIT 1",
+                (source, str(tx_id)),
             ).fetchone()
     if row is None:
         return None
@@ -105,10 +104,9 @@ def live_power_for_transaction(db, tables: set[str], tx: dict) -> dict:
         ).fetchone()
         if row is None:
             row = db.execute(
-                "SELECT payload FROM collector_latest WHERE source_id=? AND kind='connector' "
-                "AND json_extract(payload,'$.charger_id')=? "
-                "AND json_extract(payload,'$.connector_id')=? LIMIT 1",
-                (source, charger, connector_id),
+                "SELECT payload FROM collector_latest WHERE source_id=? "
+                "AND kind='connector' AND record_key=? LIMIT 1",
+                (source, str(connector_id)),
             ).fetchone()
         if row is not None:
             try:
