@@ -32,7 +32,7 @@ def transaction_page(
     date_from: str, date_to: str, zone: str,
     view: str, page: int, page_size: int = 20,
 ) -> dict:
-    if view not in ("success", "failed", "all"):
+    if view not in ("success", "failed", "all", "active"):
         raise ValueError("Invalid transaction view")
     if page < 1 or page_size != 20:
         raise ValueError("Invalid transaction page")
@@ -91,7 +91,7 @@ def transaction_page(
         )
         args.extend(source_args)
     if not branches:
-        return {"transactions": [], "counts": {"all": 0, "success": 0, "failed": 0},
+        return {"transactions": [], "counts": {"all": 0, "success": 0, "failed": 0, "active": 0},
                 "page": 1, "pages": 1, "total": 0}
 
     location_join = (
@@ -139,19 +139,25 @@ def transaction_page(
         " CASE WHEN json_type(x.payload,'$.energy_wh') IN ('integer','real')"
         " AND json_extract(x.payload,'$.energy_wh') > 0 THEN 1 ELSE 0 END AS success,"
         " CASE WHEN json_type(x.payload,'$.energy_wh') IN ('integer','real')"
-        " AND json_extract(x.payload,'$.energy_wh') = 0 THEN 1 ELSE 0 END AS failed"
+        " AND json_extract(x.payload,'$.energy_wh') = 0 THEN 1 ELSE 0 END AS failed,"
+        " CASE WHEN json_extract(x.payload,'$.active')=1"
+        " AND lower(COALESCE(json_extract(x.payload,'$.state'),'')) IN ('open','active','charging')"
+        " AND json_extract(x.payload,'$.stopped_at') IS NULL"
+        " AND json_extract(x.payload,'$.energy_wh') IS NULL"
+        " THEN 1 ELSE 0 END AS ongoing"
         " FROM projected x " + location_join + filter_clause + ") "
     )
     parameters = [*args, *filter_args]
     count = db.execute(
-        sql + "SELECT COUNT(*),COALESCE(SUM(success),0),COALESCE(SUM(failed),0) FROM classified",
+        sql + "SELECT COUNT(*),COALESCE(SUM(success),0),COALESCE(SUM(failed),0),COALESCE(SUM(ongoing),0) FROM classified",
         parameters,
     ).fetchone()
-    counts = {"all": count[0], "success": count[1], "failed": count[2]}
+    counts = {"all": count[0], "success": count[1], "failed": count[2], "active": count[3]}
     total = counts[view]
     pages = max(1, (total + page_size - 1) // page_size)
     page = min(page, pages)
-    view_clause = {"all": "", "success": " WHERE success=1", "failed": " WHERE failed=1"}[view]
+    view_clause = {"all": "", "success": " WHERE success=1", "failed": " WHERE failed=1",
+                   "active": " WHERE ongoing=1"}[view]
     rows = db.execute(
         sql + "SELECT source_id,charger_id,tx_id,payload FROM classified" + view_clause
         + " ORDER BY sort_at DESC,source_id,charger_id,tx_id DESC LIMIT ? OFFSET ?",
