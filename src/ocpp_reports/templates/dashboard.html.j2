@@ -101,7 +101,7 @@ header{align-items:start;gap:.65rem}
 .transaction-filters button.selected,.connector-filters button.selected{color:var(--accent);font-weight:750;text-decoration:underline;text-underline-offset:4px}
 .transaction-filters button:hover,.connector-filters button:hover{color:var(--accent)}
 .transaction-filters span,.connector-filters span{color:var(--muted)}
-.current-session-link{display:inline-block;margin-left:.35rem;padding:.15rem .45rem;min-height:32px;line-height:26px;font-weight:650;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.current-session-link{display:inline-block;margin-left:.35rem;padding:.35rem .55rem;min-height:44px;line-height:26px;font-weight:650;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 .current-session-pending{display:inline-block;margin-left:.35rem;font-size:.78rem;color:var(--muted)}
 
 /* Panel explanations stay off the page until hover, keyboard focus, or tap. */
@@ -187,7 +187,7 @@ header{align-items:start;gap:.65rem}
 <div class="panel-heading"><h2 id="operations-heading">Estado de los cargadores</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Estado de los cargadores" aria-controls="help-operations" aria-expanded="false" aria-describedby="help-operations">ⓘ</button></span><span class="panel-help-text" id="help-operations" role="tooltip">Estaciones (conectores individuales). Se cuenta cada estación una sola vez por estado; C0 es un resumen y no se duplica. Cifras: estaciones (conectores individuales). Los datos antiguos no confirman disponibilidad actual. Último estado informado, no conectividad en tiempo real. Las notificaciones de estado se envían al cambiar; una fecha de estado antigua no indica desconexión. La frescura del origen y la conexión observada se evalúan por separado; la recepción de datos del origen no demuestra conectividad del cargador. Una falla con origen atrasado también puede contarse como dato incierto. Sin fecha original del estado, la fecha es desconocida.</span></div>
 <p class="counts-legend">Cifras: estaciones (conectores individuales)</p><div class="cards operations-cards">
 <a class="operational-card operational-card--available" href="#connectors"><strong>{{ operational_counts.available.stations }} ({{ operational_counts.available.connectors }})</strong><span>Disponibles</span></a>
-<a class="operational-card operational-card--charging" href="{{ (request.url.include_query_params(tx_view='active', tx_page=1) ~ '#transactions') if request is defined else '#connectors' }}"><strong>{{ operational_counts.charging.stations }} ({{ operational_counts.charging.connectors }})</strong><span>Cargando</span></a>
+<a class="operational-card operational-card--charging" href="{{ active_transactions_href|default('#connectors') }}"><strong>{{ operational_counts.charging.stations }} ({{ operational_counts.charging.connectors }})</strong><span>Cargando</span></a>
 <a class="operational-card operational-card--fault" href="#connectors"><strong>{{ operational_counts.faults.stations }} ({{ operational_counts.faults.connectors }})</strong><span>Falla / no disponible (último estado)</span></a>
 <a class="operational-card operational-card--uncertain" href="#connectors"><strong>{{ operational_counts.uncertain.stations }} ({{ operational_counts.uncertain.connectors }})</strong><span>Datos antiguos / otros</span></a>
 </div></section>
@@ -202,7 +202,12 @@ header{align-items:start;gap:.65rem}
 </div></div><p class="connector-scroll-hint" id="connector-scroll-hint" hidden>→ Más columnas</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores" aria-describedby="connector-scroll-hint"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado</th><th>Potencia</th><th>Energía registrada</th><th>Estado informado</th></tr></thead><tbody>
 {% for c in connector_rows %}<tr><td data-label="Ubicación">{{ c.location }}</td><td data-label="Cargador" class="charger-identity">{{ c.charger_id }}</td><td data-label="Conector">{{ c.connector_id }}</td>
 <td data-label="Estado">{% set state = (c.status or "")|lower %}{% set discrepancy = c.status_discrepancy_badge %}<span class="status {% if discrepancy == 'Warning' %}status--warn{% elif discrepancy == 'Failed' %}status--off{% elif c.stale and state in ['available', 'finishing', 'charging'] %}status--historic{% elif state == 'charging' %}status--active{% elif state in ['available', 'finishing'] %}status--ok{% elif state in ['preparing', 'suspendedev', 'suspendedevse'] %}status--warn{% elif state in ['faulted', 'unavailable'] %}status--off{% endif %}"{% if discrepancy %} title="Estación C0: {{ 'Available' if discrepancy == 'Warning' else 'Faulted' }} · Conector C{{ c.connector_id }}: {{ c.status }}" aria-label="{{ discrepancy }}. Estación C0: {{ 'Available' if discrepancy == 'Warning' else 'Faulted' }}; conector C{{ c.connector_id }}: {{ c.status }}"{% endif %}>{{ discrepancy or c.status or "Desconocido" }}</span>{% if c.source_freshness == 'old' %} <span class="status status--warn">Origen atrasado</span>{% elif c.source_freshness == 'unknown' %} <span class="status status--warn">Origen sin fecha</span>{% endif %}{% if c.status_time_unknown %} <span class="status status--historic">Estado sin fecha</span>{% endif %}
-{% if c.active_transaction_id is not none %}<a class="current-session-link" href="/transactions/{{ c.source_id|urlencode }}/{{ c.charger_id|urlencode }}/{{ c.active_transaction_id }}?tz={{ timezone|urlencode }}" aria-label="Ver carga actual del conector {{ c.connector_id }}">Ver carga actual</a>
+{% if c.active_transaction_id is not none %}
+{% if c.stale %}
+<a class="current-session-link" href="/transactions/{{ c.source_id|urlencode }}/{{ c.charger_id|urlencode }}/{{ c.active_transaction_id }}?tz={{ timezone|urlencode }}" aria-label="Ver última sesión informada del conector {{ c.connector_id }}; sin confirmación reciente">Ver sesión informada (sin confirmar)</a>
+{% else %}
+<a class="current-session-link" href="/transactions/{{ c.source_id|urlencode }}/{{ c.charger_id|urlencode }}/{{ c.active_transaction_id }}?tz={{ timezone|urlencode }}" aria-label="Ver carga actual del conector {{ c.connector_id }}">Ver carga actual</a>
+{% endif %}
 {% elif state == "charging" and c.connector_id != 0 %}<span class="current-session-pending">Transacción aún no disponible</span>{% endif %}</td>
 <td data-label="Conectado"><span class="status {{ 'status--historic' if not c.connection_fresh else ('status--ok' if c.connected else 'status--off') }}" title="Conexión observada en el último estado del CSMS; no es una prueba de red en tiempo real">{{ "Sí" if c.connected is sameas true else "No" if c.connected is sameas false else "Sin datos" }}</span></td>
 <td data-label="Potencia" class="numeric">{% if c.power_fresh and c.power_w is not none %}{{ "%.2f"|format(c.power_w / 1000) }} kW <span class="note muted" title="Power.Active.Import: medición reciente">medida</span>{% elif c.rated_power_w is defined and c.rated_power_w is not none %}{{ "%.2f"|format(c.rated_power_w / 1000) }} kW <span class="note muted" title="{{ 'Capacidad nominal del cargador, compartida; no es potencia medida' if c.connector_id == 0 or c.rating_scope == 'charger' else 'Capacidad nominal específica del conector; no es potencia medida' }}">nominal</span>{% else %}—{% endif %}</td>
@@ -339,6 +344,13 @@ header{align-items:start;gap:.65rem}
       const next = new URL(window.location.href);
       next.searchParams.set("tx_view", button.dataset.txView);
       next.searchParams.delete("tx_page");
+      if (button.dataset.txView === "active") {
+        // An old success/date/search filter must not hide ongoing sessions.
+        // Tenant permissions stay enforced by the authenticated route.
+        for (const key of ["filter", "status", "location", "date_from", "date_to"]) {
+          next.searchParams.delete(key);
+        }
+      }
       next.hash = "transactions";
       window.location.assign(next.toString());
     });
