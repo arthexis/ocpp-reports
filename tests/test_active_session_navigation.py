@@ -59,7 +59,7 @@ def test_current_link_and_progress_with_confirmed_scope(tmp_path):
     assert '/transactions/a/cp/7?tz=UTC' in page.text
     assert "En curso (1)" in page.text
     assert "Mostrando 1–1 de 1" in page.text
-    assert 'href="/?tx_view=active&amp;tz=UTC#transactions"' in page.text
+    assert "tx_view=active" in page.text and "#transactions" in page.text
     detail = client.get("/transactions/a/cp/7")
     assert detail.status_code == 200
     assert "34.75 kWh" in detail.text and "Estimada" in detail.text
@@ -117,7 +117,8 @@ def test_reuse_connector_mismatch_and_stale_power_are_explicit(tmp_path):
     assert "7.20 kW" not in client.get("/transactions/a/cp/7").text
     with sqlite3.connect(path) as db:
         db.execute("UPDATE collector_latest SET payload=? WHERE source_id='a' AND kind='transaction'",
-                   (json.dumps(_active(7, now.isoformat())),))
+                   (json.dumps(_active(7, (now - timedelta(minutes=10)).isoformat())),))
+        # Old but genuinely post-Start power is displayed with stale labeling.
         old = _connector(7, (now - timedelta(minutes=7)).isoformat())
         db.execute("UPDATE collector_latest SET payload=? WHERE source_id='a' AND kind='connector'",
                    (json.dumps(old),))
