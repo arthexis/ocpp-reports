@@ -1,7 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-{% if refresh_active %}<meta http-equiv="refresh" content="15">{% endif %}
 <title>Transacción #{{ transaction.id }} · {{ title }}</title>
 <style>
 :root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color-scheme:light dark}
@@ -16,15 +15,15 @@ h1{margin:.5rem 0;font-size:1.7rem;overflow-wrap:anywhere}
 dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem}
 dt{font-size:.85rem;color:GrayText}dd{margin:.15rem 0 0;font-weight:600;overflow-wrap:anywhere}
 @media(max-width:540px){.grid,dl{grid-template-columns:1fr}.big{font-size:1.5rem}}
-</style></head><body><main>
+</style></head><body><main data-transaction-detail="true" data-active="{{ 'true' if refresh_active else 'false' }}">
 <header><a href="/">← Volver al dashboard</a>
 <h1>Transacción #{{ transaction.id }}</h1>
 <p class="note">{{ transaction.location }} · {{ transaction.charger_id }} · Conector {{ transaction.connector_id if transaction.connector_id is defined and transaction.connector_id is not none else "desconocido" }}</p>
-<p><strong>Estado: {{ transaction.state or "Desconocido" }}</strong>
-{% if refresh_active %} · En curso, página actualizada cada 15 s{% endif %}</p>
+<p id="transaction-status" aria-live="polite"><strong>Estado: {{ transaction.state or "Desconocido" }}</strong>
+{% if refresh_active %} · En curso, datos consultados cada 15 s{% endif %}</p>
 </header>
 <div class="grid">
-<section class="card" aria-label="Energía de sesión"><div class="note">Energía de sesión</div>
+<section class="card" id="transaction-energy" aria-label="Energía de sesión"><div class="note">Energía de sesión</div>
 {% if transaction.energy_wh is defined and transaction.energy_wh is not none %}
 <div class="big">{{ "%.2f"|format(transaction.energy_wh / 1000) }} kWh</div>
 <div class="note">Final · medición al cierre</div>
@@ -38,19 +37,20 @@ dt{font-size:.85rem;color:GrayText}dd{margin:.15rem 0 0;font-weight:600;overflow
 <div class="big">—</div><div class="note">Sin energía final verificada</div>
 {% endif %}
 </section>
-<section class="card" aria-label="Estado de carga"><div class="note">Estado de carga (SoC)</div>
+<section class="card" id="transaction-soc" aria-label="Estado de carga"><div class="note">Estado de carga (SoC)</div>
 <div class="big">{{ (transaction.soc_end|string ~ "%") if transaction.soc_end is defined and transaction.soc_end is not none else "—" }}</div>
 <div class="note">Última lectura reportada; no necesariamente al cierre · {{ transaction.soc_observed_at|display_date(timezone) if transaction.soc_observed_at is defined and transaction.soc_observed_at else "sin hora de medición verificada" }}</div>
+<div class="note">Procedencia SoC: {{ "OCPP MeterValues (metadato histórico)" if transaction.soc_metadata_provenance is defined and transaction.soc_metadata_provenance == "ocpp-meter-values" else "no documentada" }}. La fecha de actualización de metadatos no equivale a la hora de lectura.</div>
 <div class="note">Inicial: {{ (transaction.soc_start|string ~ "%") if transaction.soc_start is defined and transaction.soc_start is not none else "Desconocido" }}</div>
 </section>
-<section class="card" aria-label="Potencia medida"><div class="note">Potencia medida del conector</div>
+<section class="card" id="transaction-power" aria-label="Potencia medida"><div class="note">Potencia medida del conector</div>
 {% if refresh_active and transaction.live_power_w is defined and transaction.live_power_w is not none %}
 <div class="big">{{ "%.2f"|format(transaction.live_power_w / 1000) }} kW</div>
 <div class="note">{{ "Medición antigua / no verificada" if transaction.live_power_stale else "Medición reciente" }}</div>
 <div class="note">Hora del medidor: {{ transaction.live_power_observed_at|display_date(timezone) }}</div>
 {% else %}<div class="big">—</div><div class="note">Sin potencia atribuible a esta sesión</div>{% endif %}
 </section></div>
-<section class="card" style="margin-top:1rem"><h2>Datos de la sesión</h2><dl>
+<section class="card" id="transaction-session-data" style="margin-top:1rem"><h2>Datos de la sesión</h2><dl>
 <div><dt>Origen</dt><dd>{{ transaction.source_id }}</dd></div>
 <div><dt>Cargador</dt><dd>{{ transaction.charger_id }}</dd></div>
 <div><dt>Inicio</dt><dd>{{ transaction.started_at|display_date(timezone) }}</dd></div>
@@ -59,4 +59,41 @@ dt{font-size:.85rem;color:GrayText}dd{margin:.15rem 0 0;font-weight:600;overflow
 <div><dt>Zona horaria</dt><dd>{{ timezone }}</dd></div>
 </dl></section>
 <p class="note">Solo lectura. La actualización de la página no significa que se recibieron datos nuevos del cargador. Las estimaciones no son energía final facturable.</p>
-</main></body></html>
+</main>
+<script>
+(() => {
+  const root = document.querySelector("main[data-transaction-detail]");
+  if (!root || root.dataset.active !== "true") return;
+  let refreshing = false;
+  const refreshTransaction = async () => {
+    if (refreshing || document.hidden) return;
+    refreshing = true;
+    try {
+      const response = await fetch(window.location.pathname + window.location.search, {
+        credentials: "same-origin", cache: "no-store", headers: {"Accept": "text/html"}
+      });
+      if (!response.ok) return;
+      const fresh = new DOMParser().parseFromString(await response.text(), "text/html");
+      const nextRoot = fresh.querySelector("main[data-transaction-detail]");
+      if (!nextRoot) return;
+      // Preserve scroll, focused controls, and the back link; replace only data.
+      for (const id of ["transaction-status", "transaction-energy", "transaction-soc",
+                        "transaction-power", "transaction-session-data"]) {
+        const current = document.getElementById(id);
+        const next = fresh.getElementById(id);
+        if (current && next && !current.contains(document.activeElement)
+            && current.innerHTML !== next.innerHTML) current.innerHTML = next.innerHTML;
+      }
+      root.dataset.active = nextRoot.dataset.active;
+      if (root.dataset.active !== "true") window.clearInterval(refreshTimer);
+    } catch (_) {
+      // A failed read must not disrupt a charging session or reload the page.
+    } finally {
+      refreshing = false;
+    }
+  };
+  const refreshTimer = window.setInterval(refreshTransaction, 15000);
+  window.addEventListener("pagehide", () => window.clearInterval(refreshTimer));
+})();
+</script>
+</body></html>
