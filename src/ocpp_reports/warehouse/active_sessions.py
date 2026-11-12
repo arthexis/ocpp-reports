@@ -26,12 +26,22 @@ def _lookup_transaction(db, tables: set[str], source: str, charger: str, tx_id: 
             (source, charger, tx_id),
         ).fetchone()
     if row is None and "collector_latest" in tables:
+        # Canonical replicated keys are charger:transaction. The PK makes this
+        # a bounded lookup even when a collector holds years of history.
         row = db.execute(
-            "SELECT payload FROM collector_latest WHERE source_id=? AND kind='transaction' "
-            "AND json_extract(payload,'$.charger_id')=? "
-            "AND json_extract(payload,'$.id')=? LIMIT 1",
-            (source, charger, tx_id),
+            "SELECT payload FROM collector_latest WHERE source_id=? "
+            "AND kind='transaction' AND record_key=? LIMIT 1",
+            (source, f"{charger}:{tx_id}"),
         ).fetchone()
+        if row is None:
+            # Legacy records may have an ID-only key. Preserve read compatibility
+            # without changing stored replication data.
+            row = db.execute(
+                "SELECT payload FROM collector_latest WHERE source_id=? AND kind='transaction' "
+                "AND json_extract(payload,'$.charger_id')=? "
+                "AND json_extract(payload,'$.id')=? LIMIT 1",
+                (source, charger, tx_id),
+            ).fetchone()
     if row is None:
         return None
     try:
@@ -89,11 +99,17 @@ def live_power_for_transaction(db, tables: set[str], tx: dict) -> dict:
             connector.update(transaction_id=row[0], status=row[1], power_w=row[2])
     if connector is None and "collector_latest" in tables:
         row = db.execute(
-            "SELECT payload FROM collector_latest WHERE source_id=? AND kind='connector' "
-            "AND json_extract(payload,'$.charger_id')=? "
-            "AND json_extract(payload,'$.connector_id')=? LIMIT 1",
-            (source, charger, connector_id),
+            "SELECT payload FROM collector_latest WHERE source_id=? "
+            "AND kind='connector' AND record_key=? LIMIT 1",
+            (source, f"{charger}:{connector_id}"),
         ).fetchone()
+        if row is None:
+            row = db.execute(
+                "SELECT payload FROM collector_latest WHERE source_id=? AND kind='connector' "
+                "AND json_extract(payload,'$.charger_id')=? "
+                "AND json_extract(payload,'$.connector_id')=? LIMIT 1",
+                (source, charger, connector_id),
+            ).fetchone()
         if row is not None:
             try:
                 connector = json.loads(row[0])
@@ -112,15 +128,24 @@ def live_power_for_transaction(db, tables: set[str], tx: dict) -> dict:
         return {}
     if not isinstance(observed, str):
         return {}
+    started = tx.get("started_at")
+    if not isinstance(started, str):
+        return {}
     try:
         measured = datetime.fromisoformat(observed.replace("Z", "+00:00"))
-        if measured.tzinfo is None:
+        began = datetime.fromisoformat(started.replace("Z", "+00:00"))
+        if measured.tzinfo is None or began.tzinfo is None:
+            return {}
+        # Do not attribute an earlier session's still-recent meter sample to
+        # this transaction. Refuse future-dated samples rather than inventing
+        # chronology when charger clocks disagree.
+        if measured < began or measured > datetime.now(timezone.utc):
             return {}
         age = datetime.now(timezone.utc) - measured.astimezone(timezone.utc)
-    except (ValueError, OverflowError):
+    except (ValueError, TypeError, OverflowError):
         return {}
     return {
         "live_power_w": value,
         "live_power_observed_at": observed,
-        "live_power_stale": not (timedelta(0) <= age <= timedelta(seconds=120)),
+        "live_power_stale": age > timedelta(seconds=120),
     }
