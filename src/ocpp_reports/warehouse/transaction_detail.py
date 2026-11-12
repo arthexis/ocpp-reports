@@ -6,6 +6,8 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from .active_sessions import live_power_for_transaction
+
 
 def transaction_detail(database: str | Path, *, source_id: str, charger_id: str,
                        transaction_id: int,
@@ -62,6 +64,7 @@ def transaction_detail(database: str | Path, *, source_id: str, charger_id: str,
             ).fetchone()
             if row:
                 result["location"] = row[0]
+        result.update(live_power_for_transaction(db, tables, result))
 
     result["live_energy_stale"] = True
     observed = result.get("live_energy_observed_at")
