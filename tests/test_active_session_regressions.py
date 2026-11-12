@@ -62,7 +62,10 @@ def test_fresh_vs_stale_label_must_not_assert_live_without_recent_receipt(tmp_pa
     _seed(path, receipt=_stamp(-900))
     client = TestClient(create_app(path, allowed_source_ids=("a",)))
     old_page = client.get("/?tx_view=active").text
-    assert "Ver sesión informada (sin confirmar)" in old_page
+    assert "Sesión sin confirmar" in old_page
+    assert 'class="charger-session-link"' in old_page
+    assert 'class="status-session-link"' in old_page
+    assert "current-session-link" not in old_page
     assert "Ver carga actual" not in old_page
     assert "/transactions/a/cp/7?tz=UTC" in old_page
     assert client.get("/api/v1/transactions?view=active").json()["total"] == 1
@@ -70,11 +73,11 @@ def test_fresh_vs_stale_label_must_not_assert_live_without_recent_receipt(tmp_pa
         db.execute("UPDATE collector_receipts SET received_at=? WHERE source_id='a'", (_stamp(),))
     fresh_page = client.get("/?tx_view=active").text
     assert "Ver carga actual" in fresh_page
-    assert "Ver sesión informada (sin confirmar)" not in fresh_page
+    assert "Sesión sin confirmar" not in fresh_page
     # Missing source freshness and negative connection evidence are NOT live proof.
     with sqlite3.connect(path) as db:
         db.execute("DELETE FROM collector_receipts WHERE source_id='a'")
-    assert "Ver sesión informada (sin confirmar)" in client.get("/").text
+    assert "Sesión sin confirmar" in client.get("/").text
 
 
 def test_recent_pre_start_and_future_meter_power_are_never_attributed(tmp_path):
