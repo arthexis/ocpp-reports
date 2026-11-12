@@ -140,7 +140,7 @@ def transaction_page(
         " AND json_extract(x.payload,'$.energy_wh') > 0 THEN 1 ELSE 0 END AS success,"
         " CASE WHEN json_type(x.payload,'$.energy_wh') IN ('integer','real')"
         " AND json_extract(x.payload,'$.energy_wh') = 0 THEN 1 ELSE 0 END AS failed,"
-        " CASE WHEN json_extract(x.payload,'$.active')=1"
+        " CASE WHEN json_type(x.payload,'$.active')='true'"
         " AND lower(COALESCE(json_extract(x.payload,'$.state'),'')) IN ('open','active','charging')"
         " AND json_extract(x.payload,'$.stopped_at') IS NULL"
         " AND json_extract(x.payload,'$.energy_wh') IS NULL"
