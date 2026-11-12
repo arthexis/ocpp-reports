@@ -102,7 +102,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 ("desktop", {"width": 1920, "height": 1080}, False),
             ):
                 context = browser.new_context(viewport=viewport, is_mobile=mobile,
-                                              has_touch=mobile, locale="es-MX")
+                                              has_touch=mobile, locale="es-MX", color_scheme="light")
                 page = context.new_page()
                 counts = {"GET": 0}
                 page.route("**/*", _offline_route(client, counts))
@@ -110,7 +110,17 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 page.clock.install()
                 page.goto("http://reports.test/?tx_view=active", wait_until="load")
                 assert page.get_by_role("button", name="En curso (1)").count() == 1
-                assert page.get_by_role("link", name="Ver carga actual del conector 1").count() == 1
+                assert page.locator("a.current-session-link").count() == 0
+                assert page.locator("a.charger-session-link").count() == 1
+                assert page.locator("a.status-session-link").count() == 1
+                assert "Ver carga actual" not in page.locator(".connectors-panel").inner_text()
+                theme = page.evaluate("""() => {
+                  const s = getComputedStyle(document.documentElement);
+                  return Object.fromEntries(['--bg','--surface','--ink','--muted',
+                    '--line','--nav','--accent','--warning'].map(key =>
+                      [key, s.getPropertyValue(key).trim()]));
+                }""")
+                assert theme["--bg"] == "#f5f7fa" and theme["--nav"] == "#203247"
                 if mobile:
                     badge = page.locator('.connectors-panel td[data-label="Estado"] .status').first
                     assert badge.evaluate("(node) => getComputedStyle(node).whiteSpace") == "nowrap"
@@ -119,7 +129,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                     for text in ("En curso (1)", "Exitosas (0)", "Fallidas (0)", "Todas (1)"):
                         button = page.get_by_role("button", name=text)
                         assert button.is_visible() and button.bounding_box()["width"] >= 55
-                target = page.locator("a.current-session-link").first
+                target = page.locator("a.charger-session-link" if mobile else "a.status-session-link").first
                 bounds = target.bounding_box()
                 assert bounds is not None and bounds["height"] >= 44, bounds
                 if mobile:
@@ -134,6 +144,24 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                                          bounds["y"] + bounds["height"] / 2)
                 else:
                     target.click()
+                page.wait_for_url("**/transactions/a/cp/7?tz=UTC")
+                assert page.locator("#transaction-energy").inner_text().find("34.75 kWh") >= 0
+                assert page.locator(".site-header").is_visible()
+                assert page.locator(".detail-heading").is_visible()
+                assert page.locator(".back-link").bounding_box()["height"] >= 44
+                detail_theme = page.evaluate("""() => {
+                  const s = getComputedStyle(document.documentElement);
+                  return Object.fromEntries(['--bg','--surface','--ink','--muted',
+                    '--line','--nav','--accent','--warning'].map(key =>
+                      [key, s.getPropertyValue(key).trim()]));
+                }""")
+                assert detail_theme == theme
+                assert page.locator("header .brand h1").inner_text() == "OCPP Reports"
+                # Both requested entry points must lead to the same scoped detail.
+                page.go_back(wait_until="load")
+                alternate = page.locator("a.status-session-link" if mobile else "a.charger-session-link").first
+                assert alternate.is_visible()
+                alternate.click()
                 page.wait_for_url("**/transactions/a/cp/7?tz=UTC")
                 assert page.locator("#transaction-energy").inner_text().find("34.75 kWh") >= 0
                 assert "Estimada" in page.locator("#transaction-energy").inner_text()
@@ -179,6 +207,21 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 # Reset fixture before the second screen size.
                 _replace(db_path, transaction=_data()[0], connector=_data()[1])
                 context.close()
+
+            # Dark theme also shares dashboard tokens and status contrast.
+            dark = browser.new_context(viewport={"width": 390, "height": 844},
+                                       is_mobile=True, has_touch=True, color_scheme="dark")
+            dark_page = dark.new_page()
+            dark_page.route("**/*", _offline_route(client, {"GET": 0}))
+            dark_page.goto("http://reports.test/?tx_view=active", wait_until="load")
+            dark_bg = dark_page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()")
+            assert dark_bg == "#111923"
+            dark_page.locator("a.status-session-link").click()
+            dark_page.wait_for_url("**/transactions/a/cp/7?tz=UTC")
+            assert dark_page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()") == dark_bg
+            assert dark_page.locator(".site-header").is_visible()
+            _shot(dark_page, "mobile-dark-detail.png")
+            dark.close()
 
             context = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
             page = context.new_page()
