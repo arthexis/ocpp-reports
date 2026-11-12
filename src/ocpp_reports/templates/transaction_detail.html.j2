@@ -40,15 +40,22 @@ dt{font-size:.85rem;color:GrayText}dd{margin:.15rem 0 0;font-weight:600;overflow
 </section>
 <section class="card" aria-label="Estado de carga"><div class="note">Estado de carga (SoC)</div>
 <div class="big">{{ (transaction.soc_end|string ~ "%") if transaction.soc_end is defined and transaction.soc_end is not none else "—" }}</div>
-<div class="note">Última lectura reportada; no necesariamente al cierre</div>
+<div class="note">Última lectura reportada; no necesariamente al cierre · {{ transaction.soc_observed_at|display_date(timezone) if transaction.soc_observed_at is defined and transaction.soc_observed_at else "sin hora de medición verificada" }}</div>
 <div class="note">Inicial: {{ (transaction.soc_start|string ~ "%") if transaction.soc_start is defined and transaction.soc_start is not none else "Desconocido" }}</div>
+</section>
+<section class="card" aria-label="Potencia medida"><div class="note">Potencia medida del conector</div>
+{% if refresh_active and transaction.live_power_w is defined and transaction.live_power_w is not none %}
+<div class="big">{{ "%.2f"|format(transaction.live_power_w / 1000) }} kW</div>
+<div class="note">{{ "Medición antigua / no verificada" if transaction.live_power_stale else "Medición reciente" }}</div>
+<div class="note">Hora del medidor: {{ transaction.live_power_observed_at|display_date(timezone) }}</div>
+{% else %}<div class="big">—</div><div class="note">Sin potencia atribuible a esta sesión</div>{% endif %}
 </section></div>
 <section class="card" style="margin-top:1rem"><h2>Datos de la sesión</h2><dl>
 <div><dt>Origen</dt><dd>{{ transaction.source_id }}</dd></div>
 <div><dt>Cargador</dt><dd>{{ transaction.charger_id }}</dd></div>
 <div><dt>Inicio</dt><dd>{{ transaction.started_at|display_date(timezone) }}</dd></div>
 <div><dt>Fin</dt><dd>{{ transaction.stopped_at|display_date(timezone) if transaction.stopped_at else "Activa / sin cierre" }}</dd></div>
-<div><dt>Duración final</dt><dd>{{ transaction.started_at|session_duration(transaction.stopped_at) if transaction.stopped_at else "En curso" }}</dd></div>
+<div><dt>{{ "Duración transcurrida (aprox.)" if refresh_active else "Duración final" }}</dt><dd>{{ elapsed_duration if refresh_active else transaction.started_at|session_duration(transaction.stopped_at) if transaction.stopped_at else "—" }}</dd></div>
 <div><dt>Zona horaria</dt><dd>{{ timezone }}</dd></div>
 </dl></section>
 <p class="note">Solo lectura. La actualización de la página no significa que se recibieron datos nuevos del cargador. Las estimaciones no son energía final facturable.</p>
