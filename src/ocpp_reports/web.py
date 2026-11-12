@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from time import perf_counter
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -487,6 +488,15 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             data["transactions"] = filtered_transactions[start:start + 20]
         projected = project_dashboard_connectors(data, now=now, connector_view=connector_view,
                                                  source_freshness=source_freshness)
+        # Operational 'Cargando' is a source-scoped summary, independent of
+        # presentation search/status/date filters. Clear those filters when
+        # navigating to all open sessions while preserving site and timezone.
+        active_query = [("tx_view", "active"), ("tz", tz)]
+        if source_id:
+            active_query.append(("source_id", source_id))
+        if charger_id:
+            active_query.append(("charger_id", charger_id))
+        active_transactions_href = "/?" + urlencode(active_query) + "#transactions"
         operational_counts = projected["status_counts"]
         connector_rows = projected["connectors"]
         is_admin = not hasattr(request.state, "principal") or request.state.principal.role.value == "admin"
@@ -527,6 +537,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                                            "status_filter": status, "location_filter": location,
                                            "date_from": date_from, "date_to": date_to,
                                            "timezone": tz, "timezones": zones, "tx_view": tx_view,
+                                           "active_transactions_href": active_transactions_href,
                                            "transaction_counts": transaction_counts,
                                            "tx_page": tx_page, "tx_pages": tx_pages,
                                            "tx_total": tx_total})
