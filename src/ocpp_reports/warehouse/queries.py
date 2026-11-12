@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from .transaction_pagination import transaction_page
+from .active_sessions import attach_active_links
 
 
 
@@ -274,6 +275,7 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
             rated, scope = ratings.get(key, (None, None))
             connector["rated_power_w"] = rated
             connector["rating_scope"] = scope
+        attach_active_links(db, tables, connectors)
         for rows in (connectors, transactions, events):
             for row in rows:
                 source = row.get("source_id")
