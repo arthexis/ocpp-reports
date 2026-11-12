@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from time import perf_counter
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -12,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 
 from .warehouse_queries import snapshot
 from .warehouse.transaction_detail import transaction_detail
+from .warehouse.active_sessions import is_active_session
 from .warehouse.event_groups import event_groups_page, event_group_details
 import sqlite3
 
@@ -139,10 +141,12 @@ def _filter_dashboard(data: dict, *, term: str, status: str,
 
 def _filter_transaction_energy(transactions: list[dict], view: str) -> list[dict]:
     """Classify measured final energy; unknown isn't a failed or successful charge."""
-    if view not in ("success", "failed", "all"):
+    if view not in ("success", "failed", "all", "active"):
         raise ValueError("Invalid transaction view")
     if view == "all":
         return transactions
+    if view == "active":
+        return [row for row in transactions if is_active_session(row)]
 
     def energy(row: dict) -> float | None:
         value = row.get("energy_wh")
@@ -341,6 +345,7 @@ def project_dashboard_connectors(data: dict, *, now: datetime, connector_view: s
         source_freshness = {source["source_id"]: _source_freshness(source, now)
                             for source in data["sources"]}
     for connector in data["connectors"]:
+        connector.setdefault("active_transaction_id", None)
         # StatusNotification is change-driven: age of the last status change
         # does not measure connectivity. Do not use the export timestamp as
         # proof of a new status or a heartbeat from this charger.
@@ -431,7 +436,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             raise HTTPException(422, "Unsupported dashboard timezone")
         if connector_view not in ("combined", "station", "individual"):
             raise HTTPException(422, "Invalid connector view")
-        if tx_view not in ("success", "failed", "all"):
+        if tx_view not in ("success", "failed", "all", "active"):
             raise HTTPException(422, "Invalid transaction view")
         for day in (date_from, date_to):
             if day:
@@ -473,6 +478,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                 "success": len(_filter_transaction_energy(data["transactions"], "success")),
                 "failed": len(_filter_transaction_energy(data["transactions"], "failed")),
                 "all": len(data["transactions"]),
+                "active": len(_filter_transaction_energy(data["transactions"], "active")),
             }
             filtered_transactions = _filter_transaction_energy(data["transactions"], tx_view)
             tx_total = len(filtered_transactions)
@@ -482,6 +488,15 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             data["transactions"] = filtered_transactions[start:start + 20]
         projected = project_dashboard_connectors(data, now=now, connector_view=connector_view,
                                                  source_freshness=source_freshness)
+        # Operational 'Cargando' is a source-scoped summary, independent of
+        # presentation search/status/date filters. Clear those filters when
+        # navigating to all open sessions while preserving site and timezone.
+        active_query = [("tx_view", "active"), ("tz", tz)]
+        if source_id:
+            active_query.append(("source_id", source_id))
+        if charger_id:
+            active_query.append(("charger_id", charger_id))
+        active_transactions_href = "/?" + urlencode(active_query) + "#transactions"
         operational_counts = projected["status_counts"]
         connector_rows = projected["connectors"]
         is_admin = not hasattr(request.state, "principal") or request.state.principal.role.value == "admin"
@@ -522,6 +537,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                                            "status_filter": status, "location_filter": location,
                                            "date_from": date_from, "date_to": date_to,
                                            "timezone": tz, "timezones": zones, "tx_view": tx_view,
+                                           "active_transactions_href": active_transactions_href,
                                            "transaction_counts": transaction_counts,
                                            "tx_page": tx_page, "tx_pages": tx_pages,
                                            "tx_total": tx_total})
@@ -612,13 +628,12 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             raise HTTPException(503, "Warehouse unavailable") from exc
         if transaction is None:
             raise HTTPException(404, "Transaction not found")
-        active = (bool(transaction.get("active"))
-                  and transaction.get("state") in ("open", "active", "charging")
-                  and transaction.get("energy_wh") is None)
+        active = is_active_session(transaction)
         return templates.TemplateResponse(
             request, "transaction_detail.html.j2",
             {"title": title, "transaction": transaction, "timezone": selected_zone,
-             "timezones": zones, "refresh_active": active},
+             "timezones": zones, "refresh_active": active,
+              "elapsed_duration": session_duration(transaction.get("started_at"), datetime.now(timezone.utc).isoformat()) if active else None},
             headers={"Cache-Control": "no-store"},
         )
 

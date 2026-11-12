@@ -47,7 +47,10 @@ def test_live_transaction_detail_uses_exact_identity_and_live_age(tmp_path):
     assert "34.75 kWh" in page.text
     assert "Estimada" in page.text and "medición reciente" in page.text
     assert "78%" in page.text and "23%" in page.text
-    assert 'http-equiv="refresh" content="15"' in page.text
+    assert 'http-equiv="refresh"' not in page.text
+    assert "window.setInterval(refreshTransaction, 15000)" in page.text
+    assert "current.contains(document.activeElement)" in page.text
+    assert 'data-active="true"' in page.text
     assert page.headers["cache-control"] == "no-store"
     assert transaction_detail(path, source_id="a", charger_id="cp",
                               transaction_id=7)["location"] == "Station A"
@@ -81,6 +84,7 @@ def test_forwarded_and_local_finalization_do_not_duplicate_or_guess_energy(tmp_p
     assert "35.20 kWh" in page.text
     assert "Final · medición al cierre" in page.text
     assert 'http-equiv="refresh"' not in page.text
+    assert 'data-active="false"' in page.text
     assert client.get("/transactions/b/cp/4").status_code == 404
 
     # Local authoritative snapshot wins when both sources exist for same identity.

@@ -144,7 +144,9 @@ def test_status_cards_render_station_and_connector_totals(monkeypatch, tmp_path)
     for view in ("combined", "station", "individual"):
         html = client.get("/?connector_view=" + view).text
         assert 'class="operational-card operational-card--available" href="#connectors"><strong>1 (2)</strong>' in html
-        assert 'class="operational-card operational-card--charging" href="#connectors"><strong>0 (0)</strong>' in html
+        assert 'class="operational-card operational-card--charging"' in html
+        assert "tx_view=active" in html
+        assert "<strong>0 (0)</strong><span>Cargando</span>" in html
         assert "Estaciones (conectores individuales)" in html
 
 

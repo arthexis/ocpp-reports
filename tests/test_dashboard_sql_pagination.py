@@ -54,7 +54,7 @@ def test_all_history_is_counted_and_only_page_records_loaded(tmp_path):
     _seed(dbpath, local=521, remote=42)
     first = _page(dbpath)
     assert first["transaction_pagination"]["counts"] == {
-        "all": 563, "success": 507, "failed": 56
+        "all": 563, "success": 507, "failed": 56, "active": 0
     }
     assert len(first["transactions"]) == 20
     assert first["transaction_pagination"]["pages"] == 29
@@ -71,7 +71,7 @@ def test_filter_and_count_before_offset_and_source_isolation(tmp_path):
     _seed(dbpath, local=25, remote=42)
     remote = _page(dbpath, location="west", view="failed")
     assert remote["transaction_pagination"]["counts"] == {
-        "all": 42, "success": 38, "failed": 4
+        "all": 42, "success": 38, "failed": 4, "active": 0
     }
     assert [r["id"] for r in remote["transactions"]] == [40, 30, 20, 10]
     matching = _page(dbpath, term="EAST", view="success", page=2)
@@ -107,7 +107,7 @@ def test_date_intersection_and_unknown_energy_semantics(tmp_path):
     result = _page(dbpath, zone="America/Monterrey",
                    date_from="2026-10-30", date_to="2026-10-30")
     assert result["transaction_pagination"]["counts"] == {
-        "all": 1, "success": 0, "failed": 0
+        "all": 1, "success": 0, "failed": 0, "active": 0
     }
     assert result["transactions"][0]["id"] == 1
     failed = _page(dbpath, zone="America/Monterrey",
