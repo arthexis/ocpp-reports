@@ -10,6 +10,7 @@ import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import urlsplit, parse_qs
 
 import pytest
@@ -239,5 +240,60 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
             assert page.get_by_role("button", name="En curso (1)").count() == 1
             _shot(page, "mobile-cleared-filters.png")
             context.close()
+        finally:
+            browser.close()
+
+
+
+def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
+    """Physical-like viewport checks with fixture-only HTML and no outside network."""
+    playwright = pytest.importorskip("playwright.sync_api")
+    database = tmp_path / "mobile-card-fixture.sqlite"
+    _seed(database)
+    app = create_app(database, allowed_source_ids=("a",))
+
+    @app.middleware("http")
+    async def synthetic_profile(request, call_next):
+        # Synthetic test principal only; no real authentication or credentials.
+        request.state.principal = SimpleNamespace(
+            user_id="fixture-user", role=SimpleNamespace(value="admin"))
+        return await call_next(request)
+
+    with TestClient(app) as client, playwright.sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            for width in (320, 360, 390, 520):
+                context = browser.new_context(
+                    viewport={"width": width, "height": 844},
+                    is_mobile=True, has_touch=True, locale="es-MX",
+                )
+                page = context.new_page()
+                page.route("**/*", _offline_route(client, {"GET": 0}))
+                page.goto("http://reports.test/", wait_until="load")
+                search = page.locator("#dashboard-search").bounding_box()
+                profile = page.locator(".profile-menu summary").bounding_box()
+                assert search and profile
+                assert profile["width"] >= 44 and profile["height"] >= 44
+                assert abs(search["y"] - profile["y"]) <= 12, (width, search, profile)
+                assert search["x"] + search["width"] <= profile["x"] + 2
+                assert profile["x"] + profile["width"] <= width + 2
+                card = page.locator(".connectors-panel tbody tr").first
+                assert card.evaluate("(el) => getComputedStyle(el).display") == "grid"
+                assert card.evaluate(
+                    "(el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\\s+/).length"
+                ) == 2
+                cells = card.locator("td")
+                first, second = cells.nth(0).bounding_box(), cells.nth(1).bounding_box()
+                assert first and second
+                assert abs(first["y"] - second["y"]) <= 2
+                assert second["x"] > first["x"]
+                assert cells.nth(7).get_attribute("data-label") == "Recibido"
+                charger_link = page.locator(".connectors-panel a.charger-session-link").first
+                assert charger_link.bounding_box()["height"] >= 44
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
+                page.locator(".profile-menu summary").click()
+                assert page.locator(".profile-popover .profile-name").inner_text() == "fixture-user"
+                _shot(page, f"mobile-grid-profile-{width}.png")
+                context.close()
         finally:
             browser.close()

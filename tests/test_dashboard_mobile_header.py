@@ -14,3 +14,22 @@ def test_mobile_header_preserves_search_and_timezone_controls(empty_dashboard_ht
     assert '<label for="dashboard-search">Filtrar <input' in html
     assert 'id="timezone-choice"' in html
     assert 'id="dashboard-filters"' in html
+
+
+def test_mobile_filter_profile_share_row_and_connector_cards_use_two_columns(dashboard_source):
+    source = dashboard_source
+    css = source.split("<style>", 1)[1].split("</style>", 1)[0]
+    mobile = css.split("/* Mobile header and connector cards:", 1)[1].split("\n}", 1)[0]
+    assert "@media(max-width:520px)" in mobile
+    assert "header .brand{flex:0 0 100%;width:100%}" in mobile
+    assert ".header-filters{flex:1 1 0;width:auto;min-width:0;flex-wrap:nowrap}" in mobile
+    assert ".profile-menu summary{min-width:44px;min-height:44px}" in mobile
+    assert ".connectors-panel tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))" in mobile
+    assert ".connectors-panel td{display:flex;flex-direction:column;" in mobile
+    assert ".connectors-panel td.empty{grid-column:1/-1}" in mobile
+    assert '<th>Recibido</th>' in source
+    assert 'data-label="Recibido"' in source
+    assert '<th>Estado informado</th>' not in source
+    assert 'data-label="Estado informado"' not in source
+    assert "c.status_observed_at|display_date(timezone)" in source
+    assert "no la hora de recepción del snapshot" in source

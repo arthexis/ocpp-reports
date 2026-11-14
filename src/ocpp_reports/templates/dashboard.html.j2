@@ -180,6 +180,21 @@ header{align-items:start;gap:.65rem}
 .dashboard-logout{display:flex;align-items:center;margin:0}
 .dashboard-logout button{display:grid;place-items:center;cursor:pointer;background:transparent;color:inherit;border:1px solid var(--border, #718096);border-radius:7px;padding:8px}
 .dashboard-logout button:hover,.dashboard-logout button:focus-visible{background:var(--surface, #34475b);outline-offset:2px}
+/* Mobile header and connector cards: one search/profile row, two fields per row. */
+@media(max-width:520px){
+  header .brand{flex:0 0 100%;width:100%}
+  .header-filters{flex:1 1 0;width:auto;min-width:0;flex-wrap:nowrap}
+  .header-filters label{flex:1 1 0;min-width:0}
+  .header-filters .unified-filter{width:100%;min-width:0}
+  .profile-menu{flex:0 0 auto;margin-left:.15rem}
+  .profile-menu summary{min-width:44px;min-height:44px}
+  .connectors-panel tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:.65rem;row-gap:.45rem}
+  .connectors-panel td{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;min-width:0;overflow-wrap:anywhere}
+  .connectors-panel td::before{flex:0 0 auto;width:100%;font-size:.7rem}
+  .connectors-panel td[data-label="Estado"]{align-items:flex-start}
+  .connectors-panel td[data-label="Estado"] .connector-status-content{flex:0 1 auto;justify-content:flex-start;align-items:flex-start}
+  .connectors-panel td.empty{grid-column:1/-1}
+}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand"><h1>{{ title }}</h1>
 <div class="muted">Solo lectura · Datos actualizados cada 15 s ·
@@ -208,14 +223,14 @@ header{align-items:start;gap:.65rem}
 <a class="operational-card operational-card--uncertain" href="#connectors"><strong>{{ operational_counts.uncertain.stations }} ({{ operational_counts.uncertain.connectors }})</strong><span>Datos antiguos / otros</span></a>
 </div></section>
 
-<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading"><div class="panel-heading"><h2>Conectores</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Conectores" aria-controls="help-connectors" aria-expanded="false" aria-describedby="help-connectors">ⓘ</button></span><span class="panel-help-text" id="help-connectors" role="tooltip">Conectado indica el último valor observado por el CSMS, no una prueba de red en tiempo real. El origen puede estar atrasado aunque conserve un valor Sí. La antigüedad del StatusNotification no indica por sí sola desconexión. Potencia: medida reciente o nominal configurada en CSMS (no es consumo actual). La capacidad de C0 es compartida y no debe sumarse con la de los conectores. Energía registrada: lectura acumulada de medidor (C0 = suma de conectores individuales), no consumo de la sesión. No sumar C0 nuevamente en totales. Estado informado es la fecha original del último StatusNotification cuando existe; snapshot recibido solo indica actualización del export. Sin fecha original se muestra desconocido; las fechas originales permanecen en la API.</span></div>
+<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading"><div class="panel-heading"><h2>Conectores</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Conectores" aria-controls="help-connectors" aria-expanded="false" aria-describedby="help-connectors">ⓘ</button></span><span class="panel-help-text" id="help-connectors" role="tooltip">Conectado indica el último valor observado por el CSMS, no una prueba de red en tiempo real. El origen puede estar atrasado aunque conserve un valor Sí. La antigüedad del StatusNotification no indica por sí sola desconexión. Potencia: medida reciente o nominal configurada en CSMS (no es consumo actual). La capacidad de C0 es compartida y no debe sumarse con la de los conectores. Energía registrada: lectura acumulada de medidor (C0 = suma de conectores individuales), no consumo de la sesión. No sumar C0 nuevamente en totales. Recibido muestra la fecha original del último StatusNotification cuando existe; no la hora de recepción del snapshot, que solo indica actualización del export. Sin fecha original se muestra desconocido; las fechas originales permanecen en la API.</span></div>
 <div class="connector-filters" role="group" aria-label="Filtrar conectores">
 <button type="button" data-connector-view="individual" aria-pressed="{{ 'true' if connector_view == 'individual' else 'false' }}" class="{{ 'selected' if connector_view == 'individual' else '' }}">Individual</button>
 <span aria-hidden="true">|</span>
 <button type="button" data-connector-view="station" aria-pressed="{{ 'true' if connector_view == 'station' else 'false' }}" class="{{ 'selected' if connector_view == 'station' else '' }}">Estación</button>
 <span aria-hidden="true">|</span>
 <button type="button" data-connector-view="combined" aria-pressed="{{ 'true' if connector_view == 'combined' else 'false' }}" class="{{ 'selected' if connector_view == 'combined' else '' }}">Combinado</button>
-</div></div><p class="connector-scroll-hint" id="connector-scroll-hint" hidden>→ Más columnas</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores" aria-describedby="connector-scroll-hint"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado</th><th>Potencia</th><th>Energía registrada</th><th>Estado informado</th></tr></thead><tbody>
+</div></div><p class="connector-scroll-hint" id="connector-scroll-hint" hidden>→ Más columnas</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores" aria-describedby="connector-scroll-hint"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado observado</th><th>Conectado</th><th>Potencia</th><th>Energía registrada</th><th>Recibido</th></tr></thead><tbody>
 {% for c in connector_rows %}{% set session_href = ("/transactions/" ~ (c.source_id|urlencode) ~ "/" ~ (c.charger_id|urlencode) ~ "/" ~ (c.active_transaction_id|string) ~ "?tz=" ~ (timezone|urlencode)) if c.active_transaction_id is not none else none %}
 <tr><td data-label="Ubicación">{{ c.location }}</td><td data-label="Cargador" class="charger-identity">
 {% if session_href %}<a class="charger-session-link" href="{{ session_href }}" aria-label="{{ 'Ver última sesión informada, sin confirmación reciente' if c.stale else 'Ver carga actual' }} del cargador {{ c.charger_id }}, conector {{ c.connector_id }}">{{ c.charger_id }}</a>{% else %}{{ c.charger_id }}{% endif %}
@@ -224,7 +239,7 @@ header{align-items:start;gap:.65rem}
 {% if session_href and c.stale %}<span class="session-unconfirmed">Sesión sin confirmar</span>{% elif not session_href and state == "charging" and c.connector_id != 0 %}<span class="current-session-pending">Transacción aún no disponible</span>{% endif %}</span></td>
 <td data-label="Conectado"><span class="status {{ 'status--historic' if not c.connection_fresh else ('status--ok' if c.connected else 'status--off') }}" title="Conexión observada en el último estado del CSMS; no es una prueba de red en tiempo real">{{ "Sí" if c.connected is sameas true else "No" if c.connected is sameas false else "Sin datos" }}</span></td>
 <td data-label="Potencia" class="numeric">{% if c.power_fresh and c.power_w is not none %}{{ "%.2f"|format(c.power_w / 1000) }} kW <span class="note muted" title="Power.Active.Import: medición reciente">medida</span>{% elif c.rated_power_w is defined and c.rated_power_w is not none %}{{ "%.2f"|format(c.rated_power_w / 1000) }} kW <span class="note muted" title="{{ 'Capacidad nominal del cargador, compartida; no es potencia medida' if c.connector_id == 0 or c.rating_scope == 'charger' else 'Capacidad nominal específica del conector; no es potencia medida' }}">nominal</span>{% else %}—{% endif %}</td>
-<td data-label="Medidor" class="numeric">{% set displayed_energy_wh = c.aggregate_energy_wh if c.connector_id == 0 and c.aggregate_energy_wh is defined else c.energy_wh %}{{ "%.2f"|format(displayed_energy_wh / 1000) ~ " kWh" if displayed_energy_wh is not none else "—" }}</td><td data-label="Estado informado">{{ c.status_observed_at|display_date(timezone) if not c.status_time_unknown else "Desconocido" }}</td></tr>
+<td data-label="Medidor" class="numeric">{% set displayed_energy_wh = c.aggregate_energy_wh if c.connector_id == 0 and c.aggregate_energy_wh is defined else c.energy_wh %}{{ "%.2f"|format(displayed_energy_wh / 1000) ~ " kWh" if displayed_energy_wh is not none else "—" }}</td><td data-label="Recibido">{{ c.status_observed_at|display_date(timezone) if not c.status_time_unknown else "Desconocido" }}</td></tr>
 {% else %}<tr><td class="empty" colspan="8">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
 </section>
 <section class="transactions-panel" id="transactions"><div class="transactions-heading"><div class="panel-heading"><h2>Transacciones recientes</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Transacciones recientes" aria-controls="help-transactions" aria-expanded="false" aria-describedby="help-transactions">ⓘ</button></span><span class="panel-help-text" id="help-transactions" role="tooltip">SoC: primera y última medición reportada; no se estiman valores ni se presupone una medición al cierre.</span></div>
