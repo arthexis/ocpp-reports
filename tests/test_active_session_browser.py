@@ -145,7 +145,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                                          bounds["y"] + bounds["height"] / 2)
                 else:
                     target.click()
-                page.wait_for_url("**/transactions/a/cp/7?tz=UTC")
+                page.wait_for_url("**/transactions/a/cp/7?tz=UTC*")
                 assert page.locator("#transaction-energy").inner_text().find("34.75 kWh") >= 0
                 assert page.locator(".site-header").is_visible()
                 assert page.locator(".detail-heading").is_visible()
@@ -163,7 +163,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 alternate = page.locator("a.status-session-link" if mobile else "a.charger-session-link").first
                 assert alternate.is_visible()
                 alternate.click()
-                page.wait_for_url("**/transactions/a/cp/7?tz=UTC")
+                page.wait_for_url("**/transactions/a/cp/7?tz=UTC*")
                 assert page.locator("#transaction-energy").inner_text().find("34.75 kWh") >= 0
                 assert "Estimada" in page.locator("#transaction-energy").inner_text()
                 assert "7.20 kW" in page.locator("#transaction-power").inner_text()
@@ -218,7 +218,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
             dark_bg = dark_page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()")
             assert dark_bg == "#111923"
             dark_page.locator("a.status-session-link").click()
-            dark_page.wait_for_url("**/transactions/a/cp/7?tz=UTC")
+            dark_page.wait_for_url("**/transactions/a/cp/7?tz=UTC*")
             assert dark_page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()") == dark_bg
             assert dark_page.locator(".site-header").is_visible()
             _shot(dark_page, "mobile-dark-detail.png")
@@ -295,5 +295,97 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                 assert page.locator(".profile-popover .profile-name").inner_text() == "fixture-user"
                 _shot(page, f"mobile-grid-profile-{width}.png")
                 context.close()
+        finally:
+            browser.close()
+
+
+def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
+    """Actual new SVG plots, temporal semantics and back URL; offline fixtures only."""
+    playwright = pytest.importorskip("playwright.sync_api")
+    from ocpp_reports.warehouse.schema import _schema
+    db_path = tmp_path / "timeline-chromium.sqlite"
+    _seed(db_path)
+    active, _ = _data()
+    active.update(meter_start_wh=1000)
+    history = {"id": 6, "charger_id": "cp", "connector_id": 1,
+               "state": "stopped", "active": False,
+               "started_at": _now(-1800), "stopped_at": _now(-900),
+               "meter_start_wh": 1000, "energy_wh": 3000}
+    with sqlite3.connect(db_path) as db:
+        _schema(db)
+        for tx, low, high in ((history, 0, 9), (active, 10, 20)):
+            db.execute("INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)",
+                       ("a", "cp", tx["id"], low, high, "digest",
+                        json.dumps(tx), _now()))
+            db.execute("INSERT INTO transaction_observations VALUES (?,?,?,?,?,?,?,?)",
+                       ("a", "cp", tx["id"], low, high, "digest",
+                        json.dumps(tx), _now()))
+        for event, tid, delta, energy, power, soc in (
+            (2, 6, -1500, 1200, 3200, 31), (3, 6, -1200, 2300, 4100, 45),
+            (11, 7, -500, 1400, 6400, 51), (12, 7, -400, 1900, 7000, 62)
+        ):
+            sample = {"source_event_id": event, "sample_index": 0,
+                      "charger_id": "cp", "connector_id": 1,
+                      "transaction_id": tid, "at": _now(delta),
+                      "energy_wh": energy, "power_w": power, "soc": soc,
+                      "soc_provenance": "ocpp-meter-values"}
+            db.execute("INSERT INTO energy_samples VALUES (?,?,?,?)",
+                       ("a", event, 0, json.dumps(sample)))
+    client = TestClient(create_app(db_path, allowed_source_ids=("a",)))
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            for width in (320, 360, 390, 520, 1920):
+                for theme in ("light", "dark"):
+                    context = browser.new_context(
+                        viewport={"width": width, "height": 844},
+                        is_mobile=width < 1000, has_touch=width < 1000,
+                        locale="es-MX", color_scheme=theme)
+                    page = context.new_page()
+                    page.route("**/*", _offline_route(client, {"GET": 0}))
+                    page.clock.install()
+                    page.goto("http://reports.test/?tx_view=all&source_id=a&tx_page=1&tz=UTC",
+                              wait_until="load")
+                    assert page.get_by_role("button", name="Todas (2)").is_visible()
+                    page.get_by_role("link", name="Ver detalles de transacción 6").click()
+                    assert page.locator("main").get_attribute("data-active") == "false"
+                    assert page.locator(".timeline-plot svg").count() == 3
+                    assert page.locator(".timeline-evidence tbody tr").count() == 2
+                    assert all(page.locator(".timeline-plot svg").nth(i).is_visible()
+                               for i in range(3))
+                    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
+                    assert "tx_view=all" in page.locator(".back-link").get_attribute("href")
+                    page.locator(".back-link").click()
+                    assert page.url.endswith("tz=UTC#transactions")
+                    page.get_by_role("link", name="Ver detalles de transacción 7").click()
+                    assert page.locator("main").get_attribute("data-active") == "true"
+                    assert page.locator(".timeline-evidence tbody tr").count() == 2
+                    assert page.locator(".timeline-plot svg").count() == 3
+                    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
+                    if width == 390 and theme == "dark":
+                        _shot(page, "215-timeline-dark-390.png")
+                    if width == 1920 and theme == "light":
+                        _shot(page, "215-timeline-desktop-1920.png")
+                    if width == 390 and theme == "light":
+                        # Fixture-only read: add one real indexed observation
+                        # and prove the 15-second browser read updates the SVG.
+                        sample = {"source_event_id": 13, "sample_index": 0,
+                                  "charger_id": "cp", "connector_id": 1,
+                                  "transaction_id": 7, "at": _now(-250),
+                                  "energy_wh": 2500, "power_w": 6400,
+                                  "soc": 67, "soc_provenance": "ocpp-meter-values"}
+                        with sqlite3.connect(db_path) as db:
+                            db.execute("INSERT INTO energy_samples VALUES (?,?,?,?)",
+                                       ("a", 13, 0, json.dumps(sample)))
+                        page.locator(".back-link").focus()
+                        page.evaluate("window.scrollTo(0, 170)")
+                        before = page.evaluate("window.scrollY")
+                        page.clock.fast_forward(15_200)
+                        page.wait_for_function(
+                            "document.querySelectorAll('.timeline-evidence tbody tr').length === 3")
+                        assert page.evaluate("document.activeElement.classList.contains('back-link')")
+                        assert abs(page.evaluate("window.scrollY") - before) <= 3
+                        _shot(page, "215-timeline-refresh-390.png")
+                    context.close()
         finally:
             browser.close()
