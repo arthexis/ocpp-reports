@@ -203,9 +203,13 @@ def test_null_rows_and_out_of_order_times_break_chart_strokes(tmp_path):
     result = transaction_timeline(path, _tx())
     assert len(result["points"]) == 3
     assert [p["_source_order"] for p in result["points"]] == [0, 3, 2]
-    for chart in timeline_charts(result["points"]):
-        assert len(chart["dots"]) == 3
-        assert chart["segments"] == []
+    charts = {c["field"]: c for c in timeline_charts(result["points"])}
+    # Time disorder also exposes a real counter regression: energy is gated
+    # after that regression, while all three independent power samples remain.
+    assert len(charts["energy_kwh"]["dots"]) == 2
+    assert len(charts["power_kw"]["dots"]) == 3
+    assert charts["energy_kwh"]["segments"] == []
+    assert charts["power_kw"]["segments"] == []
 
 
 def test_counter_regression_never_reconnects_energy_after_downsampling(tmp_path):
