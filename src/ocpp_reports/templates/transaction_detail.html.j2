@@ -53,6 +53,7 @@ main{max-width:1320px}
 .timeline-plot svg{width:100%;height:auto;display:block;color:var(--accent)}
 .timeline-plot polyline{fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
 .timeline-plot circle{fill:var(--accent);stroke:var(--surface);stroke-width:1.5}
+.timeline-segment{stroke:var(--accent);stroke-width:2.5;stroke-linecap:round}
 .timeline-plot .axis{stroke:var(--muted);stroke-width:1;opacity:.55}
 .timeline-evidence{max-height:14rem;overflow:auto;border:1px solid var(--line);border-radius:8px}
 .timeline-evidence table{width:100%;border-collapse:collapse;font-size:.83rem}
@@ -63,8 +64,8 @@ main{max-width:1320px}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a>
 <header class="site-header">
-  <div class="brand"><h1>{{ title }}</h1><div class="muted">Solo lectura · Datos consultados cada 15 s durante cargas activas</div></div>
-  <a class="back-link" href="/?tz={{ timezone|urlencode }}#transactions">← Volver al dashboard</a>
+  <div class="brand"><h1>{{ title }}</h1><div class="muted">Panel de sesiones · Solo lectura{% if refresh_active %} · Consulta cada 15 s{% endif %}</div></div>
+  <a class="back-link" href="{{ back_href|default('/?tz=' ~ (timezone|urlencode) ~ '#transactions') }}">← Volver al dashboard</a>
 </header>
 <main id="content" data-transaction-detail="true" data-active="{{ 'true' if refresh_active else 'false' }}">
 <section class="detail-heading" aria-labelledby="transaction-heading">
@@ -104,7 +105,7 @@ main{max-width:1320px}
 
 <section class="timeline-card" id="transaction-timeline" aria-labelledby="timeline-heading">
 <h2 id="timeline-heading">Evolución temporal de la carga</h2>
-<p class="note">Lecturas OCPP conservadas localmente, atribuidas a esta sesión. Las líneas unen únicamente muestras observadas; no representan mediciones intermedias. Energía desde el medidor inicial verificado, no energía final facturable.</p>
+<p class="note">Lecturas OCPP conservadas localmente, atribuidas a esta sesión. Los puntos son muestras observadas; los segmentos unen lecturas consecutivas únicamente. Energía desde el medidor inicial verificado, no energía final facturable.</p>
 {% if timeline.points %}
 <div class="timeline-grid">
 {% for chart in timeline_charts %}
@@ -113,7 +114,7 @@ main{max-width:1320px}
 <svg role="img" aria-label="{{ chart.label }}: {{ chart.dots|length }} muestras observadas, mínimo {{ '%.2f'|format(chart.min) }} y máximo {{ '%.2f'|format(chart.max) }} {{ chart.unit }}" viewBox="0 0 600 185">
 <line class="axis" x1="30" y1="155" x2="580" y2="155"/>
 <line class="axis" x1="30" y1="20" x2="30" y2="155"/>
-{% if chart.dots|length > 1 %}<polyline points="{% for dot in chart.dots %}{{ dot.x }},{{ dot.y }} {% endfor %}"/>{% endif %}
+{% for segment in chart.segments %}<line class="timeline-segment" x1="{{ segment.a.x }}" y1="{{ segment.a.y }}" x2="{{ segment.b.x }}" y2="{{ segment.b.y }}"/>{% endfor %}
 {% for dot in chart.dots %}<circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="4"><title>{{ '%.3f'|format(dot.value) }} {{ chart.unit }}</title></circle>{% endfor %}
 <text x="33" y="15" font-size="12" fill="currentColor">{{ '%.2f'|format(chart.max) }} {{ chart.unit }}</text>
 <text x="33" y="174" font-size="12" fill="currentColor">{{ '%.2f'|format(chart.min) }} {{ chart.unit }}</text>
@@ -132,7 +133,9 @@ main{max-width:1320px}
 {% else %}
 <p class="timeline-empty">Historial de mediciones no disponible para esta sesión. Se conservan los totales y métricas verificados arriba; no se genera una curva estimada.</p>
 {% endif %}
+{% if timeline.discontinuous %}<p class="stale" role="status">Discontinuidad del medidor detectada: se suspende la curva de energía posterior al reinicio o caída del contador.</p>{% endif %}
 {% if timeline.limited %}<p class="note">Vista parcial: se aplicó el límite de lectura/muestras; no se garantiza cobertura histórica completa.</p>{% endif %}
+{% if timeline.coverage == 'observed-window' %}<p class="note">Cobertura: intervalo de eventos observado para la transacción; no demuestra historial completo ni equivale a muestras replicadas.</p>{% endif %}
 </section>
 <section class="card session-details" id="transaction-session-data"><h2>Datos de la sesión</h2><dl>
 <div><dt>Origen</dt><dd>{{ transaction.source_id }}</dd></div>
