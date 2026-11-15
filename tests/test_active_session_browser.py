@@ -311,18 +311,25 @@ def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
                "state": "stopped", "active": False,
                "started_at": _now(-1800), "stopped_at": _now(-900),
                "meter_start_wh": 1000, "energy_wh": 3000}
+    empty_history = {**history, "id": 8}
+    one_point = {**history, "id": 9}
     with sqlite3.connect(db_path) as db:
         _schema(db)
-        for tx, low, high in ((history, 0, 9), (active, 10, 20)):
+        for tx, low, high in ((history, 0, 9), (active, 10, 20),
+                              (one_point, 20, 30)):
             db.execute("INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)",
                        ("a", "cp", tx["id"], low, high, "digest",
                         json.dumps(tx), _now()))
             db.execute("INSERT INTO transaction_observations VALUES (?,?,?,?,?,?,?,?)",
                        ("a", "cp", tx["id"], low, high, "digest",
                         json.dumps(tx), _now()))
+        db.execute("INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)",
+                   ("a", "cp", 8, 0, 0, "digest",
+                    json.dumps(empty_history), _now()))
         for event, tid, delta, energy, power, soc in (
             (2, 6, -1500, 1200, 3200, 31), (3, 6, -1200, 2300, 4100, 45),
-            (11, 7, -500, 1400, 6400, 51), (12, 7, -400, 1900, 7000, 62)
+            (11, 7, -500, 1400, 6400, 51), (12, 7, -400, 1900, 7000, 62),
+            (25, 9, -1400, 1900, 3500, 41)
         ):
             sample = {"source_event_id": event, "sample_index": 0,
                       "charger_id": "cp", "connector_id": 1,
@@ -346,7 +353,7 @@ def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
                     page.clock.install()
                     page.goto("http://reports.test/?tx_view=all&source_id=a&tx_page=1&tz=UTC",
                               wait_until="load")
-                    assert page.get_by_role("button", name="Todas (2)").is_visible()
+                    assert page.get_by_role("button", name="Todas (4)").is_visible()
                     page.get_by_role("link", name="Ver detalles de transacción 6").click()
                     assert page.locator("main").get_attribute("data-active") == "false"
                     assert page.locator(".timeline-plot svg").count() == 3
@@ -362,6 +369,17 @@ def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
                     assert page.locator(".timeline-evidence tbody tr").count() == 2
                     assert page.locator(".timeline-plot svg").count() == 3
                     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
+                    # Required visual empty-state and single-point contracts.
+                    page.goto("http://reports.test/transactions/a/cp/8?tz=UTC")
+                    assert page.locator(".timeline-empty").is_visible()
+                    assert page.locator(".timeline-plot svg").count() == 0
+                    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
+                    page.goto("http://reports.test/transactions/a/cp/9?tz=UTC")
+                    assert page.locator(".timeline-plot svg").count() == 3
+                    assert page.locator(".timeline-evidence tbody tr").count() == 1
+                    assert page.locator(".timeline-segment").count() == 0
+                    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
+                    page.goto("http://reports.test/transactions/a/cp/7?tz=UTC")
                     if width == 390 and theme == "dark":
                         _shot(page, "215-timeline-dark-390.png")
                     if width == 1920 and theme == "light":
