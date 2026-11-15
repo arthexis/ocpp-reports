@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 
 from .warehouse_queries import snapshot
 from .warehouse.transaction_detail import transaction_detail
+from .warehouse.transaction_timeline import transaction_timeline, timeline_charts
 from .warehouse.active_sessions import is_active_session
 from .warehouse.event_groups import event_groups_page, event_group_details
 import sqlite3
@@ -629,10 +630,15 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         if transaction is None:
             raise HTTPException(404, "Transaction not found")
         active = is_active_session(transaction)
+        try:
+            timeline = transaction_timeline(warehouse, transaction)
+        except (OSError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Timeline warehouse unavailable") from exc
         return templates.TemplateResponse(
             request, "transaction_detail.html.j2",
             {"title": title, "transaction": transaction, "timezone": selected_zone,
              "timezones": zones, "refresh_active": active,
+             "timeline": timeline, "timeline_charts": timeline_charts(timeline["points"]),
               "elapsed_duration": session_duration(transaction.get("started_at"), datetime.now(timezone.utc).isoformat()) if active else None},
             headers={"Cache-Control": "no-store"},
         )
