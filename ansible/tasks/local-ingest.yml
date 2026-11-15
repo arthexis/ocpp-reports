@@ -58,6 +58,7 @@
   ansible.builtin.command:
     argv:
       - python3
+      - -B
       - "{{ playbook_dir }}/../scripts/provision_csms_read_access.py"
       - ocpp-reports
       - "{{ reports_local_csms_data_dir }}"
@@ -102,7 +103,8 @@
   ansible.builtin.command:
     argv:
       - "{{ reports_release }}/venv/bin/python"
-      - "{{ playbook_dir }}/../scripts/preflight_csms_export.py"
+      - -m
+      - ocpp_reports.csms_export_preflight
       - "{{ reports_local_csms_data_dir }}"
   become: true
   become_user: ocpp-reports

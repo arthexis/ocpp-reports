@@ -1,14 +1,10 @@
 """Actual CSMS export preflight has to inspect data, not just CLI --help."""
-import importlib.util
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
-script = Path(__file__).resolve().parents[1] / "scripts" / "preflight_csms_export.py"
-spec = importlib.util.spec_from_file_location("preflight_csms_export", script)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
+from ocpp_reports import csms_export_preflight as module
 
 
 def test_readonly_export_preflight_succeeds(monkeypatch, tmp_path, capsys):
@@ -28,3 +24,15 @@ def test_readonly_export_preflight_rejects_bad_schema(monkeypatch, tmp_path):
     monkeypatch.setattr(module, "active_csms_export", lambda *_args, **_kwargs: {"schema": "other"})
     with pytest.raises(RuntimeError, match="unsupported export schema"):
         module.main()
+
+
+def test_ansible_runs_packaged_preflight_without_checkout_access():
+    task = (Path(__file__).resolve().parents[1] / "ansible/tasks/local-ingest.yml").read_text()
+    assert "ocpp_reports.csms_export_preflight" in task
+    assert "scripts/preflight_csms_export.py" not in task
+
+
+def test_privileged_acl_helper_does_not_write_bytecode_to_checkout():
+    task = (Path(__file__).resolve().parents[1] / "ansible/tasks/local-ingest.yml").read_text()
+    provision = task.split("- name: Grant Reports read-only access", 1)[1].split("- name:", 1)[0]
+    assert "- python3\n      - -B\n" in provision
