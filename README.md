@@ -98,9 +98,28 @@ ocpp-reports run --source verified-summary.json --period previous-day --send
 `run` uses `UTC` by default, or `America/Monterrey` when `--profile vendor` is selected. Pass `--timezone IANA_ZONE` to override either default. The selected zone determines previous-day/week/month boundaries and how the vendor CSV timestamps are displayed. Explicit `--since` and `--until` retain their supplied offsets. Previously verified summaries retain their own recorded reporting period and timezone; changing the zone requires generating a new summary from source data.
 
 
+## Control ingestion and collector
+
+The `control` role enables local CSMS ingestion by default. It discovers the
+active `ocpp-csms.service` data directory and verifies a read-only export before
+starting ingestion into `/var/lib/ocpp-reports/warehouse.sqlite`. The CSMS
+service must be active and readable during deployment. Set
+`OCPP_REPORTS_LOCAL_INGEST_ENABLED=false` explicitly when opting out; apply the
+same setting on later deployments to retain that opt-out. Watchtower local
+ingestion remains opt-in or preserves a previously enabled installation.
+
+Control also installs the collector for external forwarders. It starts only
+after an operator has provisioned a protected `/etc/ocpp-reports/collector.toml`
+with authorized source IDs and tokens; existing credentials are never invented
+or replaced. The collector listens on loopback. External forwarding additionally
+requires an explicitly configured HTTPS reverse proxy and verified endpoint;
+installing the role alone does not expose it externally. Local ingestion and
+the collector use the same warehouse. `ocpp-reports status` checks that warehouse
+by default; `OCPP_REPORTS_DATABASE` overrides the path.
+
 ## Watchtower HTTPS setup (customer)
 
-Watchtower and control installations enable Dashboard, Collector and Diagnostics HTTPS by default. Satellite and terminal installations do not publish these services. To explicitly disable watchtower HTTPS, set `OCPP_REPORTS_NGINX_ENABLED=false` for deployment.
+HTTPS exposure is opt-in for watchtower and control installations; satellite and terminal installations do not publish these services. Set `OCPP_REPORTS_NGINX_ENABLED=true` only when the target host owns the configured Dashboard and Collector endpoints. Diagnostics HTTPS is separately controlled by `OCPP_REPORTS_DIAGNOSTICS_NGINX_ENABLED`.
 
 The installer installs `nginx`, `certbot`, `python3-certbot-nginx`, `acl`, and `apache2-utils` (provides `htpasswd`) when publishing HTTPS. It does not invent or rotate passwords, replication tokens, or Let's Encrypt accounts.
 

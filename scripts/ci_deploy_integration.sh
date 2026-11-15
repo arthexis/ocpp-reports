@@ -20,9 +20,11 @@ report_deploy_failure() {
   exit "$rc"
 }
 trap report_deploy_failure ERR
-# Isolated runners cannot request public ACME certificates or provision credentials.
-# Exercise the explicit HTTPS opt-out while keeping production default enabled.
+# Isolated runners have no CSMS, public certificates, or source credentials.
+# Test the documented opt-out here; the role-default expression and real
+# ingestion lifecycle are exercised by their dedicated test suites.
 export OCPP_REPORTS_NGINX_ENABLED=false
+export OCPP_REPORTS_LOCAL_INGEST_ENABLED=false
 export OCPP_REPORTS_INSTALL_ROOT="/opt/ocpp-reports-ci"
 export OCPP_REPORTS_CLI_LINK="/usr/local/bin/ocpp-reports-ci"
 ./deploy.sh --${role}

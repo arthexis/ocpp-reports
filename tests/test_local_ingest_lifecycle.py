@@ -47,7 +47,7 @@ def test_real_systemd_lifecycle_runner_is_wired_to_pr_ci():
 
 
 
-def test_deploy_infers_previous_local_ingest_without_explicit_override():
+def test_deploy_resolves_role_defaults_and_explicit_local_ingest_override():
     """Exercise the actual Ansible Jinja expression for each supported input."""
     from jinja2.nativetypes import NativeEnvironment
     playbook = (ROOT / "ansible/playbook.yml").read_text()
@@ -56,26 +56,30 @@ def test_deploy_infers_previous_local_ingest_without_explicit_override():
     )[0].strip()
     env = NativeEnvironment()
     cases = [
-        ("", "enabled", True),
-        ("", "enabled-runtime", True),
-        ("", "disabled", False),
-        ("", "masked", False),
-        ("", "", False),
-        ("true", "disabled", True),
-        ("yes", "", True),
-        ("1", "", True),
-        ("on", "", True),
-        ("false", "enabled", False),
-        ("no", "enabled", False),
-        ("0", "enabled", False),
-        ("off", "enabled", False),
+        ("control", "", "", True),
+        ("control", "", "disabled", True),
+        ("control", "false", "enabled", False),
+        ("watchtower", "", "enabled", True),
+        ("watchtower", "", "enabled-runtime", True),
+        ("watchtower", "", "disabled", False),
+        ("watchtower", "", "masked", False),
+        ("watchtower", "", "", False),
+        ("watchtower", "true", "disabled", True),
+        ("watchtower", "yes", "", True),
+        ("watchtower", "1", "", True),
+        ("watchtower", "on", "", True),
+        ("watchtower", "false", "enabled", False),
+        ("watchtower", "no", "enabled", False),
+        ("watchtower", "0", "enabled", False),
+        ("watchtower", "off", "enabled", False),
     ]
-    for override, prior, expected in cases:
+    for role, override, prior, expected in cases:
         actual = env.from_string(expression).render(
             reports_local_ingest_setting=override,
+            reports_role=role,
             reports_existing_ingest_enabled={"stdout": prior},
         )
-        assert actual is expected, (override, prior, actual)
+        assert actual is expected, (role, override, prior, actual)
 
 
 def test_deploy_checks_enablement_and_reconciles_optional_roles():

@@ -4,6 +4,19 @@ import sqlite3
 from ocpp_reports.diagnostics import inspect_status
 
 
+def test_status_uses_installed_service_warehouse_by_default(monkeypatch, tmp_path):
+    monkeypatch.delenv("OCPP_REPORTS_DATABASE", raising=False)
+    result = inspect_status(config=tmp_path / "missing.toml")
+    assert result["warehouse"]["path"] == "/var/lib/ocpp-reports/warehouse.sqlite"
+
+
+def test_status_honors_database_override(monkeypatch, tmp_path):
+    path = tmp_path / "custom.sqlite"
+    monkeypatch.setenv("OCPP_REPORTS_DATABASE", str(path))
+    assert inspect_status(config=tmp_path / "missing.toml")["warehouse"]["path"] == str(path)
+    assert not path.exists()
+
+
 def test_missing_config_and_warehouse_are_not_created(tmp_path):
     config = tmp_path / "missing.toml"
     database = tmp_path / "missing.sqlite3"
