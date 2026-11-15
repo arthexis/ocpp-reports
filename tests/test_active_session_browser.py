@@ -407,3 +407,53 @@ def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
                     context.close()
         finally:
             browser.close()
+
+
+def test_215_decimation_never_draws_false_bridge_chromium(tmp_path):
+    """Offline SVG: 135 observed samples must not become a 119-stroke curve."""
+    playwright = pytest.importorskip("playwright.sync_api")
+    from ocpp_reports.warehouse.schema import _schema
+    db_path = tmp_path / "decimation-browser.sqlite"
+    _seed(db_path)
+    transaction = {"id": 50, "charger_id": "cp", "connector_id": 1,
+                   "state": "stopped", "active": False,
+                   "started_at": _now(-900), "stopped_at": _now(-200),
+                   "meter_start_wh": 1000, "energy_wh": 3700}
+    with sqlite3.connect(db_path) as db:
+        _schema(db)
+        db.execute("INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)",
+                   ("a", "cp", 50, 0, 140, "digest",
+                    json.dumps(transaction), _now()))
+        db.execute("INSERT INTO transaction_observations VALUES (?,?,?,?,?,?,?,?)",
+                   ("a", "cp", 50, 0, 140, "digest",
+                    json.dumps(transaction), _now()))
+        for event in range(1, 136):
+            sample = {"source_event_id": event, "sample_index": 0,
+                      "charger_id": "cp", "connector_id": 1,
+                      "transaction_id": 50, "at": _now(-800 + event * 2),
+                      "energy_wh": 1000 + event * 20, "power_w": 6000}
+            db.execute("INSERT INTO energy_samples VALUES (?,?,?,?)",
+                       ("a", event, 0, json.dumps(sample)))
+    client = TestClient(create_app(db_path, allowed_source_ids=("a",)))
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            page = browser.new_page(viewport={"width": 390, "height": 844},
+                                    is_mobile=True, has_touch=True)
+            page.route("**/*", _offline_route(client, {"GET": 0}))
+            page.goto("http://reports.test/transactions/a/cp/50?tz=UTC",
+                      wait_until="load")
+            assert page.locator(".timeline-evidence tbody tr").count() == 120
+            assert page.locator(".timeline-plot svg").count() == 2
+            # Each chart omits the 15 artificial long jumps from decimation.
+            for plot in page.locator(".timeline-plot").all():
+                dots = plot.locator("circle").count()
+                strokes = plot.locator(".timeline-segment").count()
+                assert dots == 120
+                assert 0 < strokes < dots - 1
+            assert page.get_by_text("Vista parcial", exact=False).is_visible()
+            assert page.evaluate(
+                "document.documentElement.scrollWidth <= window.innerWidth + 2")
+            _shot(page, "215-decimation-no-false-bridges-390.png")
+        finally:
+            browser.close()
