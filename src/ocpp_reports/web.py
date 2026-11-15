@@ -613,7 +613,8 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
 
     @app.get("/transactions/{source_id}/{charger_id}/{transaction_id}", response_class=HTMLResponse)
     def transaction_page(request: Request, source_id: str, charger_id: str,
-                         transaction_id: int, tz: str | None = None):
+                         transaction_id: int, tz: str | None = None,
+                         return_to: str | None = None):
         selected_zone = tz or zones[0]
         if selected_zone not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
@@ -630,6 +631,21 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         if transaction is None:
             raise HTTPException(404, "Transaction not found")
         active = is_active_session(transaction)
+        # A return URL is accepted only for the dashboard root, never a
+        # caller-supplied hostname or another internal endpoint.
+        from urllib.parse import urlsplit, parse_qsl, urlencode
+        back_href = "/?tz=" + urlencode({"tz": selected_zone})[3:] + "#transactions"
+        if return_to and len(return_to) <= 2048:
+            target = urlsplit(return_to)
+            allowed_keys = {"source_id", "charger_id", "filter", "status",
+                            "location", "date_from", "date_to", "tx_view",
+                            "tx_page", "event_page", "tz"}
+            if (not target.scheme and not target.netloc and target.path == "/"
+                    and target.fragment == "transactions"):
+                values = [(k, v) for k, v in parse_qsl(target.query, keep_blank_values=True)
+                          if k in allowed_keys]
+                if all(k != "tz" or v in zones for k, v in values):
+                    back_href = "/?" + urlencode(values) + "#transactions"
         try:
             timeline = transaction_timeline(warehouse, transaction)
         except (OSError, sqlite3.Error) as exc:
@@ -639,6 +655,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             {"title": title, "transaction": transaction, "timezone": selected_zone,
              "timezones": zones, "refresh_active": active,
              "timeline": timeline, "timeline_charts": timeline_charts(timeline["points"]),
+             "back_href": back_href,
               "elapsed_duration": session_duration(transaction.get("started_at"), datetime.now(timezone.utc).isoformat()) if active else None},
             headers={"Cache-Control": "no-store"},
         )
