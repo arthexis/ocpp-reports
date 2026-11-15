@@ -57,7 +57,8 @@ def test_real_samples_only_with_source_charger_connector_transaction_and_time(tm
     assert [c["field"] for c in timeline_charts(series["points"])] == [
         "energy_kwh", "power_kw", "soc"
     ]
-    assert transaction_timeline(path, _tx(connector_id=2))["points"] == []
+    assert len(transaction_timeline(path, _tx(connector_id=2))["points"]) == 1
+    assert transaction_timeline(path, _tx(connector_id=3))["points"] == []
     assert transaction_timeline(path, _tx(started_at="2026-01-01T12:30:00Z"))["points"] == []
 
 
