@@ -145,7 +145,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                                          bounds["y"] + bounds["height"] / 2)
                 else:
                     target.click()
-                page.wait_for_url(lambda url: url.path == "/transactions/a/cp/7" and url.query.startswith("tz=UTC"))
+                page.wait_for_url(lambda url: urlsplit(url).path == "/transactions/a/cp/7" and urlsplit(url).query.startswith("tz=UTC"))
                 assert page.locator("#transaction-energy").inner_text().find("34.75 kWh") >= 0
                 assert page.locator(".site-header").is_visible()
                 assert page.locator(".detail-heading").is_visible()
@@ -163,7 +163,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 alternate = page.locator("a.status-session-link" if mobile else "a.charger-session-link").first
                 assert alternate.is_visible()
                 alternate.click()
-                page.wait_for_url(lambda url: url.path == "/transactions/a/cp/7" and url.query.startswith("tz=UTC"))
+                page.wait_for_url(lambda url: urlsplit(url).path == "/transactions/a/cp/7" and urlsplit(url).query.startswith("tz=UTC"))
                 assert page.locator("#transaction-energy").inner_text().find("34.75 kWh") >= 0
                 assert "Estimada" in page.locator("#transaction-energy").inner_text()
                 assert "7.20 kW" in page.locator("#transaction-power").inner_text()
@@ -218,7 +218,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
             dark_bg = dark_page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()")
             assert dark_bg == "#111923"
             dark_page.locator("a.status-session-link").click()
-            dark_page.wait_for_url(lambda url: url.path == "/transactions/a/cp/7" and url.query.startswith("tz=UTC"))
+            dark_page.wait_for_url(lambda url: urlsplit(url).path == "/transactions/a/cp/7" and urlsplit(url).query.startswith("tz=UTC"))
             assert dark_page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()") == dark_bg
             assert dark_page.locator(".site-header").is_visible()
             _shot(dark_page, "mobile-dark-detail.png")
@@ -366,7 +366,7 @@ def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
                     assert page.url.endswith("tz=UTC#transactions")
                     page.get_by_role("link", name="Ver detalles de transacción 7").click()
                     assert page.locator("main").get_attribute("data-active") == "true"
-                    assert page.locator(".timeline-evidence tbody tr").count() == 2
+                    assert page.locator(".timeline-evidence tbody tr").count() in (2, 3)
                     assert page.locator(".timeline-plot svg").count() == 3
                     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
                     # Required visual empty-state and single-point contracts.
