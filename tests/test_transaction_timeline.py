@@ -161,3 +161,74 @@ def test_remote_only_empty_state_and_active_refresh(tmp_path):
     assert 'data-active="true"' in page.text
     assert '"transaction-timeline"' in page.text
     assert "window.setInterval(refreshTransaction, 15000)" in page.text
+
+
+def test_decimation_of_over_120_real_points_keeps_original_adjacency(tmp_path):
+    """No fake long-range strokes between the 120 points retained from 135."""
+    from datetime import datetime, timedelta, timezone
+
+    path = _db(tmp_path)
+    _bound(path, first=0, last=200)
+    start = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
+    with sqlite3.connect(path) as db:
+        for event in range(1, 136):
+            item = {"source_event_id": event, "sample_index": 0,
+                    "charger_id": "cp", "connector_id": 1, "transaction_id": 7,
+                    "at": (start + timedelta(seconds=event)).isoformat(),
+                    "energy_wh": 1000 + event * 20, "power_w": 6000}
+            db.execute("INSERT INTO energy_samples VALUES (?,?,?,?)",
+                       ("a", event, 0, json.dumps(item)))
+    result = transaction_timeline(path, _tx())
+    assert result["limited"] is True
+    assert len(result["points"]) == 120
+    orders = [p["_source_order"] for p in result["points"]]
+    assert orders[0] == 0 and orders[-1] == 134
+    assert any(b - a > 1 for a, b in zip(orders, orders[1:]))
+    expected_adjacent_pairs = sum(b == a + 1 for a, b in zip(orders, orders[1:]))
+    for chart in timeline_charts(result["points"]):
+        assert len(chart["dots"]) == 120
+        assert len(chart["segments"]) == expected_adjacent_pairs
+        assert len(chart["segments"]) < len(chart["dots"]) - 1
+
+
+def test_null_rows_and_out_of_order_times_break_chart_strokes(tmp_path):
+    """Rejected readings and time-reordered events cannot be joined."""
+    path = _db(tmp_path)
+    _bound(path)
+    _sample(path, 1, power_w=5500, energy_wh=1100)
+    _sample(path, 2, power_w=None, energy_wh=None)
+    _sample(path, 3, power_w=6500, energy_wh=1300)
+    _sample(path, 4, at="2026-01-01T12:02:30Z",
+            power_w=7000, energy_wh=1400)
+    result = transaction_timeline(path, _tx())
+    assert len(result["points"]) == 3
+    assert [p["_source_order"] for p in result["points"]] == [0, 3, 2]
+    for chart in timeline_charts(result["points"]):
+        assert len(chart["dots"]) == 3
+        assert chart["segments"] == []
+
+
+def test_counter_regression_never_reconnects_energy_after_downsampling(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    path = _db(tmp_path)
+    _bound(path, first=0, last=200)
+    start = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
+    with sqlite3.connect(path) as db:
+        for event in range(1, 136):
+            # A real meter regression after 70 valid observed records.
+            energy = 1000 + (event if event <= 70 else event - 60) * 20
+            item = {"source_event_id": event, "sample_index": 0,
+                    "charger_id": "cp", "connector_id": 1, "transaction_id": 7,
+                    "at": (start + timedelta(seconds=event)).isoformat(),
+                    "energy_wh": energy, "power_w": 7000}
+            db.execute("INSERT INTO energy_samples VALUES (?,?,?,?)",
+                       ("a", event, 0, json.dumps(item)))
+    result = transaction_timeline(path, _tx())
+    assert result["discontinuous"] is True
+    assert result["limited"] is True
+    # The selection limit makes energy untrustworthy in full, never repairs it.
+    assert all(p["energy_kwh"] is None for p in result["points"])
+    assert [c["field"] for c in timeline_charts(result["points"])] == ["power_kw"]
+    assert any(b["_source_order"] - a["_source_order"] > 1
+               for a, b in zip(result["points"], result["points"][1:]))
