@@ -10,7 +10,7 @@ from pathlib import Path
 def inspect_status(*, config: Path | None = None, database: Path | None = None) -> dict:
     from .config import DEFAULT_CONFIG
     config = config or DEFAULT_CONFIG
-    database = database or Path(os.environ.get("OCPP_REPORTS_DATABASE", "/var/lib/ocpp-reports/reports.sqlite3"))
+    database = database or Path(os.environ.get("OCPP_REPORTS_DATABASE", "/var/lib/ocpp-reports/warehouse.sqlite"))
     result = {
         "name": "ocpp-reports",
         "network_required": False,
