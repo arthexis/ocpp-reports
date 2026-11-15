@@ -76,7 +76,9 @@ def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit:
     baseline = _quantity(transaction.get("meter_start_wh"))
     now = datetime.now(timezone.utc)
     samples = {}
-    # Preserve physical cursor order before time sorting or point selection.\n    # A rejected/corrupt sample occupies a slot, so gaps cannot be joined.\n    for source_order, (event_id, sample_index, payload) in enumerate(reversed(rows[:scan_limit])):
+    # Preserve physical cursor order before time sorting or point selection.
+    # A rejected/corrupt sample occupies a slot, so gaps cannot be joined.
+    for source_order, (event_id, sample_index, payload) in enumerate(reversed(rows[:scan_limit])):
         try:
             item = json.loads(payload)
         except (ValueError, TypeError):
