@@ -58,6 +58,7 @@
   ansible.builtin.command:
     argv:
       - python3
+      - -B
       - "{{ playbook_dir }}/../scripts/provision_csms_read_access.py"
       - ocpp-reports
       - "{{ reports_local_csms_data_dir }}"

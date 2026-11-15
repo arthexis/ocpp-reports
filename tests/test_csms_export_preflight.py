@@ -30,3 +30,9 @@ def test_ansible_runs_packaged_preflight_without_checkout_access():
     task = (Path(__file__).resolve().parents[1] / "ansible/tasks/local-ingest.yml").read_text()
     assert "ocpp_reports.csms_export_preflight" in task
     assert "scripts/preflight_csms_export.py" not in task
+
+
+def test_privileged_acl_helper_does_not_write_bytecode_to_checkout():
+    task = (Path(__file__).resolve().parents[1] / "ansible/tasks/local-ingest.yml").read_text()
+    provision = task.split("- name: Grant Reports read-only access", 1)[1].split("- name:", 1)[0]
+    assert "- python3\n      - -B\n" in provision
