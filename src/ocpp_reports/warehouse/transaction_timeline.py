@@ -76,7 +76,7 @@ def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit:
     baseline = _quantity(transaction.get("meter_start_wh"))
     now = datetime.now(timezone.utc)
     samples = {}
-    for event_id, sample_index, payload in rows[:scan_limit]:
+    # Preserve physical cursor order before time sorting or point selection.\n    # A rejected/corrupt sample occupies a slot, so gaps cannot be joined.\n    for source_order, (event_id, sample_index, payload) in enumerate(reversed(rows[:scan_limit])):
         try:
             item = json.loads(payload)
         except (ValueError, TypeError):
@@ -104,7 +104,7 @@ def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit:
         if meter is None and watts is None and soc is None:
             continue
         key = (at.isoformat(), event_id, sample_index)
-        samples[key] = {"at": at.isoformat(), "meter_wh": meter,
+        samples[key] = {"at": at.isoformat(), "_source_order": source_order, "meter_wh": meter,
                         "power_kw": watts / 1000 if watts is not None else None,
                         "soc": soc}
     ordered = [samples[k] for k in sorted(samples)]
@@ -143,7 +143,9 @@ def timeline_charts(points: list[dict]) -> list[dict]:
     for field, label, unit in (("energy_kwh", "Energía de sesión medida", "kWh"),
                                 ("power_kw", "Potencia medida", "kW"),
                                 ("soc", "Estado de carga medido", "%")):
-        present = [(i, datetime.fromisoformat(p["at"]).timestamp(), p[field])
+        # Source-order positions survive sorting, rejected values and decimation.
+        # A line may join only adjacent retained source samples, never skip one.
+        present = [(p.get("_source_order", i), datetime.fromisoformat(p["at"]).timestamp(), p[field])
                    for i, p in enumerate(points) if p.get(field) is not None]
         if not present:
             continue
