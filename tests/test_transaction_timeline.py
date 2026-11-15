@@ -227,8 +227,12 @@ def test_counter_regression_never_reconnects_energy_after_downsampling(tmp_path)
     result = transaction_timeline(path, _tx())
     assert result["discontinuous"] is True
     assert result["limited"] is True
-    # The selection limit makes energy untrustworthy in full, never repairs it.
-    assert all(p["energy_kwh"] is None for p in result["points"])
-    assert [c["field"] for c in timeline_charts(result["points"])] == ["power_kw"]
+    # Selection preserves measured pre-reset energy, but never repairs a reset.
+    assert any(p["energy_kwh"] is not None for p in result["points"])
+    assert all(p["energy_kwh"] is None for p in result["points"]
+               if p["_source_order"] >= 70)
+    charts = timeline_charts(result["points"])
+    assert [c["field"] for c in charts] == ["energy_kwh", "power_kw"]
+    assert len(charts[1]["segments"]) < len(charts[1]["dots"]) - 1
     assert any(b["_source_order"] - a["_source_order"] > 1
                for a, b in zip(result["points"], result["points"][1:]))
