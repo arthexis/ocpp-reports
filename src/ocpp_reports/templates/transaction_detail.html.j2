@@ -42,6 +42,24 @@ dt{font-size:.82rem;color:var(--muted)}dd{margin:.15rem 0 0;font-weight:600;over
 @media(max-width:540px){.site-header{padding:.65rem .9rem;gap:.55rem}.site-header h1{font-size:1.12rem}.site-header .muted{font-size:.76rem}.back-link{min-height:44px}main{padding:.65rem}.detail-heading,section.card{padding:1rem}.grid,dl{grid-template-columns:1fr;gap:.65rem}.big{font-size:1.65rem}.detail-heading h2{font-size:1.3rem}}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}.status{background:#354657;color:#e1e9f3}.status--active{background:#193c62;color:#a9d4ff}.status--ok{background:#164333;color:#9ce7c1}.status--historic{background:#364354;color:#c1cbd8}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+
+/* #215: dashboard-aligned full-width transaction timeline and evidence cards. */
+main{max-width:1320px}
+.timeline-card{margin:0 0 1rem;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1.25rem;box-shadow:0 2px 10px #152c4608}
+.timeline-card h2{font-size:1.05rem;margin:0 0 .5rem}
+.timeline-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem}
+.timeline-plot{border:1px solid var(--line);border-radius:10px;padding:.75rem;min-width:0}
+.timeline-plot h3{font-size:.95rem;margin:0 0 .4rem}
+.timeline-plot svg{width:100%;height:auto;display:block;color:var(--accent)}
+.timeline-plot polyline{fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.timeline-plot circle{fill:var(--accent);stroke:var(--surface);stroke-width:1.5}
+.timeline-plot .axis{stroke:var(--muted);stroke-width:1;opacity:.55}
+.timeline-evidence{max-height:14rem;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.timeline-evidence table{width:100%;border-collapse:collapse;font-size:.83rem}
+.timeline-evidence th,.timeline-evidence td{padding:.45rem;text-align:left;border-bottom:1px solid var(--line)}
+.timeline-evidence th{position:sticky;top:0;background:var(--surface)}
+.timeline-empty{padding:1rem;background:var(--bg);border-radius:8px;color:var(--muted)}
+@media(max-width:540px){.timeline-card{padding:.8rem}.timeline-plot{padding:.5rem}}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a>
 <header class="site-header">
@@ -83,6 +101,39 @@ dt{font-size:.82rem;color:var(--muted)}dd{margin:.15rem 0 0;font-weight:600;over
 <div class="note">Hora del medidor: {{ transaction.live_power_observed_at|display_date(timezone) }}</div>
 {% else %}<div class="big">—</div><div class="note">Sin potencia atribuible a esta sesión</div>{% endif %}
 </section></div>
+
+<section class="timeline-card" id="transaction-timeline" aria-labelledby="timeline-heading">
+<h2 id="timeline-heading">Evolución temporal de la carga</h2>
+<p class="note">Lecturas OCPP conservadas localmente, atribuidas a esta sesión. Las líneas unen únicamente muestras observadas; no representan mediciones intermedias. Energía desde el medidor inicial verificado, no energía final facturable.</p>
+{% if timeline.points %}
+<div class="timeline-grid">
+{% for chart in timeline_charts %}
+<article class="timeline-plot">
+<h3>{{ chart.label }} ({{ chart.unit }})</h3>
+<svg role="img" aria-label="{{ chart.label }}: {{ chart.dots|length }} muestras observadas, mínimo {{ '%.2f'|format(chart.min) }} y máximo {{ '%.2f'|format(chart.max) }} {{ chart.unit }}" viewBox="0 0 600 185">
+<line class="axis" x1="30" y1="155" x2="580" y2="155"/>
+<line class="axis" x1="30" y1="20" x2="30" y2="155"/>
+{% if chart.dots|length > 1 %}<polyline points="{% for dot in chart.dots %}{{ dot.x }},{{ dot.y }} {% endfor %}"/>{% endif %}
+{% for dot in chart.dots %}<circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="4"><title>{{ '%.3f'|format(dot.value) }} {{ chart.unit }}</title></circle>{% endfor %}
+<text x="33" y="15" font-size="12" fill="currentColor">{{ '%.2f'|format(chart.max) }} {{ chart.unit }}</text>
+<text x="33" y="174" font-size="12" fill="currentColor">{{ '%.2f'|format(chart.min) }} {{ chart.unit }}</text>
+</svg>
+</article>
+{% endfor %}
+</div>
+<div class="timeline-evidence" tabindex="0" aria-label="Tabla de mediciones verificadas"><table>
+<thead><tr><th>Observada</th><th>Energía sesión (kWh)</th><th>Potencia (kW)</th><th>SoC (%)</th></tr></thead>
+<tbody>{% for point in timeline.points %}<tr>
+<td>{{ point.at|display_date(timezone) }}</td>
+<td>{{ '%.3f'|format(point.energy_kwh) if point.energy_kwh is not none else '—' }}</td>
+<td>{{ '%.3f'|format(point.power_kw) if point.power_kw is not none else '—' }}</td>
+<td>{{ '%.1f'|format(point.soc) if point.soc is not none else '—' }}</td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}
+<p class="timeline-empty">Historial de mediciones no disponible para esta sesión. Se conservan los totales y métricas verificados arriba; no se genera una curva estimada.</p>
+{% endif %}
+{% if timeline.limited %}<p class="note">Vista parcial: se aplicó el límite de lectura/muestras; no se garantiza cobertura histórica completa.</p>{% endif %}
+</section>
 <section class="card session-details" id="transaction-session-data"><h2>Datos de la sesión</h2><dl>
 <div><dt>Origen</dt><dd>{{ transaction.source_id }}</dd></div>
 <div><dt>Cargador</dt><dd>{{ transaction.charger_id }}</dd></div>
@@ -111,7 +162,7 @@ dt{font-size:.82rem;color:var(--muted)}dd{margin:.15rem 0 0;font-weight:600;over
       if (!nextRoot) return;
       // Preserve scroll, focused controls, and the back link; replace only data.
       for (const id of ["transaction-status", "transaction-energy", "transaction-soc",
-                        "transaction-power", "transaction-session-data"]) {
+                        "transaction-power", "transaction-session-data", "transaction-timeline"]) {
         const current = document.getElementById(id);
         const next = fresh.getElementById(id);
         if (current && next && !current.contains(document.activeElement)
