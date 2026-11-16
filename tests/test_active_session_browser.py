@@ -149,6 +149,17 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 assert page.locator("#transaction-energy").inner_text().find("34.75 kWh") >= 0
                 assert page.locator(".site-header").is_visible()
                 assert page.locator(".detail-heading").is_visible()
+                cards = page.locator(".overview > section, .overview > .detail-heading")
+                assert cards.count() == 3
+                boxes = [cards.nth(i).bounding_box() for i in range(3)]
+                assert all(box is not None for box in boxes)
+                if mobile:
+                    assert boxes[0]["y"] < boxes[1]["y"] < boxes[2]["y"]
+                else:
+                    assert max(box["y"] for box in boxes) - min(box["y"] for box in boxes) < 3
+                    assert boxes[0]["x"] < boxes[1]["x"] < boxes[2]["x"]
+                assert page.locator("#transaction-power").count() == 0
+                assert page.locator("#transaction-timeline h2").count() == 0
                 assert page.locator(".back-link").bounding_box()["height"] >= 44
                 detail_theme = page.evaluate("""() => {
                   const s = getComputedStyle(document.documentElement);
