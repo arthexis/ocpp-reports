@@ -67,14 +67,15 @@ def test_current_link_and_progress_with_confirmed_scope(tmp_path):
     detail = client.get("/transactions/a/cp/7")
     assert detail.status_code == 200
     assert "34.75 kWh" in detail.text and "Estimada" in detail.text
-    assert "7.20 kW" in detail.text and "Medición reciente" in detail.text
+    assert 'id="transaction-power"' not in detail.text
+    assert "medición reciente" in detail.text
     assert "Duración transcurrida (aprox.)" in detail.text
     assert "window.setInterval(refreshTransaction, 15000)" in detail.text
     assert "new DOMParser()" in detail.text
     assert 'http-equiv="refresh"' not in detail.text
     assert "0:12:" in detail.text
     assert "71%" in detail.text
-    assert "sin hora de medición verificada" in detail.text
+    assert 'class="soc-end">71%' in detail.text
     assert '@media(max-width:540px)' in detail.text
     assert detail.headers["cache-control"] == "no-store"
     api = client.get("/api/v1/transactions?view=active").json()
@@ -128,7 +129,8 @@ def test_reuse_connector_mismatch_and_stale_power_are_explicit(tmp_path):
                    (json.dumps(old),))
     assert "Ver carga actual" in client.get("/?tx_view=active").text
     detail = client.get("/transactions/a/cp/7")
-    assert "7.20 kW" in detail.text and "Medición antigua / no verificada" in detail.text
+    assert 'id="transaction-power"' not in detail.text
+    assert "Estimada" in detail.text
     with sqlite3.connect(path) as db:
         db.execute("UPDATE collector_latest SET payload=? WHERE source_id='a' AND kind='connector'",
                    (json.dumps(_connector(99, now.isoformat())),))

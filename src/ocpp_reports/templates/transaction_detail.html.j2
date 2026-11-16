@@ -21,8 +21,13 @@ main{max-width:960px;margin:auto;padding:1.4rem 1.25rem 3rem}
 .detail-heading p{margin:.35rem 0}
 .note{font-size:.83rem;color:var(--muted)}
 .stale{color:var(--warning);font-weight:650}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
-.grid .card{margin:0;min-width:0;overflow-wrap:anywhere}
+.overview{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr);gap:1rem;margin-bottom:1rem;align-items:stretch}
+.overview>.detail-heading,.overview>section.card{margin:0;min-width:0}
+.soc-values{display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap}
+.soc-start{font-size:1.6rem;font-weight:650;line-height:1.2;font-variant-numeric:tabular-nums}
+.soc-end{font-size:2rem;font-weight:750;line-height:1.15;font-variant-numeric:tabular-nums}
+.soc-values .note{display:block;font-size:.75rem}
+.overview .card{min-width:0;overflow-wrap:anywhere}
 .card h2{font-size:1.05rem;margin:0 0 1rem}
 .card .metric-label{color:var(--muted);font-size:.86rem;font-weight:600;margin-bottom:.35rem}
 .big{font-size:2rem;line-height:1.15;font-weight:750;font-variant-numeric:tabular-nums;margin:.15rem 0 .6rem}
@@ -38,8 +43,8 @@ dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem 1rem;ma
 dl>div{min-width:0;border-bottom:1px solid var(--line);padding-bottom:.65rem}
 dt{font-size:.82rem;color:var(--muted)}dd{margin:.15rem 0 0;font-weight:600;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .detail-disclaimer{margin:1rem 0;color:var(--muted);font-size:.83rem}
-@media(max-width:900px){.site-header{padding:1.1rem 1.25rem}}
-@media(max-width:540px){.site-header{padding:.65rem .9rem;gap:.55rem}.site-header h1{font-size:1.12rem}.site-header .muted{font-size:.76rem}.back-link{min-height:44px}main{padding:.65rem}.detail-heading,section.card{padding:1rem}.grid,dl{grid-template-columns:1fr;gap:.65rem}.big{font-size:1.65rem}.detail-heading h2{font-size:1.3rem}}
+@media(max-width:900px){.site-header{padding:1.1rem 1.25rem}.overview{grid-template-columns:1fr 1fr}.overview>.detail-heading{grid-column:1/-1}}
+@media(max-width:540px){.site-header{padding:.65rem .9rem;gap:.55rem}.site-header h1{font-size:1.12rem}.site-header .muted{font-size:.76rem}.back-link{min-height:44px}main{padding:.65rem}.detail-heading,section.card{padding:1rem}.overview,dl{grid-template-columns:1fr;gap:.65rem}.overview>.detail-heading{grid-column:auto}.soc-start{font-size:1.45rem}.soc-end{font-size:1.65rem}.big{font-size:1.65rem}.detail-heading h2{font-size:1.3rem}}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}.status{background:#354657;color:#e1e9f3}.status--active{background:#193c62;color:#a9d4ff}.status--ok{background:#164333;color:#9ce7c1}.status--historic{background:#364354;color:#c1cbd8}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
 
@@ -68,13 +73,13 @@ main{max-width:1320px}
   <a class="back-link" href="{{ back_href|default('/?tz=' ~ (timezone|urlencode) ~ '#transactions') }}">← Volver al dashboard</a>
 </header>
 <main id="content" data-transaction-detail="true" data-active="{{ 'true' if refresh_active else 'false' }}">
+<div class="overview">
 <section class="detail-heading" aria-labelledby="transaction-heading">
 <h2 id="transaction-heading">Transacción #{{ transaction.id }}</h2>
 <p class="note">{{ transaction.location }} · {{ transaction.charger_id }} · Conector {{ transaction.connector_id if transaction.connector_id is defined and transaction.connector_id is not none else "desconocido" }}</p>
 <p id="transaction-status" aria-live="polite"><span class="status {{ 'status--active' if refresh_active else 'status--ok' if (transaction.state or '')|lower in ['closed','stopped','completed'] else 'status--historic' }}">{{ transaction.state or "Desconocido" }}</span>
 {% if refresh_active %}<span class="note refresh-note">En curso · consulta cada 15 s (sin garantía de telemetría nueva)</span>{% endif %}</p>
 </section>
-<div class="grid">
 <section class="card" id="transaction-energy" aria-label="Energía de sesión"><div class="metric-label">Energía de sesión</div>
 {% if transaction.energy_wh is defined and transaction.energy_wh is not none %}
 <div class="big">{{ "%.2f"|format(transaction.energy_wh / 1000) }} kWh</div>
@@ -90,22 +95,13 @@ main{max-width:1320px}
 {% endif %}
 </section>
 <section class="card" id="transaction-soc" aria-label="Estado de carga"><div class="metric-label">Estado de carga (SoC)</div>
-<div class="big">{{ (transaction.soc_end|string ~ "%") if transaction.soc_end is defined and transaction.soc_end is not none else "—" }}</div>
-<div class="note">Última lectura reportada; no necesariamente al cierre · {{ transaction.soc_observed_at|display_date(timezone) if transaction.soc_observed_at is defined and transaction.soc_observed_at else "sin hora de medición verificada" }}</div>
-<div class="note">Procedencia SoC: {{ "OCPP MeterValues (metadato histórico)" if transaction.soc_metadata_provenance is defined and transaction.soc_metadata_provenance == "ocpp-meter-values" else "no documentada" }}. La fecha de actualización de metadatos no equivale a la hora de lectura.</div>
-<div class="note">Inicial: {{ (transaction.soc_start|string ~ "%") if transaction.soc_start is defined and transaction.soc_start is not none else "Desconocido" }}</div>
-</section>
-<section class="card" id="transaction-power" aria-label="Potencia medida"><div class="metric-label">Potencia medida del conector</div>
-{% if refresh_active and transaction.live_power_w is defined and transaction.live_power_w is not none %}
-<div class="big">{{ "%.2f"|format(transaction.live_power_w / 1000) }} kW</div>
-<div class="note">{{ "Medición antigua / no verificada" if transaction.live_power_stale else "Medición reciente" }}</div>
-<div class="note">Hora del medidor: {{ transaction.live_power_observed_at|display_date(timezone) }}</div>
-{% else %}<div class="big">—</div><div class="note">Sin potencia atribuible a esta sesión</div>{% endif %}
+<div class="soc-values">
+<div><span class="note">Inicial</span><span class="soc-start">{{ (transaction.soc_start|string ~ "%") if transaction.soc_start is defined and transaction.soc_start is not none else "—" }}</span></div>
+<div><span class="note">{{ "Última muestra" if (transaction.soc_end is not defined or transaction.soc_end is none) and timeline_soc_end is not none else "Final / última lectura" }}</span><span class="soc-end">{{ (transaction.soc_end|string ~ "%") if transaction.soc_end is defined and transaction.soc_end is not none else ("%.1f"|format(timeline_soc_end) ~ "%") if timeline_soc_end is not none else "—" }}</span></div>
+</div>
 </section></div>
 
-<section class="timeline-card" id="transaction-timeline" aria-labelledby="timeline-heading">
-<h2 id="timeline-heading">Evolución temporal de la carga</h2>
-<p class="note">Lecturas OCPP conservadas localmente, atribuidas a esta sesión. Los puntos son muestras observadas; los segmentos unen lecturas consecutivas únicamente. Energía desde el medidor inicial verificado, no energía final facturable.</p>
+<section class="timeline-card" id="transaction-timeline" aria-label="Evolución temporal de la carga">
 {% if timeline.points %}
 <div class="timeline-grid">
 {% for chart in timeline_charts %}
@@ -165,7 +161,7 @@ main{max-width:1320px}
       if (!nextRoot) return;
       // Preserve scroll, focused controls, and the back link; replace only data.
       for (const id of ["transaction-status", "transaction-energy", "transaction-soc",
-                        "transaction-power", "transaction-session-data", "transaction-timeline"]) {
+                        "transaction-session-data", "transaction-timeline"]) {
         const current = document.getElementById(id);
         const next = fresh.getElementById(id);
         if (current && next && !current.contains(document.activeElement)

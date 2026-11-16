@@ -149,6 +149,17 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 assert page.locator("#transaction-energy").inner_text().find("34.75 kWh") >= 0
                 assert page.locator(".site-header").is_visible()
                 assert page.locator(".detail-heading").is_visible()
+                cards = page.locator(".overview > section, .overview > .detail-heading")
+                assert cards.count() == 3
+                boxes = [cards.nth(i).bounding_box() for i in range(3)]
+                assert all(box is not None for box in boxes)
+                if mobile:
+                    assert boxes[0]["y"] < boxes[1]["y"] < boxes[2]["y"]
+                else:
+                    assert max(box["y"] for box in boxes) - min(box["y"] for box in boxes) < 3
+                    assert boxes[0]["x"] < boxes[1]["x"] < boxes[2]["x"]
+                assert page.locator("#transaction-power").count() == 0
+                assert page.locator("#transaction-timeline h2").count() == 0
                 assert page.locator(".back-link").bounding_box()["height"] >= 44
                 detail_theme = page.evaluate("""() => {
                   const s = getComputedStyle(document.documentElement);
@@ -166,10 +177,10 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 page.wait_for_url(lambda url: urlsplit(url).path == "/transactions/a/cp/7" and urlsplit(url).query.startswith("tz=UTC"))
                 assert page.locator("#transaction-energy").inner_text().find("34.75 kWh") >= 0
                 assert "Estimada" in page.locator("#transaction-energy").inner_text()
-                assert "7.20 kW" in page.locator("#transaction-power").inner_text()
-                assert "Medición reciente" in page.locator("#transaction-power").inner_text()
+                assert page.locator("#transaction-power").count() == 0
+                assert page.locator(".overview > section, .overview > .detail-heading").count() == 3
                 assert "71%" in page.locator("#transaction-soc").inner_text()
-                assert "sin hora de medición verificada" in page.locator("#transaction-soc").inner_text()
+                assert "Final / última lectura" in page.locator("#transaction-soc").inner_text()
                 assert page.locator("main").get_attribute("data-active") == "true"
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
                 _shot(page, f"{label}-active.png")
@@ -184,7 +195,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 before_scroll = page.evaluate("window.scrollY")
                 before_requests = counts["GET"]
                 page.clock.fast_forward(15_200)
-                page.wait_for_function("document.querySelector('#transaction-power').textContent.includes('Medición antigua')")
+                page.wait_for_timeout(500)
                 assert counts["GET"] > before_requests
                 assert page.evaluate("document.activeElement.tagName") == "A"
                 assert abs(page.evaluate("window.scrollY") - before_scroll) <= 3
@@ -201,7 +212,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 page.wait_for_function("document.querySelector('main').dataset.active === 'false'")
                 assert "35.60 kWh" in page.locator("#transaction-energy").inner_text()
                 assert "Final" in page.locator("#transaction-energy").inner_text()
-                assert "Sin potencia atribuible a esta sesión" in page.locator("#transaction-power").inner_text()
+                assert page.locator("#transaction-power").count() == 0
                 assert page.locator("#transaction-status").inner_text().find("closed") >= 0
                 _shot(page, f"{label}-closed.png")
 
