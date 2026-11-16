@@ -240,3 +240,39 @@ def test_counter_regression_never_reconnects_energy_after_downsampling(tmp_path)
     assert len(charts[1]["segments"]) < len(charts[1]["dots"]) - 1
     assert any(b["_source_order"] - a["_source_order"] > 1
                for a, b in zip(result["points"], result["points"][1:]))
+
+
+def test_compact_detail_uses_verified_timeline_soc_only_as_fallback(tmp_path):
+    path = _db(tmp_path)
+    _bound(path)
+    _sample(path, 5, soc=42, soc_provenance="ocpp-meter-values")
+    _sample(path, 10, soc=68, soc_provenance="ocpp-meter-values")
+    record = {k: v for k, v in _tx(soc_start=25, soc_end=None).items()
+              if k != "source_id"}
+    with sqlite3.connect(path) as db:
+        db.execute("INSERT INTO current_transactions VALUES (?,?,?,?)",
+                   ("a", "cp", 7, json.dumps(record)))
+    page = TestClient(web.create_app(path, allowed_source_ids=("a",))).get(
+        "/transactions/a/cp/7")
+    assert page.status_code == 200
+    assert 'class="soc-start">25%' in page.text
+    assert 'class="soc-end">68.0%' in page.text
+    assert "Última muestra" in page.text
+    assert 'id="transaction-power"' not in page.text
+    assert 'class="overview"' in page.text
+    assert '<h2 id="timeline-heading">' not in page.text
+
+    # Projection SoC takes precedence over an independently timed sample.
+    with sqlite3.connect(path) as db:
+        db.execute("UPDATE current_transactions SET payload=?",
+                   (json.dumps({**record, "soc_end": 75}),))
+    projected = TestClient(web.create_app(path)).get("/transactions/a/cp/7")
+    assert 'class="soc-end">75%' in projected.text
+
+    # Unattested SoC must never become a displayed endpoint.
+    with sqlite3.connect(path) as db:
+        db.execute("UPDATE current_transactions SET payload=?",
+                   (json.dumps(record),))
+        db.execute("UPDATE energy_samples SET payload=json_remove(payload, '$.soc_provenance')")
+    unverified = TestClient(web.create_app(path)).get("/transactions/a/cp/7")
+    assert 'class="soc-end">—' in unverified.text
