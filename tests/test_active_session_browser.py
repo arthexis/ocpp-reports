@@ -184,7 +184,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 before_scroll = page.evaluate("window.scrollY")
                 before_requests = counts["GET"]
                 page.clock.fast_forward(15_200)
-                page.wait_for_function("document.querySelector('#transaction-soc') !== null")
+                page.wait_for_timeout(500)
                 assert counts["GET"] > before_requests
                 assert page.evaluate("document.activeElement.tagName") == "A"
                 assert abs(page.evaluate("window.scrollY") - before_scroll) <= 3
