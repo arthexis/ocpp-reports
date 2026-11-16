@@ -87,13 +87,13 @@ def test_recent_pre_start_and_future_meter_power_are_never_attributed(tmp_path):
           connector=_connector(power_at=_stamp(-90)))
     client = TestClient(create_app(path, allowed_source_ids=("a",)))
     page = client.get("/transactions/a/cp/7")
-    assert "Sin potencia atribuible a esta sesión" in page.text
+    assert 'id="transaction-power"' not in page.text
     assert "7.40 kW" not in page.text
     with sqlite3.connect(path) as db:
         record = _connector(power_at=_stamp(-20))
         db.execute("UPDATE collector_latest SET payload=? WHERE source_id='a' AND kind='connector'",
                    (json.dumps(record),))
-    assert "7.40 kW" in client.get("/transactions/a/cp/7").text
+    assert client.get("/api/v1/transactions/a/cp/7").json()["transaction"]["live_power_w"] == 7400
     with sqlite3.connect(path) as db:
         record["power_observed_at"] = _stamp(600)
         db.execute("UPDATE collector_latest SET payload=? WHERE source_id='a' AND kind='connector'",
@@ -151,8 +151,8 @@ def test_soc_metadata_refresh_is_not_a_measured_soc_timestamp(tmp_path):
     tx["soc_metadata_refreshed_at"] = "2000-01-01T01:23:45Z"
     _seed(path, receipt=_stamp(), tx=tx)
     html = TestClient(create_app(path, allowed_source_ids=("a",))).get("/transactions/a/cp/7").text
-    assert "OCPP MeterValues" in html
-    assert "sin hora de medición verificada" in html
+    assert 'class="soc-end">54%' in html
+    assert "sin hora de medición verificada" not in html
     assert "2000-01-01" not in html
     assert "54%" in html
 
