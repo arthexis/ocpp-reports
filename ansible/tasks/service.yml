@@ -23,6 +23,34 @@
   register: reports_collector_credentials
   when: reports_service == 'collector'
 
+- name: Refuse a symlink for the control collector configuration
+  ansible.builtin.assert:
+    that:
+      - not (reports_collector_credentials.stat.islnk | default(false))
+    fail_msg: "Collector configuration must not be a symlink."
+  when: reports_service == 'collector' and reports_role == 'control'
+
+- name: Initialize empty control collector source mapping when absent
+  ansible.builtin.copy:
+    dest: /etc/ocpp-reports/collector.toml
+    content: "[sources]\n"
+    owner: root
+    group: ocpp
+    mode: '0640'
+    force: false
+  become: true
+  when:
+    - reports_service == 'collector'
+    - reports_role == 'control'
+    - not (reports_collector_credentials.stat.exists | default(false))
+
+- name: Reinspect collector configuration
+  ansible.builtin.stat:
+    path: /etc/ocpp-reports/collector.toml
+  become: true
+  register: reports_collector_credentials
+  when: reports_service == 'collector'
+
 - name: Require regular Forwarder configuration before managing permissions
   ansible.builtin.assert:
     that:

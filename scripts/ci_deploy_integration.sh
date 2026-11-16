@@ -96,7 +96,7 @@ case "${role}" in
     ! systemctl is-enabled --quiet ocpp-reports-relay.timer
     ! systemctl is-active --quiet ocpp-reports-relay.timer
     ! systemctl is-active --quiet ocpp-reports-forwarder.service
-    ! systemctl is-active --quiet ocpp-reports-collector.service
+    systemctl is-active --quiet ocpp-reports-collector.service
     if ! systemctl is-active --quiet ocpp-reports-dashboard.service; then
       echo "::error::Dashboard service failed to remain active after deploy"
       systemctl status ocpp-reports-dashboard.service --no-pager -l || true

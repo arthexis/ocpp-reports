@@ -99,7 +99,7 @@ def accept_batch(database: Path, batch: Batch) -> int:
 
 def create_collector(database: str | Path, credentials: dict[str, str]) -> FastAPI:
     """Map source IDs to independent bearer tokens. Bind to loopback behind TLS."""
-    if not credentials or any(not key or not value for key, value in credentials.items()):
+    if any(not key or not value for key, value in credentials.items()):
         raise ValueError("Collector requires nonempty source credentials")
     app = FastAPI(title="OCPP Reports Collector", docs_url=None, redoc_url=None,
                   openapi_url=None)

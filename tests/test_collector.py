@@ -37,6 +37,16 @@ def test_collector_requires_source_credentials_and_isolates_sources(tmp_path):
         assert conn.execute("SELECT COUNT(*) FROM collector_latest").fetchone()[0] == 2
 
 
+def test_empty_collector_rejects_all_sources_without_creating_database(tmp_path):
+    db = tmp_path / "collector.sqlite"
+    client = TestClient(create_collector(db, {}))
+    assert client.post("/api/replication/ready", json={"source_id": "sat-a"},
+                       headers={"Authorization": "Bearer any"}).status_code == 401
+    assert client.post("/api/replication", json=batch(),
+                       headers={"Authorization": "Bearer any"}).status_code == 401
+    assert not db.exists()
+
+
 def test_collector_rejects_invalid_order_without_partial_commit(tmp_path):
     db = tmp_path / "collector.sqlite"
     client = TestClient(create_collector(db, {"sat-a": "token-a"}))

@@ -8,7 +8,13 @@ def test_collector_toml_credentials(tmp_path):
     assert load_collector_config(path) == {"sat-001": "token-001", "sat-002": "token-002"}
 
 
-@pytest.mark.parametrize("content", ["", "[sources]\n", '[sources]\na = ""\n',
+def test_empty_source_mapping_is_valid(tmp_path):
+    path = tmp_path / "collector.toml"
+    path.write_text("[sources]\n")
+    assert load_collector_config(path) == {}
+
+
+@pytest.mark.parametrize("content", ["", '[sources]\na = ""\n',
                                      '[sources]\na = 123\n', '[wrong]\na = "token"\n'])
 def test_collector_rejects_missing_or_invalid_tokens(tmp_path, content):
     path = tmp_path / "collector.toml"
