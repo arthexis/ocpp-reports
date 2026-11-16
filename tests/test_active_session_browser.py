@@ -180,7 +180,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 assert page.locator("#transaction-power").count() == 0
                 assert page.locator(".overview > section, .overview > .detail-heading").count() == 3
                 assert "71%" in page.locator("#transaction-soc").inner_text()
-                assert "Última lectura" in page.locator("#transaction-soc").inner_text()
+                assert "Final / última lectura" in page.locator("#transaction-soc").inner_text()
                 assert page.locator("main").get_attribute("data-active") == "true"
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
                 _shot(page, f"{label}-active.png")
