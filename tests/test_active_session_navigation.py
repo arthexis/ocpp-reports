@@ -68,7 +68,7 @@ def test_current_link_and_progress_with_confirmed_scope(tmp_path):
     assert detail.status_code == 200
     assert "34.75 kWh" in detail.text and "Estimada" in detail.text
     assert 'id="transaction-power"' not in detail.text
-    assert "Medición reciente" in detail.text
+    assert "medición reciente" in detail.text
     assert "Duración transcurrida (aprox.)" in detail.text
     assert "window.setInterval(refreshTransaction, 15000)" in detail.text
     assert "new DOMParser()" in detail.text
