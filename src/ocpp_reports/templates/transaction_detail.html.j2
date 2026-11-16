@@ -97,7 +97,7 @@ main{max-width:1320px}
 <section class="card" id="transaction-soc" aria-label="Estado de carga"><div class="metric-label">Estado de carga (SoC)</div>
 <div class="soc-values">
 <div><span class="note">Inicial</span><span class="soc-start">{{ (transaction.soc_start|string ~ "%") if transaction.soc_start is defined and transaction.soc_start is not none else "—" }}</span></div>
-<div><span class="note">Final / última lectura</span><span class="soc-end">{{ (transaction.soc_end|string ~ "%") if transaction.soc_end is defined and transaction.soc_end is not none else "—" }}</span></div>
+<div><span class="note">{{ "Última muestra" if (transaction.soc_end is not defined or transaction.soc_end is none) and timeline_soc_end is not none else "Final / última lectura" }}</span><span class="soc-end">{{ (transaction.soc_end|string ~ "%") if transaction.soc_end is defined and transaction.soc_end is not none else ("%.1f"|format(timeline_soc_end) ~ "%") if timeline_soc_end is not none else "—" }}</span></div>
 </div>
 </section></div>
 
