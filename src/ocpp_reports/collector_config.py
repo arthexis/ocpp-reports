@@ -18,10 +18,10 @@ def load_collector_config(path: Path = DEFAULT_COLLECTOR_CONFIG) -> dict[str, st
     if set(data) != {"sources"} or not isinstance(data["sources"], dict):
         raise ValueError("Expected a [sources] table containing source ID = token entries")
     credentials = data["sources"]
-    if not credentials or any(not isinstance(k, str) or not k.strip()
+    if any(not isinstance(k, str) or not k.strip()
                               or not isinstance(v, str) or not v.strip()
                               for k, v in credentials.items()):
-        raise ValueError("Collector requires nonempty source IDs and tokens")
+        raise ValueError("Collector requires nonempty source IDs and tokens when configured")
     return credentials
 
 

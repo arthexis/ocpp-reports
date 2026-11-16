@@ -108,10 +108,11 @@ service must be active and readable during deployment. Set
 same setting on later deployments to retain that opt-out. Watchtower local
 ingestion remains opt-in or preserves a previously enabled installation.
 
-Control also installs the collector for external forwarders. It starts only
-after an operator has provisioned a protected `/etc/ocpp-reports/collector.toml`
-with authorized source IDs and tokens; existing credentials are never invented
-or replaced. The collector listens on loopback. External forwarding additionally
+Control also runs the collector with an initially empty, protected
+`/etc/ocpp-reports/collector.toml` source mapping when none exists. An empty
+mapping accepts no external sources; existing mappings are never replaced.
+An operator can authorize sources by adding their IDs and tokens. The collector
+listens on loopback. External forwarding additionally
 requires an explicitly configured HTTPS reverse proxy and verified endpoint;
 installing the role alone does not expose it externally. Local ingestion and
 the collector use the same warehouse. `ocpp-reports status` checks that warehouse
