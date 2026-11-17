@@ -7,6 +7,61 @@ from typing import Any
 
 SCHEMA = "ocpp-csms/export/v1"
 
+# Allowlisted producer channel contract. Other additive export fields remain
+# tolerated, but no unverified/ambiguous measurand becomes a display scalar.
+METER_CHANNELS = {
+    "SoC": ("soc", "Percent", 0.0, 100.0),
+    "Voltage": ("voltage_v", "V", 0.0, 1_000_000.0),
+    "Current.Import": ("current_import_a", "A", 0.0, 1_000_000.0),
+    "Current.Offered": ("current_offered_a", "A", 0.0, 1_000_000.0),
+    "Temperature": ("temperature_c", "Celsius", -273.15, 1_000.0),
+}
+
+
+def _measured(value: Any, name: str, low: float, high: float) -> None:
+    if (type(value) not in (int, float) or not isfinite(value)
+            or not low <= value <= high):
+        raise ValueError(f"{name} must be a finite measured quantity")
+
+
+def validate_meter_fields(sample: dict[str, Any]) -> None:
+    """Validate optional measured electrical channels and their provenance."""
+    channels = sample.get("meter_channels", [])
+    if not isinstance(channels, list) or len(channels) > 64:
+        raise ValueError("energy.meter_channels must contain <=64 readings")
+    witnessed: dict[str, list[float]] = {}
+    for channel in channels:
+        if not isinstance(channel, dict):
+            raise ValueError("Meter channel must be an object")
+        name = channel.get("measurand")
+        if not isinstance(name, str) or name not in METER_CHANNELS:
+            raise ValueError("Unsupported measured channel")
+        field, unit, low, high = METER_CHANNELS[name]
+        if channel.get("unit") != unit:
+            raise ValueError("Mismatched OCPP meter unit")
+        _measured(channel.get("value"), f"meter_channels.{name}", low, high)
+        for optional, size in (("phase", 32), ("context", 64), ("location", 64)):
+            value = channel.get(optional)
+            if value is not None and (not isinstance(value, str)
+                                      or not 1 <= len(value) <= size):
+                raise ValueError(f"Malformed meter channel {optional}")
+        if channel.get("phase") is None:
+            witnessed.setdefault(field, []).append(channel["value"])
+    for name, (field, _, low, high) in METER_CHANNELS.items():
+        if field not in sample:
+            continue
+        value = sample[field]
+        _measured(value, f"energy.{field}", low, high)
+        # A scalar requires one unambiguous unphased OCPP observation.
+        matches = witnessed.get(field, [])
+        if not matches or len(set(matches)) != 1 or value != matches[0]:
+            raise ValueError(f"Missing or conflicting meter evidence for {field}")
+    if "soc" in sample:
+        if sample.get("soc_provenance") != "ocpp-meter-values":
+            raise ValueError("Unverified OCPP SoC provenance")
+    elif sample.get("soc_provenance") is not None:
+        raise ValueError("SoC provenance without measured SoC")
+
 
 def _integer(value: Any, name: str, *, minimum: int = 0) -> int:
     if type(value) is not int or value < minimum:
@@ -101,6 +156,7 @@ def validate_export(page: Any, *, require_page_consistency: bool = True) -> dict
             value = sample.get(name)
             if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value)):
                 raise ValueError(f"energy.{name} must be numeric or null")
+        validate_meter_fields(sample)
     for transaction in data["transactions"]:
         if not isinstance(transaction, dict):
             raise ValueError("Transaction must be an object")
