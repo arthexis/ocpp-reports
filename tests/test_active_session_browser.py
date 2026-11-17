@@ -666,6 +666,13 @@ def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
                     assert max(b["width"] for b in energy_button_boxes) <= 66, (
                         width, energy_button_boxes)
                 if mobile:
+                    compact_label = page.locator(".energy-label-compact")
+                    full_label = page.locator(".energy-label-full")
+                    if width <= 375:
+                        assert compact_label.is_visible() and not full_label.is_visible()
+                        assert compact_label.inner_text() == "Conect."
+                    else:
+                        assert full_label.is_visible() and not compact_label.is_visible()
                     for button in energy_buttons:
                         dims = button.evaluate(
                             "(el) => ({scroll: el.scrollWidth, client: el.clientWidth})")
