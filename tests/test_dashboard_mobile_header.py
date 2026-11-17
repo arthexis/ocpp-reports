@@ -24,9 +24,9 @@ def test_mobile_filter_profile_share_row_and_connector_cards_use_two_columns(das
     assert "header .brand{flex:0 0 100%;width:100%}" in mobile
     assert ".header-filters{flex:1 1 0;width:auto;min-width:0;flex-wrap:nowrap}" in mobile
     assert ".profile-menu summary{min-width:44px;min-height:44px}" in mobile
-    assert ".connectors-panel tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))" in mobile
+    assert ".connectors-panel tbody tr{display:grid;grid-template-columns:minmax(0,.76fr) minmax(0,1.24fr)" in mobile
     assert ".connectors-panel td{display:flex;flex-direction:column;" in mobile
-    assert ".connectors-panel td.empty{grid-column:1/-1}" in mobile
+    assert ".connectors-panel td.empty{grid-column:1/-1;grid-row:auto}" in mobile
     assert '<th>Recibido</th>' in source
     assert 'data-label="Recibido"' in source
     assert '<th>Estado informado</th>' not in source
@@ -39,11 +39,12 @@ def test_mobile_power_qualifier_stays_inline_and_values_outweigh_labels(dashboar
     source = dashboard_source
     css = source.split("<style>", 1)[1].split("</style>", 1)[0]
     mobile = css.split("/* Mobile header and connector cards:", 1)[1].split("\n}", 1)[0]
-    assert "overflow-wrap:anywhere;font-size:.98rem" in mobile
-    assert ".connectors-panel td::before{flex:0 0 auto;width:100%;font-size:.82rem}" in mobile
+    assert "overflow-wrap:anywhere;font-size:1.04rem" in mobile
+    assert ".connectors-panel td::before{flex:0 0 auto;width:100%;font-size:.77rem" in mobile
+    assert "column-gap:.28rem;row-gap:.14rem" in mobile
     assert '.connectors-panel td[data-label="Potencia"] .connector-power{display:inline-flex;' in mobile
-    assert "white-space:nowrap" in mobile
-    assert '.connectors-panel td[data-label="Potencia"] .connector-power .note{font-size:.72rem}' in mobile
+    assert "white-space:normal" in mobile
+    assert '.connectors-panel td[data-label="Potencia"] .connector-power .note{font-size:.73rem}' in mobile
     cell = source.split('<td data-label="Potencia" class="numeric">', 1)[1].split("</td>", 1)[0]
     assert cell.startswith('<span class="connector-power">')
     assert cell.endswith("</span>")

@@ -314,15 +314,26 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                     "(el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\\s+/).length"
                 ) == 2
                 cells = card.locator("td")
-                first, second = cells.nth(0).bounding_box(), cells.nth(1).bounding_box()
+                short = card.locator('td[data-label="Conector"]')
+                wide = card.locator('td[data-label="Ubicación"]')
+                first, second = short.bounding_box(), wide.bounding_box()
                 assert first and second
                 assert abs(first["y"] - second["y"]) <= 2
                 assert second["x"] > first["x"]
+                assert first["width"] < second["width"], (width, first, second)
+                assert card.evaluate("(el) => parseFloat(getComputedStyle(el).columnGap)") <= 5
+                label_size = short.evaluate(
+                    "(el) => parseFloat(getComputedStyle(el, '::before').fontSize)")
+                value_size = short.evaluate(
+                    "(el) => parseFloat(getComputedStyle(el).fontSize)")
+                assert value_size >= label_size + 3.5, (width, label_size, value_size)
+                assert short.evaluate(
+                    "(el) => parseFloat(getComputedStyle(el).gap)") <= 3
                 assert cells.nth(7).get_attribute("data-label") == "Recibido"
                 power = card.locator('td[data-label="Potencia"] .connector-power')
                 assert power.count() == 1
                 assert " ".join(power.inner_text().split()) == "60.00 kW nominal"
-                assert power.evaluate("(el) => getComputedStyle(el).whiteSpace") == "nowrap"
+                assert power.evaluate("(el) => getComputedStyle(el).whiteSpace") == "normal"
                 assert power.evaluate(
                     "(el) => el.getBoundingClientRect().right "
                     "<= el.parentElement.getBoundingClientRect().right + 2"
