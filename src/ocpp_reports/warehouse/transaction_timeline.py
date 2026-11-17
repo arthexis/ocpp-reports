@@ -161,7 +161,7 @@ def timeline_charts(points: list[dict]) -> list[dict]:
                                 ("temperature_c", "Temperatura informada", "°C")):
         # Source-order positions survive sorting, rejected values and decimation.
         # A line may join only adjacent retained source samples, never skip one.
-        present = [(p.get("_source_order", i), datetime.fromisoformat(p["at"]).timestamp(), p[field])
+        present = [(p.get("_source_order", i), datetime.fromisoformat(p["at"]).timestamp(), p.get(field))
                    for i, p in enumerate(points) if p.get(field) is not None]
         if not present:
             continue
