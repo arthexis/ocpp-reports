@@ -583,7 +583,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         principal = getattr(request.state, "principal", None)
         is_admin = principal is None or principal.role.value == "admin"
         event_groups, event_has_next = [], False
-        if connector_id is None and is_admin:
+        if connector_id is None:
             try:
                 events = event_groups_page(
                     warehouse, source_id=source_id, charger_id=charger_id,
@@ -639,6 +639,45 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                        connector_id: int, tz: str | None = None,
                        tx_page: int = Query(1, ge=1)):
         return _device_page(request, source_id, charger_id, connector_id, tz, tx_page, 1)
+
+    @app.get("/api/v1/charger-event-group", tags=["Dashboard API v1"])
+    def api_charger_event_group(
+        request: Request, source_id: str, charger_id: str,
+        first_event_id: int = Query(..., ge=1), tz: str | None = None,
+        offset: int = Query(0, ge=0),
+    ):
+        """Scoped, sanitized charger event details; global event API stays admin-only."""
+        principal = getattr(request.state, "principal", None)
+        if principal is not None and principal.role.value not in ("admin", "operator"):
+            raise HTTPException(403, "Charger event history unavailable")
+        if not source_id.strip() or not charger_id.strip():
+            raise HTTPException(422, "Source and charger are required")
+        if allowed_source_ids is not None and source_id not in allowed_source_ids:
+            raise HTTPException(404, "Charger not found")
+        selected_zone = tz or zones[0]
+        if selected_zone not in zones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
+        try:
+            # The exact source and charger are mandatory here. The grouping
+            # function returns only previously approved display fields, never
+            # raw OCPP payloads or identifiers such as RFID/vendor metadata.
+            result = event_group_details(
+                warehouse, group_source=source_id, first_event_id=first_event_id,
+                source_id=source_id, charger_id=charger_id,
+                allowed_source_ids=allowed_source_ids, zone=selected_zone,
+                offset=offset,
+            )
+            for event in result["events"]:
+                event["display_at"] = display_date(event.get("at"), selected_zone)
+            return JSONResponse(result, headers={"Cache-Control": "no-store"})
+        except LookupError as exc:
+            raise HTTPException(404, "Event group not found") from exc
+        except PermissionError as exc:
+            raise HTTPException(403, "Source is not available") from exc
+        except ValueError as exc:
+            raise HTTPException(422, "Invalid event selection") from exc
+        except (OSError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Event history unavailable") from exc
 
     @app.get("/api/v1/event-group", tags=["Dashboard API v1"])
     @app.get("/api/event-group")
