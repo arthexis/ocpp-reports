@@ -58,7 +58,8 @@ def test_current_link_and_progress_with_confirmed_scope(tmp_path):
     assert 'class="charger-session-link"' in page.text
     assert 'class="status-session-link"' in page.text
     assert "current-session-link" not in page.text
-    assert 'aria-label="Ver carga actual del cargador cp, conector 1"' in page.text
+    assert 'aria-label="Ver cargador cp"' in page.text
+    assert 'aria-label="Ver conector 1 del cargador cp"' in page.text
     assert 'aria-label="Ver carga actual desde el estado del cargador cp, conector 1"' in page.text
     assert '/transactions/a/cp/7?tz=UTC' in page.text
     assert "En curso (1)" in page.text
@@ -146,7 +147,7 @@ def test_mobile_navigation_labels_and_source_isolation(tmp_path):
         _add(db, "b", "transaction", "cp:7", _active(7, now.isoformat()))
     client = TestClient(create_app(path, allowed_source_ids=("a",)))
     page = client.get("/?connector_view=individual").text
-    assert page.count('class="charger-session-link"') == 1
+    assert page.count('class="charger-session-link"') == 2
     assert page.count('class="status-session-link"') == 1
     assert "current-session-link" not in page
     assert "/transactions/b/cp/7" not in page

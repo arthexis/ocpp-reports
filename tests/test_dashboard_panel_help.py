@@ -3,19 +3,19 @@ from ocpp_reports import web
 
 """Panel help is compact by default and accessible by pointer and keyboard."""
 
-def test_five_panel_explanations_are_in_accessible_popovers(empty_dashboard_html):
+def test_four_dashboard_panel_explanations_are_in_accessible_popovers(empty_dashboard_html):
     html = empty_dashboard_html
     for identifier, label in (
         ("operations", "Estado de los cargadores"),
         ("connectors", "Conectores"),
         ("transactions", "Transacciones recientes"),
         ("synchronization", "Sincronización"),
-        ("events", "Eventos recientes"),
     ):
         assert f'id="help-{identifier}" role="tooltip"' in html
         assert f'aria-controls="help-{identifier}" aria-expanded="false"' in html
         assert f'aria-label="Información sobre {label}"' in html
-    assert html.count('class="panel-help-trigger"') == 5
+    assert html.count('class="panel-help-trigger"') == 4
+    assert 'id="help-events"' not in html
     assert ".panel-help-text{display:none" in html
     assert ".panel-help:hover + .panel-help-text" in html
     assert ".panel-help:focus-within + .panel-help-text" in html
@@ -29,7 +29,6 @@ def test_five_panel_explanations_are_in_accessible_popovers(empty_dashboard_html
         "No sumar C0 nuevamente en totales.",
         "SoC: primera y última medición reportada",
         "La recarga de la página no confirma datos nuevos del cargador.",
-        "Eventos consecutivos de la misma acción",
     ):
         assert note in html
     assert 'Conectado*</th>' not in html
