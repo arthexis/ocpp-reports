@@ -96,8 +96,9 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 @media(max-width:520px){
   .sessions-table .session-start,.sessions-table .session-duration{display:none}
   .sessions-table th,.sessions-table td{padding:.48rem .28rem}
-  .events-table{min-width:0;table-layout:fixed;font-size:.77rem}
-  .events-table th,.events-table td{padding:.5rem .28rem}
+  .events-table{min-width:0;max-width:100%;table-layout:fixed;font-size:.77rem}
+  .events-table th,.events-table td{padding:.5rem .24rem;white-space:normal;overflow-wrap:anywhere}
+  .events-table .event-action summary{max-width:100%;overflow-wrap:anywhere;word-break:break-word}
   .events-table .event-id{display:none}
   .events-table .event-action{width:44%}
   .events-table .event-date{width:39%}

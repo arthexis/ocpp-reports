@@ -757,8 +757,10 @@ def test_charger_event_action_expands_in_same_table_row_offline(tmp_path):
                 if mobile:
                     assert page.locator(".events-table .event-id").first.is_hidden()
                     assert page.locator(".events-table .event-count").first.is_visible()
-                    assert page.locator(".events-table").evaluate(
-                        "(el) => el.scrollWidth <= el.clientWidth + 2"), width
+                    metrics = page.locator(".events-table").evaluate(
+                        "(el) => ({scroll:el.scrollWidth,client:el.clientWidth,"
+                        "columns:[...el.querySelectorAll('thead th')].map(c=>({name:c.textContent,w:c.getBoundingClientRect().width,scroll:c.scrollWidth}))})")
+                    assert metrics["scroll"] <= metrics["client"] + 2, (width, metrics)
                 else:
                     assert page.locator(".events-table .event-id").first.is_visible()
                 before = requests["GET"]
