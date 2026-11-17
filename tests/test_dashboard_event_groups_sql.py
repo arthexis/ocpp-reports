@@ -330,3 +330,24 @@ def test_scoped_event_pagination_exactly_eleven_groups(tmp_path):
     assert event_groups_page(db, page=3, **opts)["groups"] == []
     assert first == event_groups_page(db, page=1, term="cp-1", **opts)
     assert last == event_groups_page(db, page=2, term="cp-1", **opts)
+
+
+def test_scoped_collector_only_database_keeps_event_id_and_html(tmp_path):
+    """No local events table: the remote projection still aliases event_id."""
+    db = tmp_path / "collector-only.sqlite"
+    with sqlite3.connect(db) as connection:
+        ensure_collector_schema(connection)
+        connection.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                           ("a", "connector", "cp-1:1", 1,
+                            json.dumps({"charger_id": "cp-1", "connector_id": 1,
+                                        "status": "Available"})))
+        connection.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                           ("a", "event", "1", 2,
+                            json.dumps(_event(1, cp="cp-1"))))
+    groups = event_groups_page(db, source_id="a", charger_id="cp-1",
+                               allowed_source_ids=("a",))
+    assert len(groups["groups"]) == 1
+    assert groups["groups"][0]["first_event_id"] == 1
+    response = TestClient(create_app(db, allowed_source_ids=("a",))).get(
+        "/chargers/a/cp-1")
+    assert response.status_code == 200 and 'id="energy-chart"' in response.text
