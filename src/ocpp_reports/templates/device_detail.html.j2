@@ -50,6 +50,7 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .energy-legend-swatch.connector-color-2{background:var(--connector-c)}
 .energy-legend-swatch.connector-color-3{background:var(--connector-d)}
 .energy-range{display:inline-flex;align-items:center;gap:.2rem;flex-wrap:nowrap}
+.energy-day-short{display:none}
 .energy-range button{min-height:40px;padding:.35rem .65rem;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font-size:.86rem;font-weight:600;white-space:nowrap}
 .energy-range button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 :root{--connector-a:#0072b2;--connector-b:#d55e00;--connector-c:#009e73;--connector-d:#885bb9}
@@ -73,9 +74,23 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .energy-axis-labels{display:none;width:100%;min-width:0;justify-content:space-between;gap:.1rem;font-size:.65rem;color:var(--muted);white-space:nowrap;padding-top:.22rem}
 .energy-days[data-days="30"] + .energy-axis-labels{display:flex}
 @media(max-width:520px){.energy-day{grid-template-rows:135px 1.25rem}.energy-days{column-gap:.2rem}.energy-days[data-days="30"]{column-gap:1px}.energy-range button{min-height:38px;padding:.25rem .48rem}.energy-date{font-size:.63rem}
-.energy-heading{align-items:flex-start}.energy-controls{flex:1 1 100%;justify-content:flex-start;gap:.3rem}
-.energy-range{gap:.12rem}.energy-range button{font-size:.8rem;padding:.25rem .43rem}
+.energy-heading{align-items:center;flex-wrap:nowrap;gap:.15rem}
+.energy-heading-title{gap:0;flex:0 0 auto}
+.energy-heading h2{font-size:.9rem}
+.energy-help-trigger{min-width:25px;min-height:34px;padding:0;font-size:1rem}
+.energy-controls{flex:1 1 auto;justify-content:flex-end;flex-wrap:nowrap;gap:.12rem}
+.energy-range{gap:0}
+.energy-range button{font-size:.69rem;min-height:36px;padding:.2rem .17rem;border-radius:5px}
+.energy-day-long{display:none}.energy-day-short{display:inline}
+#energy-30-days{padding:.85rem .55rem}
+.connector dd{font-size:1.04rem;line-height:1.3}
+.connector dd .status{font-size:.96rem}
 .energy-connector-bars{gap:0}}
+@media(max-width:350px){
+.energy-heading h2{font-size:.86rem}
+.energy-range button{font-size:.66rem;padding:.15rem .1rem}
+.energy-help-trigger{min-width:23px}
+}
 @media(max-width:520px){.sessions-table .session-start{display:none}}
 .pages{display:flex;gap:.7rem;align-items:center;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
 .pages a,.pages span{padding:.35rem .65rem;border:1px solid var(--line);border-radius:7px}
@@ -104,14 +119,14 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 </div>
 <div class="energy-controls">
 <div class="energy-range" role="group" aria-label="Periodo de energía">
-<button type="button" data-energy-days="7" aria-pressed="true">7 días</button>
-<button type="button" data-energy-days="30" aria-pressed="false">30 días</button>
+<button type="button" data-energy-days="7" aria-label="7 días" aria-pressed="true"><span class="energy-day-long">7 días</span><span class="energy-day-short" aria-hidden="true">7d</span></button>
+<button type="button" data-energy-days="30" aria-label="30 días" aria-pressed="false"><span class="energy-day-long">30 días</span><span class="energy-day-short" aria-hidden="true">30d</span></button>
 </div>
 <div class="energy-range" role="group" aria-label="Desglose de energía">
-<button type="button" data-energy-view="total" aria-pressed="true">Total</button>
+<button type="button" data-energy-view="total" aria-pressed="true">Estación</button>
 <button type="button" data-energy-view="connectors" aria-pressed="false">Conectores</button>
 </div></div></div>
-<p class="energy-help" id="energy-help" hidden>La energía es la suma de las sesiones cerradas por fecha local de finalización ({{ timezone }}). Total agrega los conectores físicos; Conectores muestra cada uno por separado. C0 es un medidor/resumen de estación y no se suma otra vez. No incluye sesiones activas ni estima períodos faltantes.</p>
+<p class="energy-help" id="energy-help" hidden>La energía es la suma de las sesiones cerradas por fecha local de finalización ({{ timezone }}). Estación agrega los conectores físicos; Conectores muestra cada uno por separado. C0 es un medidor/resumen de estación y no se suma otra vez. No incluye sesiones activas ni estima períodos faltantes.</p>
 <div class="energy-overview" aria-live="polite">
 <strong id="energy-total" data-total-7="{{ '%.2f'|format(energy_30_days.last_7.total_kwh) }}" data-total-30="{{ '%.2f'|format(energy_30_days.total_kwh) }}">{{ '%.2f'|format(energy_30_days.last_7.total_kwh) }} kWh</strong>
 <span class="muted note" id="energy-sessions" data-count-7="{{ energy_30_days.last_7.sessions_count }}" data-count-30="{{ energy_30_days.sessions_count }}">· {{ energy_30_days.last_7.sessions_count }} sesiones cerradas</span>
@@ -167,9 +182,9 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 <span aria-current="page">{{ tx_page }} / {{ tx_pages }}</span>
 {% if tx_page < tx_pages %}<a rel="next" href="{{ request.url.include_query_params(tx_page=tx_page+1) }}#transactions">Siguiente</a>{% endif %}
 </nav></section>
-{% if selected_connector_id is none and is_admin %}
-<section id="events" aria-labelledby="events-title"><h2 id="events-title">Eventos recientes de {{ charger_id }}</h2>
-<div class="scroll" tabindex="0" role="region" aria-label="Eventos recientes de este cargador">
+{% if selected_connector_id is none %}
+<section id="events" aria-labelledby="events-title"><h2 id="events-title">Eventos registrados de {{ charger_id }}</h2>
+<div class="scroll" tabindex="0" role="region" aria-label="Eventos registrados de este cargador">
 <table class="events-table"><thead><tr><th>ID</th><th>Acción</th><th>Fecha</th><th>Registros</th></tr></thead>
 <tbody id="live-event-groups">
 {% for group in event_groups %}
@@ -238,7 +253,7 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 })();
 </script>
 {% endif %}
-{% if selected_connector_id is none and is_admin %}
+{% if selected_connector_id is none %}
 <script>
 (() => {
   for (const details of document.querySelectorAll(".event-group")) {
@@ -258,8 +273,7 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
     const load = async () => {
       if (loading || exhausted) return;
       loading = true; more.disabled = true; status.textContent = "Cargando eventos…";
-      const url = new URL("/api/event-group", window.location.origin);
-      url.searchParams.set("group_source", details.dataset.source);
+      const url = new URL("/api/v1/charger-event-group", window.location.origin);
       url.searchParams.set("source_id", {{ source_id|tojson }});
       url.searchParams.set("charger_id", {{ charger_id|tojson }});
       url.searchParams.set("tz", {{ timezone|tojson }});

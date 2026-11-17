@@ -299,3 +299,24 @@ conservan. Un solo recorrido de SQLite produce ambas vistas.
 El título es solo «Energía» y la explicación se encuentra en el control de
 información accesible. Ambos filtros se ajustan por línea en móvil; no hay
 gráfica adicional ni scroll horizontal en 320/360/390/520 CSS px.
+
+## Más legibilidad móvil y eventos registrados por cargador (#241)
+
+- La tipografía de los valores de las tarjetas de conector en el dashboard
+  sube de 1.10 a 1.18 rem y recupera 1 px de separación inferior; las
+  etiquetas mantienen 0.77 rem. Se conserva el objetivo táctil ampliado
+  sin forzar un renglón de 44 px.
+- En detalle, los filtros se sitúan en la misma línea que «Energía»; en móvil
+  los periodos se abrevian 7d/30d (nombres accesibles «7 días»/«30 días»).
+  La agregación anteriormente «Total» se llama «Estación». En las tarjetas
+  individuales se agrandan los valores, no las etiquetas.
+- La sección «Eventos registrados» está justo después de Sesiones de carga.
+  Ya existía SQL de agrupación/paginación/expansión en lectura; el bloqueo
+  anterior era `is_admin`. Ahora operadores con permiso de ver conectores
+  pueden consultar solo los eventos del **source_id+charger_id exactos** de
+  la página, 10 grupos por página y hasta 50 entradas depuradas al expandir.
+  El endpoint nuevo `/api/v1/charger-event-group` requiere ambos parámetros
+  y solo devuelve columnas mostradas, no JSON bruto. `/api/event-group`
+  y `/api/v1/event-group` siguen requiriendo permiso EVENTS_VIEW/admin.
+  Los roles y la autoridad por tenant no cambian; usuarios sin CONNECTORS_VIEW
+  nunca reciben los nuevos resultados.
