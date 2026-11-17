@@ -26,6 +26,9 @@ and CSMS #376. Do not run `--apply` based on a CI result alone.
    existing source-specific bearer. Old readiness clients remain v1-compatible.
 2. Upgrade the corresponding Reports **Forwarder/local ingestion** on each
    enrolled source, without resetting or editing its source binding or ACK.
+   Fresh `meter_sample` journaling stays **disabled by default** on upgrade.
+   After verifying Collector capability, preview and separately approve
+   `history_queue --enable-future --apply` for each intended local CSMS UUID.
    For `meter_sample` and `meter_enrichment`, Forwarder requires explicit
    `supported_kinds` from Collector; otherwise transmission stops **without
    advancing** the confirmed cursor.
@@ -48,6 +51,16 @@ python -m ocpp_reports.replication.history_queue \
   --database /path/to/reports-warehouse.sqlite \
   --source-id EXACT_LOCAL_CSMS_SOURCE_UUID --limit 250
 ```
+
+Before turning on ongoing sample replication, preview the exact source:
+```bash
+python -m ocpp_reports.replication.history_queue \
+  --database /path/to/reports-warehouse.sqlite \
+  --source-id EXACT_LOCAL_CSMS_SOURCE_UUID --enable-future
+```
+Only after verifying the upgraded Collector's authenticated capabilities and
+receiving operator approval, repeat with `--apply`. Existing records do not
+silently enqueue when future collection is enabled.
 
 This reports `scanned`, `pending`, `next` and `more` without creating any
 tables or journal rows. Continue using the composite `next.event_id` and
