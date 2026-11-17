@@ -69,6 +69,38 @@ def queue_history(database: str | Path, source_id: str, *,
                 "next": next_cursor, "more": more}
 
 
+def future_replication(database: str | Path, source_id: str, *,
+                       apply: bool = False) -> dict:
+    """Opt in a known source after operator verifies Collector readiness."""
+    if not isinstance(source_id, str) or not source_id or type(apply) is not bool:
+        raise ValueError("Known source and explicit apply required")
+    path = Path(database).resolve()
+    with sqlite3.connect(path.as_uri() + ("?mode=rw" if apply else "?mode=ro"),
+                         uri=True) as db:
+        if not apply:
+            db.execute("PRAGMA query_only=ON")
+        db.execute("BEGIN IMMEDIATE" if apply else "BEGIN")
+        if not db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table'"
+            " AND name='meter_replication_sources'"
+        ).fetchone():
+            raise ValueError("Install opt-in schema before enabling historical samples")
+        if not db.execute("SELECT 1 FROM sources WHERE source_id=?", (source_id,)).fetchone():
+            raise ValueError("Source identity not found")
+        old = db.execute(
+            "SELECT enabled FROM meter_replication_sources WHERE source_id=?",
+            (source_id,),
+        ).fetchone()
+        enabled = bool(old and old[0] == 1)
+        if apply and not enabled:
+            db.execute("""INSERT INTO meter_replication_sources(source_id,enabled)
+                VALUES (?,1) ON CONFLICT(source_id) DO UPDATE SET enabled=1""",
+                (source_id,))
+        return {"source_id": source_id, "dry_run": not apply,
+                "previously_enabled": enabled, "enabled": enabled or apply,
+                "changed": bool(apply and not enabled)}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Bounded historical meter sample enqueue")
     parser.add_argument("--database", required=True)
@@ -76,12 +108,18 @@ def main() -> None:
     parser.add_argument("--after-event", type=int, default=0)
     parser.add_argument("--after-index", type=int, default=-1)
     parser.add_argument("--limit", type=int, default=500)
-    parser.add_argument("--apply", action="store_true", help="Explicitly enqueue; default is read-only")
+    parser.add_argument("--apply", action="store_true",
+                        help="Explicitly enqueue or opt in; default is read-only")
+    parser.add_argument("--enable-future", action="store_true",
+                        help="Operator-gated opt-in for future sample replication")
     args = parser.parse_args()
-    result = queue_history(
-        args.database, args.source_id, after_event=args.after_event,
-        after_index=args.after_index, limit=args.limit, apply=args.apply,
-    )
+    if args.enable_future:
+        result = future_replication(args.database, args.source_id, apply=args.apply)
+    else:
+        result = queue_history(
+            args.database, args.source_id, after_event=args.after_event,
+            after_index=args.after_index, limit=args.limit, apply=args.apply,
+        )
     print(json.dumps(result, sort_keys=True))
 
 
