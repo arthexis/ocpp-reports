@@ -86,7 +86,7 @@ def test_source_security_and_filter_scope(tmp_path):
     html = client.get("/chargers/a/cp-1")
     assert html.status_code == 200
     assert 'class="events-table"' in html.text
-    assert "<td>69</td>" in html.text
+    assert '<td class="event-count">69</td>' in html.text
     assert 'data-first-id="194"' in html.text
     assert "Ver eventos de" in html.text
     assert "Ver eventos del grupo" not in html.text
