@@ -112,7 +112,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 page.goto("http://reports.test/?tx_view=active", wait_until="load")
                 assert page.get_by_role("button", name="En curso (1)").count() == 1
                 assert page.locator("a.current-session-link").count() == 0
-                assert page.locator("a.charger-session-link").count() == 1
+                assert page.locator("a.charger-session-link").count() == 2  # charger and connector detail links
                 assert page.locator("a.status-session-link").count() == 1
                 assert "Ver carga actual" not in page.locator(".connectors-panel").inner_text()
                 theme = page.evaluate("""() => {
@@ -388,8 +388,8 @@ def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
                     assert page.locator(".timeline-evidence tbody tr").count() == 2
                     assert page.locator(".timeline-plot svg").first.is_visible()
                     assert page.locator(".timeline-plot circle title").all_text_contents() == [
-                        "Energía de sesión: 0.200 kWh · SoC: 31.0%",
-                        "Energía de sesión: 1.300 kWh · SoC: 45.0%",
+                        "0.200 kWh · 31.0%",
+                        "1.300 kWh · 45.0%",
                     ]
                     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
                     assert "tx_view=all" in page.locator(".back-link").get_attribute("href")
