@@ -276,3 +276,31 @@ def test_compact_detail_uses_verified_timeline_soc_only_as_fallback(tmp_path):
         db.execute("UPDATE energy_samples SET payload=json_remove(payload, '$.soc_provenance')")
     unverified = TestClient(web.create_app(path)).get("/transactions/a/cp/7")
     assert 'class="soc-end">—' in unverified.text
+
+
+def test_timeline_table_hides_power_only_when_unmeasured(tmp_path):
+    path = _db(tmp_path)
+    _bound(path)
+    _sample(path, 5, power_w=None, energy_wh=1100)
+    _sample(path, 10, power_w=None, energy_wh=2400,
+            soc=68, soc_provenance="ocpp-meter-values")
+    record = {k: v for k, v in _tx(soc_start=25, soc_end=None).items()
+              if k != "source_id"}
+    with sqlite3.connect(path) as db:
+        db.execute("INSERT INTO current_transactions VALUES (?,?,?,?)",
+                   ("a", "cp", 7, json.dumps(record)))
+    client = TestClient(web.create_app(path, allowed_source_ids=("a",)))
+    without_power = client.get("/transactions/a/cp/7")
+    assert without_power.status_code == 200
+    assert "<th>Potencia (kW)</th>" not in without_power.text
+    assert "<th>SoC (%)</th>" in without_power.text
+    assert ">68.0</td>" in without_power.text
+
+    # Genuine power, including a valid zero, restores that column.
+    with sqlite3.connect(path) as db:
+        db.execute("UPDATE energy_samples SET payload=json_set(payload, '$.power_w', 0)"
+                   " WHERE source_id='a' AND event_id=5")
+    with_power = client.get("/transactions/a/cp/7")
+    assert with_power.status_code == 200
+    assert "<th>Potencia (kW)</th>" in with_power.text
+    assert ">0.000</td>" in with_power.text
