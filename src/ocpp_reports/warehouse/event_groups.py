@@ -223,3 +223,59 @@ def event_group_details(
             "action": payload.get("action"), "at": payload.get("at"),
         })
     return {"events": events, "has_next": len(rows) > limit}
+
+
+
+def latest_heartbeat_at(
+    database: str | Path, *, source_id: str, charger_id: str,
+    allowed_source_ids: tuple[str, ...] | None = None,
+) -> str | None:
+    """Return the last original OCPP Heartbeat timestamp for one charger.
+
+    Event ID orders producer receipts within a source. Local and replicated
+    event projections are read without changing them. Ingestion timestamps
+    and source freshness are never substituted for the actual Heartbeat.
+    """
+    if not source_id or not charger_id:
+        raise ValueError("A precise source and charger are required")
+    if allowed_source_ids is not None and source_id not in allowed_source_ids:
+        return None
+    path = Path(database).resolve()
+    candidates: list[tuple[int, str]] = []
+    with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as db:
+        db.execute("PRAGMA query_only=ON")
+        tables = {r[0] for r in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        if "events" in tables:
+            row = db.execute(
+                "SELECT event_id, json_extract(payload,'$.at') FROM events "
+                "WHERE source_id=? AND json_extract(payload,'$.charger_id')=? "
+                "AND json_extract(payload,'$.action')='Heartbeat' "
+                "ORDER BY event_id DESC LIMIT 1",
+                (source_id, charger_id),
+            ).fetchone()
+            if row and isinstance(row[1], str):
+                candidates.append((row[0], row[1]))
+        if "collector_latest" in tables:
+            row = db.execute(
+                "SELECT CAST(json_extract(payload,'$.id') AS INTEGER), "
+                "json_extract(payload,'$.at') FROM collector_latest "
+                "WHERE source_id=? AND kind='event' "
+                "AND json_type(payload,'$.id')='integer' "
+                "AND json_extract(payload,'$.charger_id')=? "
+                "AND json_extract(payload,'$.action')='Heartbeat' "
+                "ORDER BY CAST(json_extract(payload,'$.id') AS INTEGER) DESC LIMIT 1",
+                (source_id, charger_id),
+            ).fetchone()
+            if row and isinstance(row[1], str):
+                candidates.append((row[0], row[1]))
+    if not candidates:
+        return None
+    at = max(candidates, key=lambda item: item[0])[1]
+    try:
+        # Unparseable or timezone-free evidence cannot establish a date.
+        if datetime.fromisoformat(at.replace("Z", "+00:00")).tzinfo is None:
+            return None
+    except (ValueError, OverflowError):
+        return None
+    return at

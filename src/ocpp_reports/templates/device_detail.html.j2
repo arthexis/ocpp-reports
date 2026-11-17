@@ -29,13 +29,16 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .status--active{background:#e4f0ff;color:#155bad}.status--active::before{background:#1976e9}
 .status--warn{background:#fff3d9;color:#906000}.status--warn::before{background:#dfa000}
 .status--off{background:#f7e8e8;color:#984545}.status--off::before{background:#c55b5b}
-.event-group{border:1px solid var(--line);border-radius:9px;margin:.5rem 0;padding:.6rem .8rem}
-.event-group summary{cursor:pointer;min-height:36px;overflow-wrap:anywhere}.event-detail{margin:.65rem 0}
+.event-group{border:0;margin:0;padding:0}
+.event-group summary{cursor:pointer;min-height:36px;padding:.2rem 0;color:var(--accent);font-weight:600;overflow-wrap:anywhere}
+.event-detail{margin:.45rem 0}.event-expand-row td{padding:.05rem .65rem .5rem}
+.events-table td{white-space:normal}.events-table th,.events-table td{vertical-align:top}
+.events-table .scroll{overflow-x:auto}.events-table .event-summary-row td{padding-bottom:.1rem}
 .pages{display:flex;gap:.7rem;align-items:center;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
 .pages a,.pages span{padding:.35rem .65rem;border:1px solid var(--line);border-radius:7px}
 button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:pointer;padding:.55rem .8rem;min-height:44px;font:inherit}
 @media(max-width:800px){.grid{grid-template-columns:1fr}main{padding:1rem .75rem}section{padding:1rem}header{padding:1rem}}
-@media(max-width:520px){.connector-list{grid-template-columns:1fr}header h1{font-size:1.12rem}table{font-size:.78rem}th,td{padding:.55rem .45rem}}
+@media(max-width:520px){.connector-list{grid-template-columns:1fr}header h1{font-size:1.12rem}table{font-size:.78rem}th,td{padding:.55rem .45rem}.events-table{min-width:480px}}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}th{background:#263647;color:#d7e5f5}.status{background:#354657;color:#e1e9f3}}
 </style></head><body>
 <a class="back-link" style="position:absolute;left:1rem;top:-5rem" href="#content">Ir al contenido</a>
@@ -45,10 +48,9 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 <main id="content">
 <section aria-labelledby="device-title"><h2 class="identity" id="device-title">{% if selected_connector_id is none %}Cargador {{ charger_id }}{% else %}Cargador {{ charger_id }} · Conector {{ selected_connector_id }}{% endif %}</h2>
 <p class="muted">{{ location }} · Origen {{ source_id }}</p>
-<p class="note">Las fechas observadas corresponden al cargador/conector; la sincronización del origen no garantiza comunicación en tiempo real.</p>
 <div class="stats"><div class="stat"><span class="note">Sesiones registradas</span><strong>{{ tx_total }}</strong></div>
-<div class="stat"><span class="note">Conectores visibles</span><strong>{{ connectors|length }}</strong></div>
-<div class="stat"><span class="note">Frescura del origen</span><strong>{{ source_freshness }}</strong></div></div>
+<div class="stat"><span class="note">Conectores visibles</span><strong>{{ physical_connector_count }}</strong></div>
+<div class="stat"><span class="note">Último Heartbeat</span><strong>{{ heartbeat_at|display_date(timezone) if heartbeat_at else 'Sin fecha' }}</strong></div></div>
 </section>
 <section aria-labelledby="connector-title"><h2 id="connector-title">{{ 'Conector' if selected_connector_id is not none else 'Conectores del cargador' }}</h2>
 <div class="connector-list">{% for c in connectors %}
@@ -82,22 +84,18 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 <span aria-current="page">{{ tx_page }} / {{ tx_pages }}</span>
 {% if tx_page < tx_pages %}<a rel="next" href="{{ request.url.include_query_params(tx_page=tx_page+1) }}#transactions">Siguiente</a>{% endif %}
 </nav></section>
-<section id="synchronization" aria-labelledby="sync-title"><h2 id="sync-title">Sincronización</h2>
-{% if source and is_admin %}<p class="note muted">Estado del origen {{ source_id }} (compartido por sus cargadores; no corresponde a una medición individual).</p>
-<div class="stats"><div class="stat"><span class="note">Cursor del origen</span><strong>{{ source.cursor if source.cursor is not none else '—' }}</strong></div>
-<div class="stat"><span class="note">Ingestión local</span><strong>{{ source.last_ingested_at|display_date(timezone) if source.last_ingested_at else 'Sin fecha' }}</strong></div>
-<div class="stat"><span class="note">Recepción de réplica</span><strong>{{ source.last_replication_received_at|display_date(timezone) if source.last_replication_received_at else 'Sin fecha' }}</strong></div></div>
-{% else %}<p class="muted">La información administrativa de sincronización del origen no está disponible en esta vista. Las fechas observadas del conector figuran arriba.</p>{% endif %}
-</section>
 {% if selected_connector_id is none and is_admin %}
 <section id="events" aria-labelledby="events-title"><h2 id="events-title">Eventos recientes de {{ charger_id }}</h2>
-<p class="note muted">Solo este cargador y origen. Los eventos rutinarios se agrupan; los detalles se consultan al abrirlos.</p>
-<div id="live-event-groups">
-{% for group in event_groups %}<details class="event-group" data-source="{{ group.source_id }}" data-first-id="{{ group.first_event_id }}">
-<summary>{{ group.action or 'Sin acción' }}{% if group.event_count > 1 %} × {{ group.event_count }}{% endif %}<span class="muted note"> · {{ group.at|display_date(timezone) }}</span></summary>
-<div class="event-detail"><p class="muted note">Abre el grupo para consultar sus eventos.</p></div></details>
-{% else %}<p class="muted">Sin eventos recientes para este cargador</p>{% endfor %}
-</div><nav class="pages" aria-label="Páginas de eventos">
+<div class="scroll" tabindex="0" role="region" aria-label="Eventos recientes de este cargador">
+<table class="events-table"><thead><tr><th>ID</th><th>Acción</th><th>Fecha</th><th>Registros</th></tr></thead>
+<tbody id="live-event-groups">
+{% for group in event_groups %}
+<tr class="event-summary-row"><td>{{ group.first_event_id }}</td><td>{{ group.action or 'Sin acción' }}</td><td>{{ group.at|display_date(timezone) }}</td><td>{{ group.event_count }}</td></tr>
+<tr class="event-expand-row"><td colspan="4"><details class="event-group" data-source="{{ group.source_id }}" data-first-id="{{ group.first_event_id }}">
+<summary>Ver eventos del grupo</summary><div class="event-detail"><p class="muted note">Los detalles se consultan al abrir.</p></div></details></td></tr>
+{% else %}<tr><td colspan="4" class="empty">Sin eventos recientes para este cargador</td></tr>{% endfor %}
+</tbody></table></div>
+<nav class="pages" aria-label="Páginas de eventos">
 {% if event_page > 1 %}<a rel="prev" href="{{ request.url.include_query_params(event_page=event_page-1) }}#events">Anterior</a>{% endif %}
 <span aria-current="page">{{ event_page }}</span>
 {% if event_has_next %}<a rel="next" href="{{ request.url.include_query_params(event_page=event_page+1) }}#events">Siguiente</a>{% endif %}

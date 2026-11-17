@@ -15,7 +15,7 @@ from .warehouse_queries import snapshot
 from .warehouse.transaction_detail import transaction_detail
 from .warehouse.transaction_timeline import transaction_timeline, timeline_charts
 from .warehouse.active_sessions import is_active_session
-from .warehouse.event_groups import event_groups_page, event_group_details
+from .warehouse.event_groups import event_groups_page, event_group_details, latest_heartbeat_at
 import sqlite3
 
 
@@ -592,6 +592,12 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             event_groups, event_has_next = events["groups"], events["has_next"]
         if not connectors and not total and not event_groups:
             raise HTTPException(404, "Device not found")
+        heartbeat_at = latest_heartbeat_at(
+            warehouse, source_id=source_id, charger_id=charger_id,
+            allowed_source_ids=allowed_source_ids)
+        physical_connector_count = sum(
+            type(row.get("connector_id")) is int and row["connector_id"] > 0
+            for row in connectors)
         location = (next((row.get("location") for row in connectors if row.get("location")), None)
                     or next((row.get("location") for row in data["transactions"]
                              if row.get("location")), None) or source_id)
@@ -600,7 +606,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             {"title": title, "source_id": source_id, "charger_id": charger_id,
              "selected_connector_id": connector_id, "connectors": connectors,
              "data": data, "location": location, "source": source,
-             "source_freshness": freshness, "timezone": selected_zone,
+             "source_freshness": freshness, "heartbeat_at": heartbeat_at,
+              "physical_connector_count": physical_connector_count,
+              "timezone": selected_zone,
              "timezones": zones, "tx_total": total, "tx_page": actual_page,
              "tx_pages": pages, "event_groups": event_groups,
              "event_page": event_page, "event_has_next": event_has_next,

@@ -219,3 +219,20 @@ section shows its cursor, local ingestion and replica-receipt timestamps. These
 No periodic background work, schema change or inferred SoC is introduced.
 The energy chart tooltip contains only measured kWh and verified, same-point
 SoC (or a missing-value marker when no such reading exists).
+
+
+## Device UI revision (#233)
+
+The device page shows the most recently **observed Heartbeat**, scoped to the
+exact source and charger and read from original local/replicated events. An
+absent or invalid timestamp displays “Sin fecha” rather than source ingestion
+freshness. “Conectores visibles” counts physical connector IDs above zero;
+station C0 remains visible but is excluded from the count. The source-wide
+synchronization panel and explanatory paragraph are removed.
+
+The device's recent grouped events are now displayed as a **table directly
+after sessions**, with 10 groups per page and expandable, bounded event rows
+(50 at a time) retrieved only after opening a group. Event access remains
+administrator-only and source/charger-scoped; the main dashboard still has
+no event table. Narrow mobile connector cards use unequal short/long columns,
+larger values than labels and reduced gaps, with desktop/tablet layout unchanged.
