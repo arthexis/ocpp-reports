@@ -35,11 +35,25 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .events-table td{white-space:normal}.events-table th,.events-table td{vertical-align:top}
 .events-table .scroll{overflow-x:auto}.events-table .event-summary-row td{padding-bottom:.1rem}
 .energy-overview{margin:0 0 .7rem}.energy-overview strong{font-size:1.4rem;font-variant-numeric:tabular-nums}
-.energy-chart-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
-.energy-chart{display:block;min-width:850px;width:100%;height:auto}
-.energy-axis{stroke:var(--line);stroke-width:2}.energy-bar{fill:var(--accent)}
-.energy-tick{fill:var(--muted);font-size:14px}
-.energy-chart-scroll:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.energy-heading{display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem}
+.energy-heading h2{margin:0}
+.energy-range{display:inline-flex;align-items:center;gap:.2rem;flex-wrap:nowrap}
+.energy-range button{min-height:40px;padding:.35rem .65rem;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font-size:.86rem;font-weight:600;white-space:nowrap}
+.energy-range button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.energy-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:.45rem;width:100%;min-width:0;max-width:100%;overflow:hidden;border-bottom:1px solid var(--line);padding:0 0 .25rem}
+.energy-days[data-days="30"]{grid-template-columns:repeat(30,minmax(0,1fr));column-gap:.13rem}
+.energy-day{min-width:0;display:grid;grid-template-rows:clamp(110px,18vw,180px) 1.25rem;gap:.3rem}
+.energy-days[data-days="7"] .energy-older{display:none}
+.energy-column{display:flex;align-items:flex-end;min-width:0;height:100%}
+.energy-bar{display:block;width:100%;min-height:0;height:var(--energy-height-7);background:var(--accent);border-radius:3px 3px 0 0}
+.energy-days[data-days="30"] .energy-bar{height:var(--energy-height-30)}
+.energy-date{min-width:0;white-space:nowrap;text-align:center;font-size:.7rem;color:var(--muted)}
+.energy-date-30{display:none}
+.energy-days[data-days="30"] .energy-date-7{display:none}
+.energy-days[data-days="30"] .energy-date-30{display:block}
+.energy-days[data-days="30"] .energy-date{font-size:.65rem}
+@media(max-width:520px){.energy-day{grid-template-rows:135px 1.25rem}.energy-days{column-gap:.2rem}.energy-days[data-days="30"]{column-gap:1px}.energy-range button{min-height:38px;padding:.25rem .48rem}.energy-date{font-size:.63rem}}
+@media(max-width:520px){.sessions-table .session-start{display:none}}
 .pages{display:flex;gap:.7rem;align-items:center;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
 .pages a,.pages span{padding:.35rem .65rem;border:1px solid var(--line);border-radius:7px}
 button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:pointer;padding:.55rem .8rem;min-height:44px;font:inherit}
@@ -61,21 +75,24 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 </section>
 {% if selected_connector_id is none %}
 <section id="energy-30-days" aria-labelledby="energy-30-title">
-<h2 id="energy-30-title">Energía del cargador · últimos 30 días</h2>
-{% if energy_30_days.sessions_count %}
-<div class="energy-overview"><strong>{{ '%.2f'|format(energy_30_days.total_kwh) }} kWh</strong> <span class="muted note">· {{ energy_30_days.sessions_count }} sesiones cerradas</span></div>
-<div class="energy-chart-scroll" role="region" tabindex="0" aria-label="Gráfica de energía diaria del cargador; desplazar horizontalmente para ver los treinta días">
-<svg class="energy-chart" viewBox="0 0 900 240" width="900" height="240" role="img" aria-labelledby="energy-chart-title energy-chart-desc">
-<title id="energy-chart-title">Energía diaria entregada por el cargador durante los últimos 30 días</title>
-<desc id="energy-chart-desc">Suma de kWh por día de cierre de sesión, en {{ timezone }}. Total {{ '%.2f'|format(energy_30_days.total_kwh) }} kWh. No incluye sesiones abiertas.</desc>
-<line x1="46" y1="194" x2="890" y2="194" class="energy-axis"/>
+<div class="energy-heading"><h2 id="energy-30-title">Energía del cargador</h2>
+<div class="energy-range" role="group" aria-label="Periodo de energía">
+<button type="button" data-energy-days="7" aria-pressed="true">7 días</button>
+<button type="button" data-energy-days="30" aria-pressed="false">30 días</button>
+</div></div>
+<div class="energy-overview" aria-live="polite">
+<strong id="energy-total" data-total-7="{{ '%.2f'|format(energy_30_days.last_7.total_kwh) }}" data-total-30="{{ '%.2f'|format(energy_30_days.total_kwh) }}">{{ '%.2f'|format(energy_30_days.last_7.total_kwh) }} kWh</strong>
+<span class="muted note" id="energy-sessions" data-count-7="{{ energy_30_days.last_7.sessions_count }}" data-count-30="{{ energy_30_days.sessions_count }}">· {{ energy_30_days.last_7.sessions_count }} sesiones cerradas</span>
+</div>
+<div id="energy-chart" class="energy-days" data-days="7" role="list" aria-label="Energía entregada por día del cargador, últimos 7 días, {{ timezone }}">
 {% for bar in energy_30_days.bars %}
-<rect class="energy-bar" x="{{ bar.x }}" y="{{ bar.y }}" width="18" height="{{ bar.height }}" rx="2"><title>{{ bar.day }}: {{ '%.2f'|format(bar.kwh) }} kWh, {{ bar.sessions }} sesiones</title></rect>
-{% if bar.label %}<text class="energy-tick" x="{{ bar.x + 9 }}" y="218" text-anchor="middle">{{ bar.label }}</text>{% endif %}
+<div class="energy-day{{ ' energy-older' if loop.index0 < 23 else '' }}" role="listitem" aria-label="{{ bar.day }}: {{ '%.2f'|format(bar.kwh) }} kWh, {{ bar.sessions }} sesiones" title="{{ bar.day }}: {{ '%.2f'|format(bar.kwh) }} kWh · {{ bar.sessions }} sesiones">
+<div class="energy-column"><span class="energy-bar" style="--energy-height-7:{{ bar.height_pct_7 }}%;--energy-height-30:{{ bar.height_pct_30 }}%"></span></div>
+<span class="energy-date energy-date-7">{{ bar.label_7 or '' }}</span><span class="energy-date energy-date-30">{{ bar.label or '' }}</span>
+</div>
 {% endfor %}
-</svg></div>
-{% else %}<p class="muted">Sin energía de sesiones cerradas registrada en los últimos 30 días.</p>{% endif %}
-<p class="note muted">Sesiones cerradas por fecha local de finalización. No incluye sesiones activas ni estima datos faltantes.</p>
+</div>
+<p class="note muted">Energía de sesiones cerradas, por fecha local de finalización ({{ timezone }}). Sin estimar sesiones abiertas ni periodos faltantes.</p>
 </section>
 {% endif %}
 <section aria-labelledby="connector-title"><h2 id="connector-title">{{ 'Conector' if selected_connector_id is not none else 'Conectores del cargador' }}</h2>
@@ -83,11 +100,7 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 <article class="connector"><h3>{% if selected_connector_id is none %}<a href="/connectors/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ c.connector_id }}?tz={{ timezone|urlencode }}">{{ 'Estación (C0)' if c.connector_id == 0 else 'Conector ' ~ c.connector_id }}</a>{% else %}Conector {{ c.connector_id }}{% endif %}</h3>
 <dl>
 <dt>Estado informado</dt><dd>{% set state = (c.status or '')|lower %}<span class="status {{ 'status--off' if state in ['faulted','unavailable'] else 'status--active' if state == 'charging' and not c.stale else 'status--ok' if state in ['available','finishing'] and not c.stale else 'status--warn' if state in ['preparing','suspendedev','suspendedevse'] else '' }}">{{ c.status or 'Desconocido' }}</span></dd>
-<dt>Conexión observada</dt><dd>{{ 'Sí' if c.connected is sameas true else 'No' if c.connected is sameas false else 'Sin datos' }}</dd>
-<dt>Último estado</dt><dd>{{ c.status_observed_at|display_date(timezone) if c.status_observed_at else 'Fecha desconocida' }}</dd>
-<dt>Sincronizado</dt><dd>{{ c.synced_at|display_date(timezone) if c.synced_at else 'Sin fecha' }}</dd>
 <dt>Potencia</dt><dd>{% if c.power_fresh and c.power_w is not none %}{{ '%.2f'|format(c.power_w / 1000) }} kW <span class="note muted">medida</span>{% elif c.rated_power_w is defined and c.rated_power_w is not none %}{{ '%.2f'|format(c.rated_power_w / 1000) }} kW <span class="note muted">nominal (no medida)</span>{% else %}No disponible{% endif %}</dd>
-<dt>Medición de potencia</dt><dd>{{ c.power_observed_at|display_date(timezone) if c.power_observed_at else 'Sin fecha' }}</dd>
 <dt>Medidor acumulado</dt><dd>{{ '%.2f'|format(c.energy_wh / 1000) ~ ' kWh' if c.energy_wh is not none else '—' }}</dd>
 <dt>Medición de energía</dt><dd>{{ c.energy_observed_at|display_date(timezone) if c.energy_observed_at else 'Sin fecha' }}</dd>
 {% if c.active_transaction_id is not none %}<dt>Sesión actual</dt><dd><a href="/transactions/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ c.active_transaction_id }}?tz={{ timezone|urlencode }}">#{{ c.active_transaction_id }}</a></dd>{% endif %}
@@ -96,10 +109,10 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 </section>
 <section id="transactions" aria-labelledby="transactions-title"><h2 id="transactions-title">Sesiones de carga</h2>
 <div class="scroll" role="region" tabindex="0" aria-label="Sesiones de este {{ 'conector' if selected_connector_id is not none else 'cargador' }}">
-<table><thead><tr>{% if selected_connector_id is none %}<th>Conector</th>{% endif %}<th>ID</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Energía de sesión</th></tr></thead><tbody>
+<table class="sessions-table"><thead><tr>{% if selected_connector_id is none %}<th>Conector</th>{% endif %}<th>ID</th><th>Estado</th><th class="session-start">Inicio</th><th>Fin</th><th>Duración</th><th>Energía de sesión</th></tr></thead><tbody>
 {% for t in data.transactions %}<tr>{% if selected_connector_id is none %}<td><a href="/connectors/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ t.connector_id }}?tz={{ timezone|urlencode }}">{{ t.connector_id if t.connector_id is not none else '—' }}</a></td>{% endif %}
 <td><a href="/transactions/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ t.id }}?tz={{ timezone|urlencode }}">{{ t.id }}</a></td>
-<td>{{ t.state or 'Desconocido' }}</td><td>{{ t.started_at|display_date(timezone) }}</td><td>{{ t.stopped_at|display_date(timezone) if t.stopped_at else 'Activa / sin cierre' }}</td>
+<td>{{ t.state or 'Desconocido' }}</td><td class="session-start">{{ t.started_at|display_date(timezone) }}</td><td>{{ t.stopped_at|display_date(timezone) if t.stopped_at else 'Activa / sin cierre' }}</td>
 <td>{{ t.started_at|session_duration(t.stopped_at) }}</td>
 <td class="numeric">{{ '%.2f'|format(t.energy_wh / 1000) ~ ' kWh' if t.energy_wh is not none else 'En curso / pendiente' if t.active else '—' }}</td></tr>
 {% else %}<tr><td class="empty" colspan="{{ 7 if selected_connector_id is none else 6 }}">Sin sesiones</td></tr>{% endfor %}
@@ -128,6 +141,26 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 </nav></section>
 {% endif %}
 </main>
+{% if selected_connector_id is none %}
+<script>
+(() => {
+  const chart = document.getElementById("energy-chart");
+  const total = document.getElementById("energy-total");
+  const count = document.getElementById("energy-sessions");
+  const controls = document.querySelectorAll("[data-energy-days]");
+  if (!chart || !total || !count) return;
+  controls.forEach(button => button.addEventListener("click", () => {
+    const days = button.dataset.energyDays;
+    if (days !== "7" && days !== "30") return;
+    chart.dataset.days = days;
+    chart.setAttribute("aria-label", "Energía entregada por día del cargador, últimos " + days + " días, " + {{ timezone|tojson }});
+    total.textContent = total.getAttribute("data-total-" + days) + " kWh";
+    count.textContent = "· " + count.getAttribute("data-count-" + days) + " sesiones cerradas";
+    controls.forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+  }));
+})();
+</script>
+{% endif %}
 {% if selected_connector_id is none and is_admin %}
 <script>
 (() => {

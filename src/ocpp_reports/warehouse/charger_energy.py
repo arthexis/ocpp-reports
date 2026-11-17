@@ -83,6 +83,8 @@ def charger_energy_30_days(database: str | Path, *, source_id: str,
                 except (TypeError, ValueError):
                     continue
     largest = max(item[0] for item in daily.values())
+    last_seven = list(daily.values())[-7:]
+    last_seven_peak = max(item[0] for item in last_seven)
     bars = []
     for i, (day, (wh, sessions)) in enumerate(daily.items()):
         height = 168 * wh / largest if largest else 0
@@ -90,9 +92,17 @@ def charger_energy_30_days(database: str | Path, *, source_id: str,
             "day": day.isoformat(), "kwh": round(wh / 1000, 3),
             "sessions": sessions, "x": 50 + i * 28,
             "y": round(194 - height, 2), "height": round(height, 2),
+            "height_pct_30": round(wh * 100 / largest, 2) if largest else 0,
+            "height_pct_7": (round(wh * 100 / last_seven_peak, 2)
+                             if i >= 23 and last_seven_peak else 0),
             "label": day.strftime("%d/%m") if i % 5 == 0 or i == 29 else None,
+            "label_7": day.strftime("%d/%m") if i >= 23 else None,
         })
     return {"bars": bars,
             "total_kwh": round(sum(x[0] for x in daily.values()) / 1000, 3),
             "sessions_count": sum(x[1] for x in daily.values()),
+            "last_7": {
+                "total_kwh": round(sum(x[0] for x in last_seven) / 1000, 3),
+                "sessions_count": sum(x[1] for x in last_seven),
+            },
             "date_from": first.isoformat(), "date_to": today.isoformat()}
