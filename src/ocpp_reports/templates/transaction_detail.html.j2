@@ -118,11 +118,11 @@ main{max-width:1320px}
 {% endfor %}
 </div>
 <div class="timeline-evidence" tabindex="0" aria-label="Tabla de mediciones verificadas"><table>
-<thead><tr><th>Observada</th><th>Energía sesión (kWh)</th><th>Potencia (kW)</th><th>SoC (%)</th></tr></thead>
+<thead><tr><th>Observada</th><th>Energía sesión (kWh)</th>{% if timeline_has_power %}<th>Potencia (kW)</th>{% endif %}<th>SoC (%)</th></tr></thead>
 <tbody>{% for point in timeline.points %}<tr>
 <td>{{ point.at|display_date(timezone) }}</td>
 <td>{{ '%.3f'|format(point.energy_kwh) if point.energy_kwh is not none else '—' }}</td>
-<td>{{ '%.3f'|format(point.power_kw) if point.power_kw is not none else '—' }}</td>
+{% if timeline_has_power %}<td>{{ '%.3f'|format(point.power_kw) if point.power_kw is not none else '—' }}</td>{% endif %}
 <td>{{ '%.1f'|format(point.soc) if point.soc is not none else '—' }}</td>
 </tr>{% endfor %}</tbody></table></div>
 {% else %}
