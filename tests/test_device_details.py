@@ -164,6 +164,9 @@ def test_station_c0_is_excluded_and_heartbeat_uses_real_charger_events(tmp_path)
     assert "Las fechas observadas corresponden" not in page.text
     assert 'class="events-table"' in page.text and 'id="events"' in page.text
     assert 'class="event-summary-row"' in page.text
+    assert 'class="event-expand-row" hidden' in page.text
+    assert page.text.count('class="event-summary-row"') == page.text.count('class="event-expand-row" hidden')
+    assert '<td class="event-action"><details class="event-group"' in page.text
     assert "data-first-id=" in page.text
     assert page.text.index('id="transactions"') < page.text.index('id="events"')
 
@@ -399,7 +402,8 @@ def test_charger_energy_buttons_are_single_chart_and_mobile_fields_removed(tmp_p
     assert 'class="sessions-table"' in body
     assert '<th class="session-start">Inicio</th>' in body
     assert '<td class="session-start">' in body
-    assert "@media(max-width:520px){.sessions-table .session-start{display:none}}" in body
+    assert ".sessions-table .session-start,.sessions-table .session-duration{display:none}" in body
+    assert '<th class="session-duration">Duración</th>' in body
     for obsolete in ("<dt>Conexión observada</dt>", "<dt>Último estado</dt>",
                      "<dt>Sincronizado</dt>", "<dt>Medición de potencia</dt>"):
         assert obsolete not in body

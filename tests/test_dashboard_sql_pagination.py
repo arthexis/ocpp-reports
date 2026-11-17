@@ -90,8 +90,15 @@ def test_filter_and_count_before_offset_and_source_isolation(tmp_path):
     assert client.get("/?source_id=local").status_code == 403
     response = client.get("/?tx_view=all&tx_page=2")
     assert response.status_code == 200
-    assert "Mostrando 21–40 de 42" in response.text
+    assert "Mostrando 11–20 de 42" in response.text
+    assert response.text.count('aria-label="Ver detalles de transacción ') == 10
     assert "East" not in response.text
+    third = client.get("/?tx_view=all&tx_page=3")
+    assert "Mostrando 21–30 de 42" in third.text
+    final = client.get("/?tx_view=all&tx_page=5")
+    assert "Mostrando 41–42 de 42" in final.text
+    assert final.text.count('aria-label="Ver detalles de transacción ') == 2
+    assert 'aria-current="page">5</span>' in final.text
 
 
 def test_date_intersection_and_unknown_energy_semantics(tmp_path):
@@ -126,3 +133,18 @@ def test_local_projection_wins_against_duplicate_collector_latest(tmp_path):
     result = _page(dbpath)
     assert result["transaction_pagination"]["total"] == 1
     assert result["transactions"][0]["energy_wh"] == 1000
+
+
+def test_dashboard_10_rows_does_not_change_20_row_device_detail(tmp_path):
+    db = tmp_path / "warehouse.sqlite"
+    _seed(db, local=27, remote=0)
+    client = TestClient(create_app(db, allowed_source_ids=("local",), timezones=("UTC",)))
+    home = client.get("/?tx_view=all")
+    assert home.status_code == 200
+    assert "Mostrando 1–10 de 27" in home.text
+    assert home.text.count('aria-label="Ver detalles de transacción ') == 10
+    device = client.get("/chargers/local/cp-local")
+    assert device.status_code == 200
+    assert "1–20 de 27" in device.text
+    assert device.text.count('href="/transactions/local/cp-local/') == 20
+    assert client.get("/chargers/local/cp-local?tx_page=2").status_code == 200
