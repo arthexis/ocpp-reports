@@ -28,6 +28,7 @@ LOCAL_COLUMNS = {
     "events": ["source_id", "event_id", "payload"],
     "energy_samples": ["source_id", "event_id", "sample_index", "payload"],
     "sample_enrichments": ["source_id", "event_id", "sample_index", "payload"],
+    "meter_replication_sources": ["source_id", "enabled"],
     "current_transactions": ["source_id", "charger_id", "transaction_id", "page_after",
                              "page_next", "fingerprint", "payload", "imported_at"],
     "transaction_observations": ["source_id", "charger_id", "transaction_id", "page_after",
@@ -76,7 +77,7 @@ def _check_schema(db: sqlite3.Connection, *, legacy_status: bool = False) -> Non
         raise ValueError("Unrecognized collector tables; reset requires schema review")
     local_tables = tables.intersection(LOCAL_COLUMNS)
     if local_tables and not (set(LOCAL_COLUMNS) -
-                             {"connector_state", "connector_ratings", "sample_enrichments"}).issubset(local_tables):
+                             {"connector_state", "connector_ratings", "sample_enrichments", "meter_replication_sources"}).issubset(local_tables):
         raise ValueError("Incomplete local ingestion schema; reset requires schema review")
     for name, table in db.execute("SELECT name,tbl_name FROM sqlite_master WHERE type='trigger'"):
         # Local ingestion triggers cannot fire on collector-only deletions.
