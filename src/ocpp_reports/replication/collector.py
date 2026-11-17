@@ -35,6 +35,7 @@ class Batch(BaseModel):
 
 class ReadyRequest(BaseModel):
     source_id: str = Field(min_length=1)
+    capabilities: list[str] | None = None
 
 
 def _canonical(value: dict) -> str:
@@ -158,7 +159,7 @@ def accept_batch(database: Path, batch: Batch) -> int:
                 db.execute("INSERT OR IGNORE INTO collector_meter_enrichments "
                            "VALUES (?,?,?,?)",
                            (batch.source_id, event, index, encoded))
-            db.execute("INSERT INTO collector_changes VALUES (?,?,?,?,?)"
+            db.execute("INSERT INTO collector_changes VALUES (?,?,?,?,?)",
                        (batch.source_id, change.sequence, change.kind, change.record_key, encoded))
             if change.kind not in {"meter_sample", "meter_enrichment"}:
                 db.execute("""INSERT INTO collector_latest VALUES (?,?,?,?,?)
@@ -218,10 +219,16 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
         if held:
             raise HTTPException(503, "Source forwarding held",
                                 headers={"Retry-After": "60"})
-        return {"schema": "ocpp-reports/readiness/v1", "source_id": query.source_id,
-                "ready": True, "held": False, "cursor": cursor,
-                "supported_kinds": ["event", "transaction", "connector", "rating",
-                                    "meter_sample", "meter_enrichment"]}
+        result = {"schema": "ocpp-reports/readiness/v1", "source_id": query.source_id,
+                  "ready": True, "held": False, "cursor": cursor}
+        # Legacy callers preserve their exact v1 response. A new Forwarder
+        # must explicitly request the optional negotiation extension.
+        if query.capabilities is not None:
+            result["supported_kinds"] = [
+                "event", "transaction", "connector", "rating",
+                "meter_sample", "meter_enrichment",
+            ]
+        return result
 
     @app.post("/api/replication")
     def receive(batch: Batch, authorization: str | None = Header(default=None)):
