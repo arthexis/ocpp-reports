@@ -56,26 +56,36 @@ def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit:
         tables = {row[0] for row in db.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         )}
-        if not {"energy_samples", "transaction_observations"} <= tables:
+        # Local evidence uses its verified transaction cursor window. Remote
+        # evidence has an independent indexed identity tuple, never latest state.
+        bounds = None
+        if {"energy_samples", "transaction_observations"} <= tables:
+            bounds = db.execute(
+                "SELECT MIN(page_after),MAX(page_next) FROM transaction_observations "
+                "WHERE source_id=? AND charger_id=? AND transaction_id=?",
+                (source, charger, tx_id),
+            ).fetchone()
+        if bounds and (type(bounds[0]) is int and type(bounds[1]) is int
+                       and bounds[0] >= 0 and bounds[1] > bounds[0]):
+            sample_source = "local-energy-samples"
+            rows = db.execute(
+                "SELECT event_id,sample_index,payload FROM energy_samples "
+                "WHERE source_id=? AND event_id>? AND event_id<=? "
+                "ORDER BY event_id DESC,sample_index DESC LIMIT ?",
+                (source, bounds[0], bounds[1], scan_limit + 1),
+            ).fetchall()
+        elif "collector_meter_samples" in tables:
+            # Only verified per-session immutable samples. No scanning a remote
+            # source or fabricating a time series from collector_latest.
+            sample_source = "replicated-meter-samples"
+            rows = db.execute(
+                "SELECT event_id,sample_index,payload FROM collector_meter_samples "
+                "WHERE source_id=? AND charger_id=? AND connector_id=? AND transaction_id=? "
+                "ORDER BY event_id DESC,sample_index DESC LIMIT ?",
+                (source, charger, connector, tx_id, scan_limit + 1),
+            ).fetchall()
+        else:
             return empty
-        # Existing composite PK: (source,charger,transaction,page_after,...).
-        bounds = db.execute(
-            "SELECT MIN(page_after),MAX(page_next) FROM transaction_observations "
-            "WHERE source_id=? AND charger_id=? AND transaction_id=?",
-            (source, charger, tx_id),
-        ).fetchone()
-        if not bounds or bounds[0] is None or bounds[1] is None or (
-                type(bounds[0]) is not int or type(bounds[1]) is not int
-                or bounds[0] < 0 or bounds[1] <= bounds[0]):
-            return empty
-        # Indexed PK range on (source,event_id,sample_index); the limit applies
-        # *within the transaction's observed event interval*, not to a source.
-        rows = db.execute(
-            "SELECT event_id,sample_index,payload FROM energy_samples "
-            "WHERE source_id=? AND event_id>? AND event_id<=? "
-            "ORDER BY event_id DESC,sample_index DESC LIMIT ?",
-            (source, bounds[0], bounds[1], scan_limit + 1),
-        ).fetchall()
     limited = len(rows) > scan_limit
     baseline = _quantity(transaction.get("meter_start_wh"))
     now = datetime.now(timezone.utc)
@@ -146,7 +156,7 @@ def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit:
         limited = True
     return {"points": ordered, "limited": limited,
             "discontinuous": discontinuous,
-            "source": "local-energy-samples", "coverage": "observed-window"}
+            "source": sample_source, "coverage": "observed-window"}
 
 
 def timeline_charts(points: list[dict]) -> list[dict]:
