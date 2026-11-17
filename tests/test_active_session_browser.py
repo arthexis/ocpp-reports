@@ -310,7 +310,7 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                 assert cells.nth(7).get_attribute("data-label") == "Recibido"
                 power = card.locator('td[data-label="Potencia"] .connector-power')
                 assert power.count() == 1
-                assert "60.00 kW nominal" in power.inner_text()
+                assert " ".join(power.inner_text().split()) == "60.00 kW nominal"
                 assert power.evaluate("(el) => getComputedStyle(el).whiteSpace") == "nowrap"
                 assert power.evaluate(
                     "(el) => el.getBoundingClientRect().right "
