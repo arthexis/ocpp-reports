@@ -17,6 +17,12 @@ def _schema(db: sqlite3.Connection) -> None:
         sample_index INTEGER NOT NULL, payload TEXT NOT NULL,
         PRIMARY KEY(source_id, event_id, sample_index)
     );
+    -- Verified additive telemetry, never an UPDATE to immutable sample bytes.
+    CREATE TABLE IF NOT EXISTS sample_enrichments (
+        source_id TEXT NOT NULL, event_id INTEGER NOT NULL,
+        sample_index INTEGER NOT NULL, payload TEXT NOT NULL,
+        PRIMARY KEY (source_id,event_id,sample_index)
+    );
     CREATE TABLE IF NOT EXISTS current_transactions (
         source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
         transaction_id INTEGER NOT NULL, page_after INTEGER NOT NULL,
@@ -55,6 +61,13 @@ def _schema(db: sqlite3.Connection) -> None:
     AFTER INSERT ON energy_samples BEGIN
         INSERT INTO replication_changes(source_id,kind,record_key,payload)
         VALUES (NEW.source_id, 'meter_sample',
+                CAST(NEW.event_id AS TEXT) || ':' || CAST(NEW.sample_index AS TEXT),
+                NEW.payload);
+    END;
+    CREATE TRIGGER IF NOT EXISTS replicate_sample_enrichment_insert
+    AFTER INSERT ON sample_enrichments BEGIN
+        INSERT INTO replication_changes(source_id,kind,record_key,payload)
+        VALUES (NEW.source_id, 'meter_enrichment',
                 CAST(NEW.event_id AS TEXT) || ':' || CAST(NEW.sample_index AS TEXT),
                 NEW.payload);
     END;
