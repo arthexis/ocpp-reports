@@ -78,11 +78,11 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 {% if tx_page < tx_pages %}<a rel="next" href="{{ request.url.include_query_params(tx_page=tx_page+1) }}#transactions">Siguiente</a>{% endif %}
 </nav></section>
 <section id="synchronization" aria-labelledby="sync-title"><h2 id="sync-title">Sincronización</h2>
-{% if source %}<p class="note muted">Estado del origen {{ source_id }} (compartido por sus cargadores; no corresponde a una medición individual).</p>
+{% if source and is_admin %}<p class="note muted">Estado del origen {{ source_id }} (compartido por sus cargadores; no corresponde a una medición individual).</p>
 <div class="stats"><div class="stat"><span class="note">Cursor del origen</span><strong>{{ source.cursor if source.cursor is not none else '—' }}</strong></div>
 <div class="stat"><span class="note">Ingestión local</span><strong>{{ source.last_ingested_at|display_date(timezone) if source.last_ingested_at else 'Sin fecha' }}</strong></div>
 <div class="stat"><span class="note">Recepción de réplica</span><strong>{{ source.last_replication_received_at|display_date(timezone) if source.last_replication_received_at else 'Sin fecha' }}</strong></div></div>
-{% else %}<p class="muted">Sin evidencia de sincronización del origen.</p>{% endif %}
+{% else %}<p class="muted">La información administrativa de sincronización del origen no está disponible en esta vista. Las fechas observadas del conector figuran arriba.</p>{% endif %}
 </section>
 {% if selected_connector_id is none and is_admin %}
 <section id="events" aria-labelledby="events-title"><h2 id="events-title">Eventos recientes de {{ charger_id }}</h2>
