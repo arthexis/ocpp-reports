@@ -269,8 +269,8 @@ header{align-items:start;gap:.65rem}
 </div></div><p class="connector-scroll-hint" id="connector-scroll-hint" hidden>→ Más columnas</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores" aria-describedby="connector-scroll-hint"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado</th><th>Conectado</th><th>Potencia</th><th>Energía</th><th>Recibido</th></tr></thead><tbody>
 {% for c in connector_rows %}{% set session_href = ("/transactions/" ~ (c.source_id|urlencode) ~ "/" ~ (c.charger_id|urlencode) ~ "/" ~ (c.active_transaction_id|string) ~ "?tz=" ~ (timezone|urlencode) ~ "&return_to=" ~ (("/?" ~ (request.url.query if request is defined else '') ~ "#transactions")|urlencode)) if c.active_transaction_id is not none else none %}
 <tr><td data-label="Ubicación">{{ c.location }}</td><td data-label="Cargador" class="charger-identity">
-{% if session_href %}<a class="charger-session-link" href="{{ session_href }}" aria-label="{{ 'Ver última sesión informada, sin confirmación reciente' if c.stale else 'Ver carga actual' }} del cargador {{ c.charger_id }}, conector {{ c.connector_id }}">{{ c.charger_id }}</a>{% else %}{{ c.charger_id }}{% endif %}
-</td><td data-label="Conector">{{ c.connector_id }}</td>
+<a class="charger-session-link" href="/chargers/{{ c.source_id|urlencode }}/{{ c.charger_id|urlencode }}?tz={{ timezone|urlencode }}" aria-label="Ver cargador {{ c.charger_id }}">{{ c.charger_id }}</a>
+</td><td data-label="Conector"><a class="charger-session-link" href="/connectors/{{ c.source_id|urlencode }}/{{ c.charger_id|urlencode }}/{{ c.connector_id }}?tz={{ timezone|urlencode }}" aria-label="Ver conector {{ c.connector_id }} del cargador {{ c.charger_id }}">{{ c.connector_id }}</a></td>
 <td data-label="Estado"><span class="connector-status-content">{% set state = (c.status or "")|lower %}{% set discrepancy = c.status_discrepancy_badge %}{% if session_href %}<a class="status-session-link" href="{{ session_href }}" aria-label="{{ 'Ver última sesión informada, sin confirmación reciente' if c.stale else 'Ver carga actual' }} desde el estado del cargador {{ c.charger_id }}, conector {{ c.connector_id }}">{% endif %}<span class="status {% if discrepancy == 'Warning' %}status--warn{% elif discrepancy == 'Failed' %}status--off{% elif c.stale and state in ['available', 'finishing', 'charging'] %}status--historic{% elif state == 'charging' %}status--active{% elif state in ['available', 'finishing'] %}status--ok{% elif state in ['preparing', 'suspendedev', 'suspendedevse'] %}status--warn{% elif state in ['faulted', 'unavailable'] %}status--off{% endif %}"{% if discrepancy %} title="Estación C0: {{ 'Available' if discrepancy == 'Warning' else 'Faulted' }} · Conector C{{ c.connector_id }}: {{ c.status }}" aria-label="{{ discrepancy }}. Estación C0: {{ 'Available' if discrepancy == 'Warning' else 'Faulted' }}; conector C{{ c.connector_id }}: {{ c.status }}"{% endif %}>{{ discrepancy or c.status or "Desconocido" }}</span>{% if session_href %}</a>{% endif %}{% if c.source_freshness == 'old' %} <span class="status status--warn">Origen atrasado</span>{% elif c.source_freshness == 'unknown' %} <span class="status status--warn">Origen sin fecha</span>{% endif %}{% if c.status_time_unknown %} <span class="status status--historic">Estado sin fecha</span>{% endif %}
 {% if session_href and c.stale %}<span class="session-unconfirmed">Sesión sin confirmar</span>{% elif not session_href and state == "charging" and c.connector_id != 0 %}<span class="current-session-pending">Transacción aún no disponible</span>{% endif %}</span></td>
 <td data-label="Conectado"><span class="status {{ 'status--historic' if not c.connection_fresh else ('status--ok' if c.connected else 'status--off') }}" title="Conexión observada en el último estado del CSMS; no es una prueba de red en tiempo real">{{ "Sí" if c.connected is sameas true else "No" if c.connected is sameas false else "Sin datos" }}</span></td>
@@ -312,33 +312,6 @@ header{align-items:start;gap:.65rem}
 <section class="sync-panel" id="synchronization"><div class="panel-heading"><h2>Sincronización</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Sincronización" aria-controls="help-synchronization" aria-expanded="false" aria-describedby="help-synchronization">ⓘ</button></span><span class="panel-help-text" id="help-synchronization" role="tooltip">Ingestión local y recepción de réplica son distintas. La recarga de la página no confirma datos nuevos del cargador.</span></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
 {% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at|display_date(timezone) if s.last_ingested_at else "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at|display_date(timezone) if s.last_replication_received_at else "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
-<section class="events-panel" id="events"><div class="panel-heading"><h2>Eventos recientes</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Eventos recientes" aria-controls="help-events" aria-expanded="false" aria-describedby="help-events">ⓘ</button></span><span class="panel-help-text" id="help-events" role="tooltip">Eventos consecutivos de la misma acción y cargador se agrupan; abre un grupo para ver el detalle.</span></div>
-<div id="live-event-groups">
-{% for group in event_groups %}
-{% if group.first_event_id is defined %}
-<details class="event-group" data-source="{{ group.source_id }}" data-first-id="{{ group.first_event_id }}">
-<summary>{{ group.location or group.source_id }} · {{ group.action or 'Sin acción' }}
-{% if group.event_count > 1 %}× {{ group.event_count }}{% endif %}
-<span class="muted note"> · {{ group.at|display_date(timezone) }}</span></summary>
-<div class="event-detail"><p class="muted note">Abre el grupo para consultar sus eventos.</p></div></details>
-{% else %}
-<details><summary>{{ group.location or group.source_id }} · {{ group.action or 'Sin acción' }}
-{% if group["items"]|length > 1 %}× {{ group["items"]|length }}{% endif %}
-<span class="muted note"> · {{ group["items"][0].at|display_date(timezone) }}</span></summary>
-<div class="scroll"><table><thead><tr><th>ID</th><th>Ubicación</th><th>Cargador</th><th>Acción</th><th>Fecha</th></tr></thead><tbody>
-{% for e in group["items"] %}<tr><td>{{ e.id }}</td><td>{{ e.location }}</td><td>{{ e.charger_id }}</td>
-<td>{{ e.action }}</td><td>{{ e.at|display_date(timezone) }}</td></tr>{% endfor %}
-</tbody></table></div></details>
-{% endif %}
-{% else %}<p class="muted">Sin eventos</p>{% endfor %}
-<nav class="transaction-pagination" aria-label="Páginas de eventos">
-<div class="transaction-pages">
-{% if event_page > 1 %}<a href="{{ request.url.include_query_params(event_page=event_page-1) }}#events" rel="prev">Anterior</a>{% else %}<span class="page-disabled">Anterior</span>{% endif %}
-<span class="page-current" aria-current="page">{{ event_page }}</span>
-{% if event_has_next %}<a href="{{ request.url.include_query_params(event_page=event_page+1) }}#events" rel="next">Siguiente</a>{% else %}<span class="page-disabled">Siguiente</span>{% endif %}
-</div></nav>
-</div>
-</section>
 {% endif %}</div></main>
 
 <script>
@@ -420,62 +393,6 @@ header{align-items:start;gap:.65rem}
       window.location.assign(next.toString());
     });
   }
-  // Opening a group requests at most 50 original events. No event payloads
-  // are embedded in the initial HTML; all DOM fields use textContent.
-  const setupEventGroups = (root = document) => {
-  for (const details of root.querySelectorAll(".event-group")) {
-    const holder = details.querySelector(".event-detail");
-    let offset = 0, exhausted = false, loading = false;
-    const table = document.createElement("table");
-    const body = document.createElement("tbody");
-    const header = document.createElement("thead");
-    const headRow = document.createElement("tr");
-    for (const label of ["ID", "Ubicación", "Cargador", "Acción", "Fecha"]) {
-      const th = document.createElement("th"); th.textContent = label; headRow.append(th);
-    }
-    header.append(headRow); table.append(header, body);
-    const wrapper = document.createElement("div"); wrapper.className = "scroll"; wrapper.append(table);
-    const more = document.createElement("button"); more.type = "button"; more.textContent = "Ver 50 más";
-    const status = document.createElement("p"); status.className = "muted note";
-    holder.replaceChildren(wrapper, status, more);
-    const load = async () => {
-      if (loading || exhausted) return;
-      loading = true; more.disabled = true; status.textContent = "Cargando eventos…";
-      const url = new URL("/api/event-group", window.location.origin);
-      const args = new URLSearchParams(window.location.search);
-      for (const [key, value] of args) url.searchParams.set(key, value);
-      url.searchParams.set("group_source", details.dataset.source);
-      url.searchParams.set("first_event_id", details.dataset.firstId);
-      url.searchParams.set("offset", String(offset));
-      try {
-        const response = await fetch(url, {credentials: "same-origin"});
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        const page = await response.json();
-        for (const event of page.events) {
-          const tr = document.createElement("tr");
-          for (const value of [event.id, event.location, event.charger_id, event.action, event.display_at]) {
-            const td = document.createElement("td"); td.textContent = value == null ? "—" : String(value);
-            tr.append(td);
-          }
-          body.append(tr);
-        }
-        offset += page.events.length;
-        exhausted = !page.has_next;
-        more.hidden = exhausted;
-        status.textContent = offset + " eventos cargados";
-      } catch (_) {
-        status.textContent = "No se pudieron cargar los eventos. Reintentar.";
-      } finally {
-        loading = false; more.disabled = false;
-      }
-    };
-    more.addEventListener("click", load);
-    details.addEventListener("toggle", () => {
-      if (details.open && offset === 0) load();
-    });
-  }
-  };
-  setupEventGroups();
   // Show a scroll affordance only when desktop connector columns actually overflow.
   const connectorRegion = document.querySelector(".connectors-panel .scroll");
   const connectorHint = document.getElementById("connector-scroll-hint");
@@ -490,7 +407,7 @@ header{align-items:start;gap:.65rem}
     updateConnectorHint();
   }
   // Refresh data in place. Never navigate, replace table scroll containers,
-  // or disturb filters, focused controls, expanded event groups, or scroll positions.
+  // or disturb filters, focused controls or scroll positions.
   // The existing GET route applies the same source permissions and URL filters.
   let refreshing = false;
   const refreshDashboard = async () => {
@@ -503,7 +420,6 @@ header{align-items:start;gap:.65rem}
       });
       if (!response.ok) return; // Keep existing evidence on transient warehouse errors.
       const fresh = new DOMParser().parseFromString(await response.text(), "text/html");
-      if (!fresh.querySelector("#live-event-groups")) return;
       const update = (selector) => {
         const current = document.querySelector(selector);
         const next = fresh.querySelector(selector);
@@ -526,16 +442,6 @@ header{align-items:start;gap:.65rem}
         const view = button.dataset.txView;
         const next = fresh.querySelector('.transaction-filters [data-tx-view="' + view + '"]');
         if (next && button.textContent !== next.textContent) button.textContent = next.textContent;
-      }
-      const eventRegion = document.getElementById("live-event-groups");
-      // Reading a group can involve lazy-loaded event rows; never discard them.
-      if (eventRegion && !eventRegion.querySelector("details[open]") &&
-          !eventRegion.contains(document.activeElement)) {
-        const next = fresh.getElementById("live-event-groups");
-        if (eventRegion.innerHTML !== next.innerHTML) {
-          eventRegion.innerHTML = next.innerHTML;
-          setupEventGroups(eventRegion);
-        }
       }
     } catch (_) {
       // A failed poll must not interrupt the dashboard or reset the page.
