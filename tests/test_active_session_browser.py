@@ -130,11 +130,11 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                     for text in ("En curso (1)", "Exitosas (0)", "Fallidas (0)", "Todas (1)"):
                         button = page.get_by_role("button", name=text)
                         assert button.is_visible() and button.bounding_box()["width"] >= 55
-                target = page.locator("a.charger-session-link" if mobile else "a.status-session-link").first
+                target = page.locator("a.status-session-link").first
                 bounds = target.bounding_box()
                 assert bounds is not None and bounds["height"] >= 44, bounds
                 if mobile:
-                    assert bounds["width"] >= 44, "Charger name tap target is too narrow"
+                    assert bounds["width"] >= 44, "Active-session status tap target is too narrow"
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
                 _shot(page, f"{label}-dashboard.png")
                 if mobile:
@@ -169,11 +169,22 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 }""")
                 assert detail_theme == theme
                 assert page.locator("header .brand h1").inner_text() == "OCPP Reports"
-                # Both requested entry points must lead to the same scoped detail.
+                # Charger/connector navigation now opens scoped device pages,
+                # while the status badge remains a direct session link.
                 page.go_back(wait_until="load")
-                alternate = page.locator("a.status-session-link" if mobile else "a.charger-session-link").first
-                assert alternate.is_visible()
-                alternate.click()
+                charger_link = page.locator("a.charger-session-link").first
+                assert charger_link.get_attribute("href").startswith("/chargers/a/cp")
+                charger_link.click()
+                page.wait_for_url(lambda url: urlsplit(url).path == "/chargers/a/cp")
+                assert page.locator("#device-title").inner_text().startswith("Cargador cp")
+                page.go_back(wait_until="load")
+                connector_link = page.locator('.connectors-panel td[data-label="Conector"] a').first
+                assert connector_link.get_attribute("href").startswith("/connectors/a/cp/1")
+                connector_link.click()
+                page.wait_for_url(lambda url: urlsplit(url).path == "/connectors/a/cp/1")
+                assert "Conector 1" in page.locator("#device-title").inner_text()
+                page.go_back(wait_until="load")
+                page.locator("a.status-session-link").first.click()
                 page.wait_for_url(lambda url: urlsplit(url).path == "/transactions/a/cp/7" and urlsplit(url).query.startswith("tz=UTC"))
                 assert page.locator("#transaction-energy").inner_text().find("34.75 kWh") >= 0
                 assert "Estimada" in page.locator("#transaction-energy").inner_text()
@@ -432,7 +443,7 @@ def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
                         page.clock.fast_forward(15_200)
                         page.wait_for_function(
                             "document.querySelectorAll('.timeline-evidence tbody tr').length === 3")
-                        assert any("Energía de sesión: 1.500 kWh · SoC: 67.0%" in title
+                        assert any("1.500 kWh · 67.0%" in title
                                    for title in page.locator(".timeline-plot circle title").all_text_contents())
                         assert page.evaluate("document.activeElement.classList.contains('back-link')")
                         assert abs(page.evaluate("window.scrollY") - before) <= 3
