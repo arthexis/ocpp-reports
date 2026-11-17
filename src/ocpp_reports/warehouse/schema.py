@@ -49,6 +49,15 @@ def _schema(db: sqlite3.Connection) -> None:
     );
     CREATE INDEX IF NOT EXISTS idx_replication_source_sequence
         ON replication_changes(source_id, sequence);
+    CREATE INDEX IF NOT EXISTS idx_replication_meter_identity
+        ON replication_changes(source_id, kind, record_key);
+    CREATE TRIGGER IF NOT EXISTS replicate_energy_sample_insert
+    AFTER INSERT ON energy_samples BEGIN
+        INSERT INTO replication_changes(source_id,kind,record_key,payload)
+        VALUES (NEW.source_id, 'meter_sample',
+                CAST(NEW.event_id AS TEXT) || ':' || CAST(NEW.sample_index AS TEXT),
+                NEW.payload);
+    END;
     CREATE TRIGGER IF NOT EXISTS replicate_rating_insert
     AFTER INSERT ON connector_ratings BEGIN
         INSERT INTO replication_changes(source_id,kind,record_key,payload)
