@@ -646,10 +646,17 @@ def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
                 assert abs(heading["y"] - first_filter["y"]) <= 14, (width, heading, first_filter)
                 assert abs(heading["y"] - last_filter["y"]) <= 14, (width, heading, last_filter)
                 assert last_filter["x"] + last_filter["width"] <= width + 1, width
-                energy_button_boxes = [
-                    page.get_by_role("button", name=name, exact=True).bounding_box()
+                energy_buttons = [
+                    page.get_by_role("button", name=name, exact=True)
                     for name in ("7 días", "30 días", "Estación", "Conectores")
                 ]
+                energy_button_boxes = [button.bounding_box() for button in energy_buttons]
+                for button in energy_buttons:
+                    spacing = button.evaluate("(el) => {const css=getComputedStyle(el);"
+                                              "return {left:parseFloat(css.paddingLeft),right:parseFloat(css.paddingRight),"
+                                              "top:parseFloat(css.paddingTop),bottom:parseFloat(css.paddingBottom)}}")
+                    assert spacing["left"] == spacing["right"] == 0, (width, spacing)
+                    assert spacing["top"] > 0 and spacing["bottom"] > 0, (width, spacing)
                 assert all(energy_button_boxes), (width, energy_button_boxes)
                 assert max(b["width"] for b in energy_button_boxes) - min(
                     b["width"] for b in energy_button_boxes) <= 1.5, (width, energy_button_boxes)
@@ -768,6 +775,11 @@ def test_charger_event_action_expands_in_same_table_row_offline(tmp_path):
                 page.locator(".events-table .event-expand-row").first.wait_for(state="visible")
                 page.locator(".event-detail tbody tr").first.wait_for()
                 assert page.locator(".event-detail tbody tr").count() == 1
+                assert page.locator(".event-detail thead th").all_inner_texts() == [
+                    "ID", "Fecha", "Información"
+                ]
+                assert page.locator(".event-detail tbody td").count() == 3
+                assert "Inicio del cargador registrado" in page.locator(".event-detail").inner_text()
                 assert "never-expose" not in page.locator(".event-detail").inner_text()
                 assert requests["GET"] > before
                 summary.click()

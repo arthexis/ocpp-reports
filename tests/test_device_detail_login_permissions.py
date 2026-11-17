@@ -77,9 +77,10 @@ def test_auth_sessions_allow_device_pages_without_widening_event_access(tmp_path
         assert [e["charger_id"] for e in scoped.json()["events"]] == ["same"]
         assert set(scoped.json()["events"][0]) == {
             "source_id", "location", "id", "charger_id",
-            "action", "at", "display_at"
+            "action", "at", "display_at", "information"
         }
         assert "never-expose" not in scoped.text
+        assert scoped.json()["events"][0]["information"] == "Señal recibida"
         for params, expected in (
             ({"source_id": "b", "charger_id": "same", "first_event_id": 1}, 404),
             ({"source_id": "a", "charger_id": "other", "first_event_id": 1}, 404),

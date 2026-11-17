@@ -183,3 +183,98 @@ def test_global_grouping_only_collapses_adjacent_events_and_lazy_details(tmp_pat
     details = event_group_details(db, group_source="z", first_event_id=3)
     assert [item["id"] for item in details["events"]] == [3, 1]
     assert event_groups_page(db, page=2)["groups"] == []
+
+
+
+def test_status_echo_pairs_preserve_exact_state_and_fault_boundaries(tmp_path):
+    """Real-world status-less echo follows a full state in milliseconds."""
+    db = tmp_path / "status-echo.sqlite"
+    with sqlite3.connect(db) as connection:
+        _schema(connection)
+        ensure_collector_schema(connection)
+        entries = [
+            (90, "Available", 1, None, 0),
+            (91, None, None, None, 20),
+            (92, "Available", 1, None, 100),
+            (93, None, None, None, 120),
+            (94, "Available", 2, None, 1000),
+            (95, None, None, None, 1020),
+            (96, "Faulted", 2, "ReaderFailure", 2000),
+            (97, None, None, None, 2020),
+            (98, "Faulted", 2, "ReaderFailure", 2100),
+            (99, None, None, None, 2120),
+            (100, "Charging", 1, None, 3000),
+            (101, None, None, None, 3020),
+            (102, None, None, None, 10000),
+        ]
+        from datetime import datetime, timedelta, timezone
+        for event_id, status, connector, error, milliseconds in entries:
+            at = (datetime(2026, 11, 16, tzinfo=timezone.utc)
+                  + timedelta(milliseconds=milliseconds)).isoformat()
+            payload = {
+                "id": event_id, "charger_id": "charger-1", "action": "StatusNotification",
+                "kind": "status", "status": status, "connector_id": connector,
+                "error_code": error, "info": None, "at": at,
+                "rfid": "PRIVATE-MUST-NOT-RENDER",
+            }
+            connection.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                               ("node-a", "event", str(event_id), event_id, json.dumps(payload)))
+
+    page = event_groups_page(
+        db, source_id="node-a", charger_id="charger-1",
+        allowed_source_ids=("node-a",))
+    assert [(r["first_event_id"], r["event_count"], r["information"])
+            for r in page["groups"]] == [
+        (102, 1, "Sin estado en este registro"),
+        (101, 2, "C1 · Charging"),
+        (99, 2, "C2 · Faulted · ReaderFailure"),
+        (97, 2, "C2 · Faulted · ReaderFailure"),
+        (95, 2, "C2 · Available"),
+        (93, 4, "C1 · Available"),
+    ]
+    fault = event_group_details(
+        db, group_source="node-a", first_event_id=99,
+        source_id="node-a", charger_id="charger-1", allowed_source_ids=("node-a",))
+    assert [x["id"] for x in fault["events"]] == [99, 98]
+    assert [x["information"] for x in fault["events"]] == [
+        "Sin estado en este registro", "C2 · Faulted · ReaderFailure"
+    ]
+    assert "PRIVATE-MUST-NOT-RENDER" not in json.dumps(fault)
+    assert event_groups_page(db, source_id="node-b", charger_id="charger-1",
+                             allowed_source_ids=("node-b",))["groups"] == []
+    assert event_groups_page(db, source_id="node-a", charger_id="other",
+                             allowed_source_ids=("node-a",))["groups"] == []
+    app = create_app(db, allowed_source_ids=("node-a",), timezones=("UTC",))
+    client = TestClient(app)
+    response = client.get("/api/v1/charger-event-group", params={
+        "source_id": "node-a", "charger_id": "charger-1", "first_event_id": 99,
+    })
+    assert response.status_code == 200
+    assert [v["information"] for v in response.json()["events"]] == [
+        "Sin estado en este registro", "C2 · Faulted · ReaderFailure"
+    ]
+    assert "PRIVATE-MUST-NOT-RENDER" not in response.text
+
+
+def test_status_echo_never_crosses_time_source_action_or_event_identity(tmp_path):
+    """A missing status without the exact next observation remains independent."""
+    db = tmp_path / "unpaired-status.sqlite"
+    with sqlite3.connect(db) as conn:
+        _schema(conn)
+        entries = [
+            ("a", 1, "2026-11-16T00:00:00Z", "Available", 1, "StatusNotification"),
+            ("a", 2, "2026-11-16T00:00:04Z", None, None, "StatusNotification"),
+            ("a", 3, "2026-11-16T00:00:05Z", None, None, "StatusNotification"),
+            ("a", 4, "2026-11-16T00:00:06Z", "Available", 1, "Heartbeat"),
+            ("b", 5, "2026-11-16T00:00:07Z", "Available", 1, "StatusNotification"),
+            ("a", 6, "2026-11-16T00:00:08Z", None, None, "StatusNotification"),
+        ]
+        for source, event_id, at, status, connector, action in entries:
+            payload = {"id": event_id, "charger_id": "charger-1", "action": action,
+                       "kind": "status", "status": status, "connector_id": connector,
+                       "at": at, "error_code": None, "info": None}
+            conn.execute("INSERT INTO events VALUES (?,?,?)",
+                         (source, event_id, json.dumps(payload)))
+    groups = event_groups_page(db)
+    assert len(groups["groups"]) == 6
+    assert all(g["event_count"] == 1 for g in groups["groups"])
