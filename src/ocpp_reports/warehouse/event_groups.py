@@ -183,7 +183,7 @@ def _scoped_event_stream(db: sqlite3.Connection, source_id: str, charger_id: str
         args.extend((source_id, charger_id))
     if "collector_latest" in tables:
         remote = (
-            "SELECT r.source_id,CAST(json_extract(r.payload,'$.id') AS INTEGER),r.payload "
+            "SELECT r.source_id,CAST(json_extract(r.payload,'$.id') AS INTEGER) AS event_id,r.payload "
             "FROM collector_latest r WHERE r.source_id=? AND r.kind='event' "
             "AND json_extract(r.payload,'$.charger_id')=?"
         )
