@@ -19,6 +19,7 @@ import sqlite3
 from .warehouse.collector_schema import ensure_collector_schema
 
 DATA_TABLES = ("collector_changes", "collector_latest", "collector_cursors")
+OPTIONAL_HISTORY_TABLES = ("collector_meter_samples", "collector_meter_enrichments")
 HOLD_TABLE = "collector_source_holds"
 RECEIPT_TABLE = "collector_receipts"
 LOCATION_TABLE = "collector_charger_locations"
@@ -26,6 +27,8 @@ LOCAL_COLUMNS = {
     "sources": ["source_id", "cursor", "last_ingested_at"],
     "events": ["source_id", "event_id", "payload"],
     "energy_samples": ["source_id", "event_id", "sample_index", "payload"],
+    "sample_enrichments": ["source_id", "event_id", "sample_index", "payload"],
+    "meter_replication_sources": ["source_id", "enabled"],
     "current_transactions": ["source_id", "charger_id", "transaction_id", "page_after",
                              "page_next", "fingerprint", "payload", "imported_at"],
     "transaction_observations": ["source_id", "charger_id", "transaction_id", "page_after",
@@ -38,6 +41,8 @@ LOCAL_COLUMNS = {
 }
 LOCAL_TRIGGERS = {
     "replicate_event_insert": "events",
+    "replicate_energy_sample_insert": "energy_samples",
+    "replicate_sample_enrichment_insert": "sample_enrichments",
     "replicate_transaction_insert": "current_transactions",
     "replicate_transaction_update": "current_transactions",
     "replicate_rating_insert": "connector_ratings",
@@ -66,11 +71,13 @@ def _check_schema(db: sqlite3.Connection, *, legacy_status: bool = False) -> Non
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
               if not r[0].startswith("sqlite_")}
     required = set(DATA_TABLES) | (set() if legacy_status else {HOLD_TABLE})
-    allowed = {*DATA_TABLES, HOLD_TABLE, RECEIPT_TABLE, LOCATION_TABLE, *LOCAL_COLUMNS}
+    allowed = {*DATA_TABLES, *OPTIONAL_HISTORY_TABLES, HOLD_TABLE,
+               RECEIPT_TABLE, LOCATION_TABLE, *LOCAL_COLUMNS}
     if not required.issubset(tables) or tables - allowed:
         raise ValueError("Unrecognized collector tables; reset requires schema review")
     local_tables = tables.intersection(LOCAL_COLUMNS)
-    if local_tables and not (set(LOCAL_COLUMNS) - {"connector_state", "connector_ratings"}).issubset(local_tables):
+    if local_tables and not (set(LOCAL_COLUMNS) -
+                             {"connector_state", "connector_ratings", "sample_enrichments", "meter_replication_sources"}).issubset(local_tables):
         raise ValueError("Incomplete local ingestion schema; reset requires schema review")
     for name, table in db.execute("SELECT name,tbl_name FROM sqlite_master WHERE type='trigger'"):
         # Local ingestion triggers cannot fire on collector-only deletions.
@@ -81,6 +88,13 @@ def _check_schema(db: sqlite3.Connection, *, legacy_status: bool = False) -> Non
         "collector_changes": ["source_id", "sequence", "kind", "record_key", "payload"],
         "collector_latest": ["source_id", "kind", "record_key", "sequence", "payload"],
         "collector_cursors": ["source_id", "sequence"],
+        **({OPTIONAL_HISTORY_TABLES[0]: ["source_id", "event_id", "sample_index",
+                                        "charger_id", "connector_id", "transaction_id",
+                                        "observed_at", "payload"]}
+           if OPTIONAL_HISTORY_TABLES[0] in tables else {}),
+        **({OPTIONAL_HISTORY_TABLES[1]: ["source_id", "event_id", "sample_index",
+                                        "payload"]}
+           if OPTIONAL_HISTORY_TABLES[1] in tables else {}),
         HOLD_TABLE: ["source_id", "held_at"],
         **({RECEIPT_TABLE: ["source_id", "received_at", "sequence"]} if RECEIPT_TABLE in tables else {}),
         **({LOCATION_TABLE: ["source_id", "charger_id", "location"]} if LOCATION_TABLE in tables else {}),
@@ -122,7 +136,10 @@ def _status(db: sqlite3.Connection, source: str) -> dict:
             "held": bool(holds_exist and db.execute(f"SELECT 1 FROM {HOLD_TABLE} WHERE source_id=?",
                                     (source,)).fetchone()),
             "rows": {table: db.execute(f"SELECT COUNT(*) FROM {table} WHERE source_id=?",
-                                       (source,)).fetchone()[0] for table in DATA_TABLES},
+                                       (source,)).fetchone()[0]
+                     for table in (*DATA_TABLES, *OPTIONAL_HISTORY_TABLES)
+                     if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                                   (table,)).fetchone()},
             "cursor": next((r[0] for r in db.execute(
                 "SELECT sequence FROM collector_cursors WHERE source_id=?", (source,))), None)}
 
@@ -179,9 +196,9 @@ def maintain(database: Path, source: str, action: str, backup: Path | None = Non
                 os.fsync(parent_fd)
             finally:
                 os.close(parent_fd)
-            for table in (*DATA_TABLES, RECEIPT_TABLE):
-                if table == RECEIPT_TABLE and not db.execute(
-                    "SELECT 1 FROM sqlite_master WHERE name=?", (RECEIPT_TABLE,)
+            for table in (*DATA_TABLES, *OPTIONAL_HISTORY_TABLES, RECEIPT_TABLE):
+                if not db.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
                 ).fetchone():
                     continue
                 db.execute(f"DELETE FROM {table} WHERE source_id=?", (source,))

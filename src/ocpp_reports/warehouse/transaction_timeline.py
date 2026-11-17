@@ -12,6 +12,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .history_enrichment import verified_overlay
+
 
 def _when(value):
     if not isinstance(value, str):
@@ -56,35 +58,62 @@ def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit:
         tables = {row[0] for row in db.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         )}
-        if not {"energy_samples", "transaction_observations"} <= tables:
+        # Local evidence uses its verified transaction cursor window. Remote
+        # evidence has an independent indexed identity tuple, never latest state.
+        bounds = None
+        if {"energy_samples", "transaction_observations"} <= tables:
+            bounds = db.execute(
+                "SELECT MIN(page_after),MAX(page_next) FROM transaction_observations "
+                "WHERE source_id=? AND charger_id=? AND transaction_id=?",
+                (source, charger, tx_id),
+            ).fetchone()
+        if bounds and (type(bounds[0]) is int and type(bounds[1]) is int
+                       and bounds[0] >= 0 and bounds[1] > bounds[0]):
+            sample_source = "local-energy-samples"
+            overlay = ("LEFT JOIN sample_enrichments x ON "
+                       "x.source_id=e.source_id AND x.event_id=e.event_id "
+                       "AND x.sample_index=e.sample_index "
+                       if "sample_enrichments" in tables else "")
+            enrichment = "x.payload" if overlay else "NULL"
+            rows = db.execute(
+                f"SELECT e.event_id,e.sample_index,e.payload,{enrichment} "
+                f"FROM energy_samples e {overlay}"
+                "WHERE e.source_id=? AND e.event_id>? AND e.event_id<=? "
+                "ORDER BY e.event_id DESC,e.sample_index DESC LIMIT ?",
+                (source, bounds[0], bounds[1], scan_limit + 1),
+            ).fetchall()
+        elif "collector_meter_samples" in tables:
+            # Only verified per-session immutable samples. No scanning a remote
+            # source or fabricating a time series from collector_latest.
+            sample_source = "replicated-meter-samples"
+            overlay = ("LEFT JOIN collector_meter_enrichments x ON "
+                       "x.source_id=e.source_id AND x.event_id=e.event_id "
+                       "AND x.sample_index=e.sample_index "
+                       if "collector_meter_enrichments" in tables else "")
+            enrichment = "x.payload" if overlay else "NULL"
+            rows = db.execute(
+                f"SELECT e.event_id,e.sample_index,e.payload,{enrichment} "
+                f"FROM collector_meter_samples e {overlay}"
+                "WHERE e.source_id=? AND e.charger_id=? AND e.connector_id=? "
+                "AND e.transaction_id=? "
+                "ORDER BY e.event_id DESC,e.sample_index DESC LIMIT ?",
+                (source, charger, connector, tx_id, scan_limit + 1),
+            ).fetchall()
+        else:
             return empty
-        # Existing composite PK: (source,charger,transaction,page_after,...).
-        bounds = db.execute(
-            "SELECT MIN(page_after),MAX(page_next) FROM transaction_observations "
-            "WHERE source_id=? AND charger_id=? AND transaction_id=?",
-            (source, charger, tx_id),
-        ).fetchone()
-        if not bounds or bounds[0] is None or bounds[1] is None or (
-                type(bounds[0]) is not int or type(bounds[1]) is not int
-                or bounds[0] < 0 or bounds[1] <= bounds[0]):
-            return empty
-        # Indexed PK range on (source,event_id,sample_index); the limit applies
-        # *within the transaction's observed event interval*, not to a source.
-        rows = db.execute(
-            "SELECT event_id,sample_index,payload FROM energy_samples "
-            "WHERE source_id=? AND event_id>? AND event_id<=? "
-            "ORDER BY event_id DESC,sample_index DESC LIMIT ?",
-            (source, bounds[0], bounds[1], scan_limit + 1),
-        ).fetchall()
     limited = len(rows) > scan_limit
     baseline = _quantity(transaction.get("meter_start_wh"))
     now = datetime.now(timezone.utc)
     samples = {}
     # Preserve physical cursor order before time sorting or point selection.
     # A rejected/corrupt sample occupies a slot, so gaps cannot be joined.
-    for source_order, (event_id, sample_index, payload) in enumerate(reversed(rows[:scan_limit])):
+    for source_order, (event_id, sample_index, payload, enrichment) in enumerate(reversed(rows[:scan_limit])):
         try:
             item = json.loads(payload)
+            if enrichment is not None:
+                verified = verified_overlay(item, payload, json.loads(enrichment))
+                if verified is not None:
+                    item = verified
         except (ValueError, TypeError):
             continue
         if not isinstance(item, dict) or (
@@ -146,7 +175,7 @@ def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit:
         limited = True
     return {"points": ordered, "limited": limited,
             "discontinuous": discontinuous,
-            "source": "local-energy-samples", "coverage": "observed-window"}
+            "source": sample_source, "coverage": "observed-window"}
 
 
 def timeline_charts(points: list[dict]) -> list[dict]:
