@@ -191,9 +191,18 @@ header{align-items:start;gap:.65rem}
   /* Short values on the left; longer identity/status/date values on the right. */
   .connectors-panel tbody tr{display:grid;grid-template-columns:minmax(0,.76fr) minmax(0,1.24fr);column-gap:.28rem;row-gap:.14rem;align-items:start}
   .connectors-panel td{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;min-width:0;overflow-wrap:anywhere;font-size:1.1rem;line-height:1.2;padding:.1rem .02rem;gap:.08rem}
-  /* Top-align text in both links while preserving their 44px tap target. */
+  /* Do not force a 44px line box: it adds blank space below the linked value.
+     Expand the link's clickable pseudo-surface upward over its own label,
+     without changing the grid row's intrinsic height. */
   .connectors-panel td[data-label="Cargador"] .charger-session-link,
-  .connectors-panel td[data-label="Conector"] .charger-session-link{align-items:flex-start;min-height:44px;margin:0;padding:0;line-height:1.2}
+  .connectors-panel td[data-label="Conector"] .charger-session-link{
+    display:inline-block;position:relative;min-height:0;max-width:100%;
+    margin:0;padding:0;line-height:1.2;vertical-align:top
+  }
+  .connectors-panel td[data-label="Cargador"] .charger-session-link::after,
+  .connectors-panel td[data-label="Conector"] .charger-session-link::after{
+    content:"";position:absolute;left:0;right:0;bottom:0;height:44px
+  }
   .connectors-panel td::before{flex:0 0 auto;width:100%;font-size:.77rem;line-height:1.13}
   .connectors-panel td[data-label="Conector"]{grid-area:1/1}
   .connectors-panel td[data-label="Conectado"]{grid-area:2/1}

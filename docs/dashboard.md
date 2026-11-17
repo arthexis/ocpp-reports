@@ -277,3 +277,25 @@ estado, fecha de sincronización ni momento de medición de potencia. La columna
 `Inicio` de sesiones se oculta únicamente en pantalla <=520px; en escritorio
 permanece en el HTML y en pantalla. Se conservan los cuatro KPIs de
 cabecera, enlaces de sesiones activas y eventos según permisos.
+
+
+## Energía: dos modos y enlaces móviles compactos (#239)
+
+En las tarjetas de la pantalla principal, el enlace vuelve a ocupar solo
+la altura del texto. La superficie `::after` de 44px se extiende hacia
+la propia etiqueta (arriba), sin forzar `min-height` en el renglón,
+manteniendo una zona amplia para pulsar en móvil.
+
+En el detalle de cargador hay una sola gráfica con dos filtros ortogonales:
+`7 días / 30 días` y `Total / Conectores`. **Total** agrega por día
+los consumos finales de sesiones cerradas de los conectores físicos positivos;
+**Conectores** muestra barras de distinto color por C1/C2/otros conectores
+existentes. C0 no se suma ni representa como histórico diario: es una
+proyección de medidor de estación, no mediciones de energía diaria por sesión.
+Por ello los totales coinciden entre modos, sin doble contabilización.
+La fuente exacta, el huso horario y la precedencia local frente a réplica se
+conservan. Un solo recorrido de SQLite produce ambas vistas.
+
+El título es solo «Energía» y la explicación se encuentra en el control de
+información accesible. Ambos filtros se ajustan por línea en móvil; no hay
+gráfica adicional ni scroll horizontal en 320/360/390/520 CSS px.

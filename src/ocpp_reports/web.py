@@ -603,7 +603,8 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         energy_30_days = (
             charger_energy_30_days(
                 warehouse, source_id=source_id, charger_id=charger_id,
-                allowed_source_ids=allowed_source_ids, zone=selected_zone, now=now)
+                allowed_source_ids=allowed_source_ids, zone=selected_zone, now=now,
+                physical_connector_ids=[row.get("connector_id") for row in connectors])
             if connector_id is None else None
         )
         physical_connector_count = sum(
