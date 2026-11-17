@@ -485,3 +485,70 @@ def test_215_decimation_never_draws_false_bridge_chromium(tmp_path):
             _shot(page, "215-decimation-no-false-bridges-390.png")
         finally:
             browser.close()
+
+
+def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
+    """The intermediate breakpoint hides cells only visually, without losing links."""
+    playwright = pytest.importorskip("playwright.sync_api")
+    database = tmp_path / "tablet-dashboard-fixture.sqlite"
+    _seed(database)
+    app = create_app(database, allowed_source_ids=("a",))
+
+    @app.middleware("http")
+    async def synthetic_profile(request, call_next):
+        request.state.principal = SimpleNamespace(
+            user_id="fixture-user", role=SimpleNamespace(value="admin"))
+        return await call_next(request)
+
+    with TestClient(app) as client, playwright.sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            for width in (390, 521, 700, 900, 1100, 1200):
+                mobile = width <= 520
+                context = browser.new_context(
+                    viewport={"width": width, "height": 844}, is_mobile=mobile,
+                    has_touch=mobile, locale="es-MX", color_scheme="dark")
+                page = context.new_page()
+                page.route("**/*", _offline_route(client, {"GET": 0}))
+                page.goto("http://reports.test/", wait_until="load")
+                assert page.locator(".transactions-panel h2").inner_text() == "Sesiones de carga"
+                assert page.locator("#transaction-history-help").count() == 0
+                assert page.locator(".connectors-panel th").all_inner_texts() == [
+                    "Ubicación", "Cargador", "Conector", "Estado",
+                    "Conectado", "Potencia", "Energía", "Recibido"]
+                if 521 <= width <= 1100:
+                    search = page.locator("#dashboard-search").bounding_box()
+                    profile = page.locator(".profile-menu summary").bounding_box()
+                    assert search and profile
+                    assert search["width"] >= width * .70, (width, search)
+                    assert 0 <= profile["x"] - (search["x"] + search["width"]) <= 24
+                    assert abs(search["y"] + search["height"]
+                               - profile["y"] - profile["height"]) <= 12
+                    assert profile["width"] >= 44 and profile["height"] >= 44
+                    for index in (2, 6, 7, 8):
+                        cell = page.locator(".connectors-panel thead th").nth(index - 1)
+                        assert not cell.is_visible(), (width, index)
+                    for index in (1, 3, 4, 5):
+                        assert page.locator(".connectors-panel thead th").nth(index - 1).is_visible()
+                    assert not page.locator(".transactions-panel thead th").nth(4).is_visible()
+                    assert not page.locator(".transactions-panel tbody td").nth(4).is_visible()
+                    assert page.locator(".connectors-panel a.status-session-link").count() == 1
+                    assert page.locator(".connectors-panel .scroll").evaluate(
+                        "(el) => el.scrollWidth <= el.clientWidth + 2"), width
+                elif width == 1200:
+                    assert page.locator(".connectors-panel thead th").nth(1).is_visible()
+                    assert page.locator(".connectors-panel thead th").nth(5).is_visible()
+                    assert page.locator(".transactions-panel thead th").nth(4).is_visible()
+                else:
+                    assert page.locator(".connectors-panel td[data-label='Cargador']").first.is_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2"), width
+                if width == 900:
+                    _shot(page, "tablet-compact-dashboard-900.png")
+                    page.get_by_role("link", name="Ver detalles de transacción 7").click()
+                    assert page.locator(".detail-disclaimer").count() == 0
+                    assert "Cobertura: intervalo de eventos observado" not in page.locator(
+                        "#transaction-timeline").inner_text()
+                    _shot(page, "tablet-transaction-detail-900.png")
+                context.close()
+        finally:
+            browser.close()
