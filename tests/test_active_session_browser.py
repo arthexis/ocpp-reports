@@ -299,6 +299,13 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                 assert abs(first["y"] - second["y"]) <= 2
                 assert second["x"] > first["x"]
                 assert cells.nth(7).get_attribute("data-label") == "Recibido"
+                power = card.locator('td[data-label="Potencia"] .connector-power')
+                assert power.count() == 1
+                assert power.evaluate("(el) => getComputedStyle(el).whiteSpace") == "nowrap"
+                assert power.evaluate(
+                    "(el) => el.getBoundingClientRect().right "
+                    "<= el.parentElement.getBoundingClientRect().right + 2"
+                )
                 charger_link = page.locator(".connectors-panel a.charger-session-link").first
                 assert charger_link.bounding_box()["height"] >= 44
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
