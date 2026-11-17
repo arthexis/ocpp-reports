@@ -71,6 +71,27 @@ def test_window_groups_and_lazy_details_preserve_boundaries(tmp_path):
                                  allowed_source_ids=("a", "b"), offset=50)
     assert len(second["events"]) == 19 and not second["has_next"]
     assert len({r["id"] for r in detail["events"] + second["events"]}) == 69
+    # Exact scoped streaming path must preserve SQL window semantics.
+    for page_number in (1, 2, 3):
+        options = dict(source_id="a", charger_id="cp-1",
+                       allowed_source_ids=("a", "b"), page=page_number)
+        fast = event_groups_page(db, **options)
+        legacy = event_groups_page(db, term="cp-1", **options)
+        assert fast == legacy
+    precise = dict(group_source="a", first_event_id=194,
+                   source_id="a", charger_id="cp-1",
+                   allowed_source_ids=("a", "b"))
+    for at in (0, 50, 80):
+        assert event_group_details(db, offset=at, **precise) == event_group_details(
+            db, offset=at, term="cp-1", **precise)
+    # Non-leading identifiers must not open a different group.
+    try:
+        event_group_details(db, first_event_id=193, **{k: v for k, v in precise.items()
+                                                         if k != "first_event_id"})
+    except LookupError:
+        pass
+    else:
+        raise AssertionError("Non-leading event ID unexpectedly accepted")
     assert event_groups_page(db, allowed_source_ids=("b",))["groups"][0]["event_count"] == 3
 
 
@@ -123,6 +144,11 @@ def test_large_heartbeat_run_is_one_group_without_large_payload_response(tmp_pat
     first = event_groups_page(db, allowed_source_ids=("a",))
     assert len(first["groups"]) == 1
     assert first["groups"][0]["event_count"] == 10000
+    fast = event_groups_page(db, source_id="a", charger_id="cp-1",
+                             allowed_source_ids=("a",))
+    assert fast == event_groups_page(
+        db, source_id="a", charger_id="cp-1",
+        allowed_source_ids=("a",), term="cp-1")
     assert not first["has_next"]
     assert len(event_group_details(db, group_source="a", first_event_id=10000,
                                     allowed_source_ids=("a",))["events"]) == 50
@@ -240,6 +266,13 @@ def test_status_echo_pairs_preserve_exact_state_and_fault_boundaries(tmp_path):
         "Sin estado en este registro", "C2 · Faulted · ReaderFailure"
     ]
     assert "PRIVATE-MUST-NOT-RENDER" not in json.dumps(fault)
+    assert page == event_groups_page(
+        db, source_id="node-a", charger_id="charger-1",
+        allowed_source_ids=("node-a",), term="charger-1")
+    assert fault == event_group_details(
+        db, group_source="node-a", first_event_id=99,
+        source_id="node-a", charger_id="charger-1",
+        allowed_source_ids=("node-a",), term="charger-1")
     assert event_groups_page(db, source_id="node-b", charger_id="charger-1",
                              allowed_source_ids=("node-b",))["groups"] == []
     assert event_groups_page(db, source_id="node-a", charger_id="other",
@@ -278,3 +311,43 @@ def test_status_echo_never_crosses_time_source_action_or_event_identity(tmp_path
     groups = event_groups_page(db)
     assert len(groups["groups"]) == 6
     assert all(g["event_count"] == 1 for g in groups["groups"])
+
+
+def test_scoped_event_pagination_exactly_eleven_groups(tmp_path):
+    db = tmp_path / "exact-page.sqlite"
+    with sqlite3.connect(db) as connection:
+        _schema(connection)
+        for event_id in range(1, 12):
+            payload = _event(event_id, "StartTransaction")
+            payload["at"] = f"2026-11-16T00:00:{event_id:02d}Z"
+            connection.execute("INSERT INTO events VALUES (?,?,?)",
+                               ("a", event_id, json.dumps(payload)))
+    opts = dict(source_id="a", charger_id="cp-1", allowed_source_ids=("a",))
+    first = event_groups_page(db, page=1, **opts)
+    last = event_groups_page(db, page=2, **opts)
+    assert len(first["groups"]) == 10 and first["has_next"]
+    assert len(last["groups"]) == 1 and not last["has_next"]
+    assert event_groups_page(db, page=3, **opts)["groups"] == []
+    assert first == event_groups_page(db, page=1, term="cp-1", **opts)
+    assert last == event_groups_page(db, page=2, term="cp-1", **opts)
+
+
+def test_scoped_collector_only_database_keeps_event_id_and_html(tmp_path):
+    """No local events table: the remote projection still aliases event_id."""
+    db = tmp_path / "collector-only.sqlite"
+    with sqlite3.connect(db) as connection:
+        ensure_collector_schema(connection)
+        connection.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                           ("a", "connector", "cp-1:1", 1,
+                            json.dumps({"charger_id": "cp-1", "connector_id": 1,
+                                        "status": "Available"})))
+        connection.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                           ("a", "event", "1", 2,
+                            json.dumps(_event(1, cp="cp-1"))))
+    groups = event_groups_page(db, source_id="a", charger_id="cp-1",
+                               allowed_source_ids=("a",))
+    assert len(groups["groups"]) == 1
+    assert groups["groups"][0]["first_event_id"] == 1
+    response = TestClient(create_app(db, allowed_source_ids=("a",))).get(
+        "/chargers/a/cp-1")
+    assert response.status_code == 200 and 'id="energy-chart"' in response.text

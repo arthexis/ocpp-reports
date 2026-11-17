@@ -55,7 +55,7 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .energy-legend-swatch.connector-color-3{background:var(--connector-d)}
 .energy-range{flex:1 1 0;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:.2rem}
 .energy-range button{min-width:0;width:100%;min-height:40px;padding-block:.35rem;padding-inline:0;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font-size:.86rem;font-weight:600;white-space:nowrap}
-.energy-range button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.energy-range button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}.energy-label-compact{display:none}
 :root{--connector-a:#0072b2;--connector-b:#d55e00;--connector-c:#009e73;--connector-d:#885bb9}
 .energy-days[data-view="total"] .energy-connector-bars{display:none}
 .energy-days[data-view="connectors"] .energy-bar{display:none}
@@ -81,13 +81,14 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .energy-heading-title{gap:0;flex:0 0 auto}
 .energy-heading h2{font-size:.9rem}
 .energy-help-trigger{min-width:25px;min-height:34px;padding:0;font-size:1rem}
-.energy-controls{flex:1 1 auto;justify-content:flex-end;flex-wrap:nowrap;gap:1px}
+.energy-controls{flex:0 1 16.5rem;justify-content:flex-end;flex-wrap:nowrap;gap:1px}
 .energy-range{gap:1px}
-.energy-range button{font-size:.68rem;min-height:36px;padding-block:.2rem;padding-inline:0;border-radius:5px;letter-spacing:-.15px}
+.energy-range button{font-size:.65rem;min-height:36px;padding-block:.2rem;padding-inline:0;border-radius:5px;letter-spacing:-.35px}
 #energy-30-days{padding:.85rem .55rem}
 .connector dd{font-size:1.04rem;line-height:1.3}
 .connector dd .status{font-size:.96rem}
 .energy-connector-bars{gap:0}}
+@media(max-width:375px){.energy-range button{font-size:.61rem}.energy-label-full{display:none}.energy-label-compact{display:inline}}
 @media(max-width:350px){
 .energy-heading h2{font-size:.86rem}
 .energy-range button{font-size:.59rem;padding-block:.15rem;padding-inline:0;letter-spacing:-.25px}
@@ -137,7 +138,7 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 </div>
 <div class="energy-range" role="group" aria-label="Desglose de energía">
 <button type="button" data-energy-view="total" aria-pressed="true">Estación</button>
-<button type="button" data-energy-view="connectors" aria-pressed="false">Conectores</button>
+<button type="button" data-energy-view="connectors" aria-pressed="false" aria-label="Conectores"><span class="energy-label-full">Conectores</span><span class="energy-label-compact" aria-hidden="true">Conect.</span></button>
 </div></div></div>
 <p class="energy-help" id="energy-help" hidden>La energía es la suma de las sesiones cerradas por fecha local de finalización ({{ timezone }}). Estación agrega los conectores físicos; Conectores muestra cada uno por separado. C0 es un medidor/resumen de estación y no se suma otra vez. No incluye sesiones activas ni estima períodos faltantes.</p>
 <div class="energy-overview" aria-live="polite">
