@@ -14,6 +14,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from ..warehouse.collector_schema import ensure_collector_schema
 from ..contracts.csms_export import validate_meter_fields, _timestamp
+from ..warehouse.history_enrichment import verified_overlay, EXTRA
 
 
 class Change(BaseModel):
@@ -59,6 +60,22 @@ def _meter_identity(change: Change) -> tuple[int, int, str, int | None, int | No
     return event, index, charger, connector, transaction, stamp
 
 
+def _enrichment_identity(change: Change) -> tuple[int, int]:
+    evidence = change.payload
+    event, index = evidence.get("source_event_id"), evidence.get("sample_index")
+    digest, fields = evidence.get("base_sha256"), evidence.get("fields")
+    if (type(event) is not int or event <= 0
+            or type(index) is not int or index < 0
+            or change.record_key != f"{event}:{index}"
+            or not isinstance(digest, str) or len(digest) != 64
+            or any(letter not in "0123456789abcdef" for letter in digest)
+            or not isinstance(fields, dict) or not fields
+            or not set(fields) <= EXTRA):
+        raise ValueError("Invalid historical enrichment identity")
+    validate_meter_fields(fields)
+    return event, index
+
+
 class SourceHeldError(ValueError):
     """The operator has drained and held this source for maintenance."""
 
@@ -66,7 +83,7 @@ class SourceHeldError(ValueError):
 def accept_batch(database: Path, batch: Batch) -> int:
     if batch.schema_ != "ocpp-reports/replication/v1":
         raise ValueError("Unsupported replication schema")
-    if any(change.kind not in {"event", "transaction", "connector", "rating", "meter_sample"} for change in batch.changes):
+    if any(change.kind not in {"event", "transaction", "connector", "rating", "meter_sample", "meter_enrichment"} for change in batch.changes):
         raise ValueError("Unsupported change kind")
     positions = [change.sequence for change in batch.changes]
     if positions != sorted(set(positions)) or any(n <= batch.after for n in positions):
@@ -111,9 +128,30 @@ def accept_batch(database: Path, batch: Batch) -> int:
                      transaction_id,observed_at,payload) VALUES (?,?,?,?,?,?,?,?)""",
                     (batch.source_id, event, index, charger, connector,
                      transaction, stamp, encoded))
-            db.execute("INSERT INTO collector_changes VALUES (?,?,?,?,?)",
+            if change.kind == "meter_enrichment":
+                event, index = _enrichment_identity(change)
+                prior = db.execute(
+                    "SELECT payload FROM collector_meter_enrichments "
+                    "WHERE source_id=? AND event_id=? AND sample_index=?",
+                    (batch.source_id, event, index),
+                ).fetchone()
+                if prior is not None and prior[0] != encoded:
+                    raise ValueError("Conflicting immutable historical enrichment")
+                base = db.execute(
+                    "SELECT payload FROM collector_meter_samples "
+                    "WHERE source_id=? AND event_id=? AND sample_index=?",
+                    (batch.source_id, event, index),
+                ).fetchone()
+                if base is not None and verified_overlay(
+                    json.loads(base[0]), base[0], change.payload
+                ) is None:
+                    raise ValueError("Historical enrichment does not match base sample")
+                db.execute("INSERT OR IGNORE INTO collector_meter_enrichments "
+                           "VALUES (?,?,?,?)",
+                           (batch.source_id, event, index, encoded))
+            db.execute("INSERT INTO collector_changes VALUES (?,?,?,?,?)"
                        (batch.source_id, change.sequence, change.kind, change.record_key, encoded))
-            if change.kind != "meter_sample":
+            if change.kind not in {"meter_sample", "meter_enrichment"}:
                 db.execute("""INSERT INTO collector_latest VALUES (?,?,?,?,?)
                     ON CONFLICT(source_id,kind,record_key) DO UPDATE SET
                     sequence=excluded.sequence,payload=excluded.payload
@@ -173,7 +211,8 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
                                 headers={"Retry-After": "60"})
         return {"schema": "ocpp-reports/readiness/v1", "source_id": query.source_id,
                 "ready": True, "held": False, "cursor": cursor,
-                "supported_kinds": ["event", "transaction", "connector", "rating", "meter_sample"]}
+                "supported_kinds": ["event", "transaction", "connector", "rating",
+                                    "meter_sample", "meter_enrichment"]}
 
     @app.post("/api/replication")
     def receive(batch: Batch, authorization: str | None = Header(default=None)):
