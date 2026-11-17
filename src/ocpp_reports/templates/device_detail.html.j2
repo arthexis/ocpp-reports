@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ 'Conector ' ~ selected_connector_id if selected_connector_id is not none else 'Cargador' }} · {{ charger_id }} · {{ title }}</title>
+<style>
+/* Reuse the same Reports dashboard palette, header, cards and responsive tables. */
+:root{color-scheme:light;--bg:#f5f7fa;--surface:#fff;--ink:#172437;--muted:#637286;--line:#e2e8f0;--nav:#203247;--accent:#1268c7;--warning:#a96700;font:16px system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.45}
+a{color:var(--accent)}a:focus-visible,summary:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+header{background:var(--nav);color:white;padding:1.2rem max(1.25rem,calc((100vw - 1280px)/2));display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+header h1{font-size:1.45rem;margin:0}header .note{color:#d0dbe6}
+.back-link{color:#fff;border:1px solid #718096;border-radius:8px;min-height:44px;display:inline-flex;align-items:center;padding:.5rem .75rem;text-decoration:none;font-weight:600}
+main{max-width:1320px;margin:auto;padding:1.4rem 1.25rem 3rem}
+section{margin:0 0 1.25rem;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1.25rem;box-shadow:0 2px 10px #152c4608}
+section h2{font-size:1.05rem;margin:0 0 1rem}.note{font-size:.82rem}.muted{color:var(--muted)}.identity{font-size:1.5rem;margin:.1rem 0 .35rem;overflow-wrap:anywhere}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.grid>*{min-width:0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem;margin:1rem 0}
+.stat{border:1px solid var(--line);border-radius:9px;background:var(--bg);padding:.85rem;min-width:0}
+.stat strong{display:block;font-size:1.1rem;overflow-wrap:anywhere}.stat .note{color:var(--muted)}
+.connector-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.75rem}
+.connector{border:1px solid var(--line);border-radius:10px;padding:1rem;background:var(--surface);min-width:0}
+.connector h3{margin:0 0 .6rem;font-size:1rem}.connector dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.4rem .65rem;font-size:.85rem;margin:0}
+dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}.scroll{overflow:auto;max-width:100%}
+table{width:100%;border-collapse:collapse;font-size:.87rem}th,td{padding:.72rem .65rem;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;font-variant-numeric:tabular-nums}
+.empty{text-align:center;color:var(--muted);padding:1.5rem}
+.status{display:inline-block;padding:.2rem .5rem;border-radius:999px;font-size:.84rem;font-weight:650;background:#edf1f5}
+.event-group{border:1px solid var(--line);border-radius:9px;margin:.5rem 0;padding:.6rem .8rem}
+.event-group summary{cursor:pointer;min-height:36px;overflow-wrap:anywhere}.event-detail{margin:.65rem 0}
+.pages{display:flex;gap:.7rem;align-items:center;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
+.pages a,.pages span{padding:.35rem .65rem;border:1px solid var(--line);border-radius:7px}
+button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:pointer;padding:.55rem .8rem;min-height:44px;font:inherit}
+@media(max-width:800px){.grid{grid-template-columns:1fr}main{padding:1rem .75rem}section{padding:1rem}header{padding:1rem}}
+@media(max-width:520px){.connector-list{grid-template-columns:1fr}header h1{font-size:1.12rem}table{font-size:.78rem}th,td{padding:.55rem .45rem}}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}th{background:#263647;color:#d7e5f5}.status{background:#354657;color:#e1e9f3}}
+</style></head><body>
+<a class="back-link" style="position:absolute;left:1rem;top:-5rem" href="#content">Ir al contenido</a>
+<header><div><h1>{{ title }}</h1><div class="note">Solo lectura · {{ timezone }}</div></div>
+<div><a class="back-link" href="/?tz={{ timezone|urlencode }}#connectors">← Dashboard</a>
+{% if selected_connector_id is not none %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}?tz={{ timezone|urlencode }}">Cargador completo</a>{% endif %}</div></header>
+<main id="content">
+<section aria-labelledby="device-title"><h2 class="identity" id="device-title">{% if selected_connector_id is none %}Cargador {{ charger_id }}{% else %}Cargador {{ charger_id }} · Conector {{ selected_connector_id }}{% endif %}</h2>
+<p class="muted">{{ location }} · Origen {{ source_id }}</p>
+<p class="note">Las fechas observadas corresponden al cargador/conector; la sincronización del origen no garantiza comunicación en tiempo real.</p>
+<div class="stats"><div class="stat"><span class="note">Sesiones registradas</span><strong>{{ tx_total }}</strong></div>
+<div class="stat"><span class="note">Conectores visibles</span><strong>{{ connectors|length }}</strong></div>
+<div class="stat"><span class="note">Frescura del origen</span><strong>{{ source_freshness }}</strong></div></div>
+</section>
+<section aria-labelledby="connector-title"><h2 id="connector-title">{{ 'Conector' if selected_connector_id is not none else 'Conectores del cargador' }}</h2>
+<div class="connector-list">{% for c in connectors %}
+<article class="connector"><h3>{% if selected_connector_id is none %}<a href="/connectors/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ c.connector_id }}?tz={{ timezone|urlencode }}">{{ 'Estación (C0)' if c.connector_id == 0 else 'Conector ' ~ c.connector_id }}</a>{% else %}Conector {{ c.connector_id }}{% endif %}</h3>
+<dl>
+<dt>Estado informado</dt><dd><span class="status">{{ c.status or 'Desconocido' }}</span></dd>
+<dt>Conexión observada</dt><dd>{{ 'Sí' if c.connected is sameas true else 'No' if c.connected is sameas false else 'Sin datos' }}</dd>
+<dt>Último estado</dt><dd>{{ c.status_observed_at|display_date(timezone) if c.status_observed_at else 'Fecha desconocida' }}</dd>
+<dt>Sincronizado</dt><dd>{{ c.synced_at|display_date(timezone) if c.synced_at else 'Sin fecha' }}</dd>
+<dt>Potencia medida</dt><dd>{{ '%.2f'|format(c.power_w / 1000) ~ ' kW' if c.power_fresh and c.power_w is not none else 'No disponible' }}</dd>
+<dt>Medición de potencia</dt><dd>{{ c.power_observed_at|display_date(timezone) if c.power_observed_at else 'Sin fecha' }}</dd>
+<dt>Medidor acumulado</dt><dd>{{ '%.2f'|format(c.energy_wh / 1000) ~ ' kWh' if c.energy_wh is not none else '—' }}</dd>
+<dt>Medición de energía</dt><dd>{{ c.energy_observed_at|display_date(timezone) if c.energy_observed_at else 'Sin fecha' }}</dd>
+{% if c.active_transaction_id is not none %}<dt>Sesión actual</dt><dd><a href="/transactions/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ c.active_transaction_id }}?tz={{ timezone|urlencode }}">#{{ c.active_transaction_id }}</a></dd>{% endif %}
+</dl></article>
+{% else %}<p class="muted">Sin estado de conectores registrado; consulta las sesiones históricas.</p>{% endfor %}</div>
+</section>
+<section id="transactions" aria-labelledby="transactions-title"><h2 id="transactions-title">Sesiones de carga</h2>
+<div class="scroll" role="region" tabindex="0" aria-label="Sesiones de este {{ 'conector' if selected_connector_id is not none else 'cargador' }}">
+<table><thead><tr>{% if selected_connector_id is none %}<th>Conector</th>{% endif %}<th>ID</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Energía de sesión</th></tr></thead><tbody>
+{% for t in data.transactions %}<tr>{% if selected_connector_id is none %}<td><a href="/connectors/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ t.connector_id }}?tz={{ timezone|urlencode }}">{{ t.connector_id if t.connector_id is not none else '—' }}</a></td>{% endif %}
+<td><a href="/transactions/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ t.id }}?tz={{ timezone|urlencode }}">{{ t.id }}</a></td>
+<td>{{ t.state or 'Desconocido' }}</td><td>{{ t.started_at|display_date(timezone) }}</td><td>{{ t.stopped_at|display_date(timezone) if t.stopped_at else 'Activa / sin cierre' }}</td>
+<td>{{ t.started_at|session_duration(t.stopped_at) }}</td>
+<td class="numeric">{{ '%.2f'|format(t.energy_wh / 1000) ~ ' kWh' if t.energy_wh is not none else 'En curso / pendiente' if t.active else '—' }}</td></tr>
+{% else %}<tr><td class="empty" colspan="{{ 7 if selected_connector_id is none else 6 }}">Sin sesiones</td></tr>{% endfor %}
+</tbody></table></div>
+<nav class="pages" aria-label="Páginas de sesiones">
+<span class="note muted">{{ ((tx_page - 1) * 20 + 1) if tx_total else 0 }}–{{ [tx_page * 20, tx_total]|min }} de {{ tx_total }}</span>
+{% if tx_page > 1 %}<a rel="prev" href="{{ request.url.include_query_params(tx_page=tx_page-1) }}#transactions">Anterior</a>{% endif %}
+<span aria-current="page">{{ tx_page }} / {{ tx_pages }}</span>
+{% if tx_page < tx_pages %}<a rel="next" href="{{ request.url.include_query_params(tx_page=tx_page+1) }}#transactions">Siguiente</a>{% endif %}
+</nav></section>
+<section id="synchronization" aria-labelledby="sync-title"><h2 id="sync-title">Sincronización</h2>
+{% if source %}<p class="note muted">Estado del origen {{ source_id }} (compartido por sus cargadores; no corresponde a una medición individual).</p>
+<div class="stats"><div class="stat"><span class="note">Cursor del origen</span><strong>{{ source.cursor if source.cursor is not none else '—' }}</strong></div>
+<div class="stat"><span class="note">Ingestión local</span><strong>{{ source.last_ingested_at|display_date(timezone) if source.last_ingested_at else 'Sin fecha' }}</strong></div>
+<div class="stat"><span class="note">Recepción de réplica</span><strong>{{ source.last_replication_received_at|display_date(timezone) if source.last_replication_received_at else 'Sin fecha' }}</strong></div></div>
+{% else %}<p class="muted">Sin evidencia de sincronización del origen.</p>{% endif %}
+</section>
+{% if selected_connector_id is none and is_admin %}
+<section id="events" aria-labelledby="events-title"><h2 id="events-title">Eventos recientes de {{ charger_id }}</h2>
+<p class="note muted">Solo este cargador y origen. Los eventos rutinarios se agrupan; los detalles se consultan al abrirlos.</p>
+<div id="live-event-groups">
+{% for group in event_groups %}<details class="event-group" data-source="{{ group.source_id }}" data-first-id="{{ group.first_event_id }}">
+<summary>{{ group.action or 'Sin acción' }}{% if group.event_count > 1 %} × {{ group.event_count }}{% endif %}<span class="muted note"> · {{ group.at|display_date(timezone) }}</span></summary>
+<div class="event-detail"><p class="muted note">Abre el grupo para consultar sus eventos.</p></div></details>
+{% else %}<p class="muted">Sin eventos recientes para este cargador</p>{% endfor %}
+</div><nav class="pages" aria-label="Páginas de eventos">
+{% if event_page > 1 %}<a rel="prev" href="{{ request.url.include_query_params(event_page=event_page-1) }}#events">Anterior</a>{% endif %}
+<span aria-current="page">{{ event_page }}</span>
+{% if event_has_next %}<a rel="next" href="{{ request.url.include_query_params(event_page=event_page+1) }}#events">Siguiente</a>{% endif %}
+</nav></section>
+{% endif %}
+</main>
+{% if selected_connector_id is none and is_admin %}
+<script>
+(() => {
+  for (const details of document.querySelectorAll(".event-group")) {
+    const holder = details.querySelector(".event-detail");
+    let offset = 0, exhausted = false, loading = false;
+    const table = document.createElement("table");
+    const head = document.createElement("thead"); const headRow = document.createElement("tr");
+    for (const label of ["ID", "Ubicación", "Cargador", "Acción", "Fecha"]) {
+      const th = document.createElement("th"); th.textContent = label; headRow.append(th);
+    }
+    head.append(headRow); table.append(head);
+    const body = document.createElement("tbody"); table.append(body);
+    const scroll = document.createElement("div"); scroll.className = "scroll"; scroll.append(table);
+    const status = document.createElement("p"); status.className = "muted note";
+    const more = document.createElement("button"); more.type = "button"; more.textContent = "Ver 50 más";
+    holder.replaceChildren(scroll, status, more);
+    const load = async () => {
+      if (loading || exhausted) return;
+      loading = true; more.disabled = true; status.textContent = "Cargando eventos…";
+      const url = new URL("/api/event-group", window.location.origin);
+      url.searchParams.set("group_source", details.dataset.source);
+      url.searchParams.set("source_id", {{ source_id|tojson }});
+      url.searchParams.set("charger_id", {{ charger_id|tojson }});
+      url.searchParams.set("tz", {{ timezone|tojson }});
+      url.searchParams.set("first_event_id", details.dataset.firstId);
+      url.searchParams.set("offset", String(offset));
+      try {
+        const response = await fetch(url, {credentials: "same-origin"});
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const page = await response.json();
+        for (const event of page.events) {
+          const tr = document.createElement("tr");
+          for (const value of [event.id, event.location, event.charger_id, event.action, event.display_at]) {
+            const td = document.createElement("td"); td.textContent = value == null ? "—" : String(value);
+            tr.append(td);
+          }
+          body.append(tr);
+        }
+        offset += page.events.length; exhausted = !page.has_next; more.hidden = exhausted;
+        status.textContent = offset + " eventos cargados";
+      } catch (_) { status.textContent = "No se pudieron cargar. Reintentar."; }
+      finally {loading = false; more.disabled = false;}
+    };
+    more.addEventListener("click", load);
+    details.addEventListener("toggle", () => {if (details.open && offset === 0) load();});
+  }
+})();
+</script>
+{% endif %}
+</body></html>
