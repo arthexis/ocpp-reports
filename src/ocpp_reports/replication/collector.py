@@ -13,6 +13,7 @@ from pathlib import Path
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from ..warehouse.collector_schema import ensure_collector_schema
+from ..contracts.csms_export import validate_meter_fields, _timestamp
 
 
 class Change(BaseModel):
@@ -39,6 +40,25 @@ def _canonical(value: dict) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
 
+def _meter_identity(change: Change) -> tuple[int, int, str, int | None, int | None, str]:
+    """Reject unscoped or fabricated replicated meter identities."""
+    sample = change.payload
+    event, index = sample.get("source_event_id"), sample.get("sample_index")
+    charger = sample.get("charger_id")
+    connector, transaction = sample.get("connector_id"), sample.get("transaction_id")
+    stamp = sample.get("at")
+    if (type(event) is not int or event <= 0
+            or type(index) is not int or index < 0
+            or change.record_key != f"{event}:{index}"
+            or not isinstance(charger, str) or not charger
+            or connector is not None and (type(connector) is not int or connector < 0)
+            or transaction is not None and (type(transaction) is not int or transaction < 0)):
+        raise ValueError("Invalid meter sample identity")
+    _timestamp(stamp, "meter_sample.at")
+    validate_meter_fields(sample)
+    return event, index, charger, connector, transaction, stamp
+
+
 class SourceHeldError(ValueError):
     """The operator has drained and held this source for maintenance."""
 
@@ -46,7 +66,7 @@ class SourceHeldError(ValueError):
 def accept_batch(database: Path, batch: Batch) -> int:
     if batch.schema_ != "ocpp-reports/replication/v1":
         raise ValueError("Unsupported replication schema")
-    if any(change.kind not in {"event", "transaction", "connector", "rating"} for change in batch.changes):
+    if any(change.kind not in {"event", "transaction", "connector", "rating", "meter_sample"} for change in batch.changes):
         raise ValueError("Unsupported change kind")
     positions = [change.sequence for change in batch.changes]
     if positions != sorted(set(positions)) or any(n <= batch.after for n in positions):
@@ -77,13 +97,28 @@ def accept_batch(database: Path, batch: Batch) -> int:
                 continue
             if change.sequence <= cursor:
                 raise ValueError("Missing historical replication change")
+            if change.kind == "meter_sample":
+                event, index, charger, connector, transaction, stamp = _meter_identity(change)
+                prior = db.execute(
+                    "SELECT payload FROM collector_meter_samples"
+                    " WHERE source_id=? AND event_id=? AND sample_index=?",
+                    (batch.source_id, event, index),
+                ).fetchone()
+                if prior is not None and prior[0] != encoded:
+                    raise ValueError("Conflicting immutable replicated meter sample")
+                db.execute("""INSERT OR IGNORE INTO collector_meter_samples
+                    (source_id,event_id,sample_index,charger_id,connector_id,
+                     transaction_id,observed_at,payload) VALUES (?,?,?,?,?,?,?,?)""",
+                    (batch.source_id, event, index, charger, connector,
+                     transaction, stamp, encoded))
             db.execute("INSERT INTO collector_changes VALUES (?,?,?,?,?)",
                        (batch.source_id, change.sequence, change.kind, change.record_key, encoded))
-            db.execute("""INSERT INTO collector_latest VALUES (?,?,?,?,?)
-                ON CONFLICT(source_id,kind,record_key) DO UPDATE SET
-                sequence=excluded.sequence,payload=excluded.payload
-                WHERE excluded.sequence > collector_latest.sequence""",
-                (batch.source_id, change.kind, change.record_key, change.sequence, encoded))
+            if change.kind != "meter_sample":
+                db.execute("""INSERT INTO collector_latest VALUES (?,?,?,?,?)
+                    ON CONFLICT(source_id,kind,record_key) DO UPDATE SET
+                    sequence=excluded.sequence,payload=excluded.payload
+                    WHERE excluded.sequence > collector_latest.sequence""",
+                    (batch.source_id, change.kind, change.record_key, change.sequence, encoded))
         cursor = max(cursor, batch.next)
         # Receipt freshness advances only when new contiguous evidence is stored.
         if positions and any(position > (row[0] if row else 0) for position in positions):
@@ -137,7 +172,8 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
             raise HTTPException(503, "Source forwarding held",
                                 headers={"Retry-After": "60"})
         return {"schema": "ocpp-reports/readiness/v1", "source_id": query.source_id,
-                "ready": True, "held": False, "cursor": cursor}
+                "ready": True, "held": False, "cursor": cursor,
+                "supported_kinds": ["event", "transaction", "connector", "rating", "meter_sample"]}
 
     @app.post("/api/replication")
     def receive(batch: Batch, authorization: str | None = Header(default=None)):
