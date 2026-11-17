@@ -17,6 +17,12 @@ def _schema(db: sqlite3.Connection) -> None:
         sample_index INTEGER NOT NULL, payload TEXT NOT NULL,
         PRIMARY KEY(source_id, event_id, sample_index)
     );
+    -- Sources opt in only after an upgraded Collector proves capability.
+    -- Never change forwarding behavior on an unattended schema upgrade.
+    CREATE TABLE IF NOT EXISTS meter_replication_sources (
+        source_id TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 0
+            CHECK(enabled IN (0,1))
+    );
     -- Verified additive telemetry, never an UPDATE to immutable sample bytes.
     CREATE TABLE IF NOT EXISTS sample_enrichments (
         source_id TEXT NOT NULL, event_id INTEGER NOT NULL,
@@ -58,7 +64,10 @@ def _schema(db: sqlite3.Connection) -> None:
     CREATE INDEX IF NOT EXISTS idx_replication_meter_identity
         ON replication_changes(source_id, kind, record_key);
     CREATE TRIGGER IF NOT EXISTS replicate_energy_sample_insert
-    AFTER INSERT ON energy_samples BEGIN
+    AFTER INSERT ON energy_samples
+    WHEN EXISTS (SELECT 1 FROM meter_replication_sources
+                 WHERE source_id=NEW.source_id AND enabled=1)
+    BEGIN
         INSERT INTO replication_changes(source_id,kind,record_key,payload)
         VALUES (NEW.source_id, 'meter_sample',
                 CAST(NEW.event_id AS TEXT) || ':' || CAST(NEW.sample_index AS TEXT),
