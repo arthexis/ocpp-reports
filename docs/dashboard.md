@@ -342,3 +342,25 @@ fecha de fin y energía; omite ubicación, inicio, duración y SoC.
 El historial de cada cargador/conector mantiene **20 por página** y en
 móvil omite inicio y duración. La rutina SQL común acepta únicamente 10
 o 20; el valor predeterminado sigue siendo 20 para consultas antiguas.
+
+
+## Información contextual y StatusNotification (#245)
+
+La tabla expandida de eventos del cargador muestra **ID, Fecha, Información**.
+La información deriva únicamente de atributos OCPP previstos y depurados:
+estado y conector (y código estándar de error en fallas), ID numérico de sesión
+en eventos que lo contienen, o un texto descriptivo sin prometer resultados que
+el registro no trae. Nunca se exponen los JSON brutos, cadenas `info` de
+fabricantes, RFID, idTag ni datos de clientes. La agrupación sigue usando las
+fuentes de lectura originales y el aislamiento existente.
+
+Un evento `StatusNotification` sin `status/connector_id` puede agruparse
+con el reporte inmediatamente anterior en tiempo **solo** si fuente/cargador/
+acción/kind coinciden, el ID es consecutivo y la diferencia temporal
+verificable es de 0 a 2 segundos. Se conservan **ambos eventos** en detalle.
+La clave de los estados ordinarios permite comprimir repeticiones contiguas
+solo de idéntico estado/conector; los errores, eventos `Faulted` y reportes
+con campos complementarios mantienen clave única por ID del reporte.
+
+Los cuatro botones de energía siguen teniendo anchuras iguales. Su padding
+lateral se establece explícitamente en cero; el padding vertical no cambia.

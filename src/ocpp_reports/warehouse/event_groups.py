@@ -11,6 +11,8 @@ from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from .event_information import event_information
+
 
 def _day(value: object, zone: ZoneInfo) -> str | None:
     if not isinstance(value, str):
@@ -100,42 +102,65 @@ def _query(db: sqlite3.Connection, *, source_id: str | None, charger_id: str | N
             filters.append(day + " <= ?")
             filter_args.append(date_to)
     where = " WHERE " + " AND ".join(filters) if filters else ""
-    # A null grouping key makes every row a singleton. For routine status
-    # events include connector and state, and never collapse fault evidence.
-    grouping_key = """
-    CASE WHEN e.source_id IS NOT NULL
-           AND COALESCE(json_extract(e.payload,'$.charger_id'),'') != ''
-           AND json_extract(e.payload,'$.action')='Heartbeat'
-           AND json_extract(e.payload,'$.kind')='ocpp'
-         THEN json_array(e.source_id,json_extract(e.payload,'$.charger_id'),'Heartbeat')
-         WHEN e.source_id IS NOT NULL
-           AND COALESCE(json_extract(e.payload,'$.charger_id'),'') != ''
-           AND json_extract(e.payload,'$.action')='StatusNotification'
-           AND json_extract(e.payload,'$.kind')='status'
-           AND json_extract(e.payload,'$.status') IN
-             ('Available','Preparing','Charging','SuspendedEV','SuspendedEVSE','Finishing','Reserved')
-           AND COALESCE(json_extract(e.payload,'$.error_code'),'')=''
-           AND COALESCE(json_extract(e.payload,'$.info'),'')=''
-           AND json_extract(e.payload,'$.connector_id') IS NOT NULL
-         THEN json_array(e.source_id,json_extract(e.payload,'$.charger_id'),'StatusNotification',
-                         json_extract(e.payload,'$.connector_id'),json_extract(e.payload,'$.status'))
-         ELSE NULL END
+    # A status-less projection may follow an actual StatusNotification by one
+    # event ID within milliseconds. Pair ONLY that direct echo with its actual
+    # status event, preserving both IDs and each distinct/fault observation.
+    routine = "'Available','Preparing','Charging','SuspendedEV','SuspendedEVSE','Finishing','Reserved'"
+    status_key = """
+      CASE WHEN e.source_id IS NOT NULL AND COALESCE(e.charger_id,'')!=''
+                AND e.action='StatusNotification' AND e.kind='status'
+                AND e.status IS NOT NULL AND e.connector_id IS NOT NULL
+           THEN json_array(e.source_id,e.charger_id,'StatusNotification',
+                           e.connector_id,e.status,
+                           CASE WHEN e.status IN (""" + routine + """)
+                                AND COALESCE(e.error_code,'')=''
+                                AND COALESCE(e.info,'')=''
+                                THEN 'routine' ELSE e.event_id END)
+           ELSE NULL END
     """
+    ordering = "(event_time IS NULL),event_time DESC,source_id DESC,event_id DESC"
+    next_fields = ("source_id", "charger_id", "action", "kind", "event_id",
+                   "event_time", "status_key")
+    next_sql = ",".join(
+        f"LEAD({field}) OVER (ORDER BY {ordering}) AS next_{field}"
+        for field in next_fields
+    )
     cte = (
         "WITH raw AS (" + joined + "),"
-        " eligible AS (SELECT e.source_id,e.event_id,e.payload," + loc + " AS location,"
+        " eligible_base AS (SELECT e.source_id,e.event_id,e.payload," + loc + " AS location,"
         " json_extract(e.payload,'$.charger_id') AS charger_id,"
         " json_extract(e.payload,'$.action') AS action,"
-        " json_extract(e.payload,'$.at') AS at," + grouping_key + " AS grouping_key"
+        " json_extract(e.payload,'$.kind') AS kind,"
+        " json_extract(e.payload,'$.status') AS status,"
+        " json_extract(e.payload,'$.connector_id') AS connector_id,"
+        " json_extract(e.payload,'$.error_code') AS error_code,"
+        " json_extract(e.payload,'$.info') AS info,"
+        " json_extract(e.payload,'$.transaction_id') AS transaction_id,"
+        " json_extract(e.payload,'$.at') AS at,"
+        " julianday(json_extract(e.payload,'$.at')) AS event_time"
         " FROM raw e" + loc_join + where + "),"
-        " timed AS (SELECT *,julianday(at) AS event_time FROM eligible),"
-        " compared AS (SELECT *,LAG(grouping_key) OVER "
-        " (ORDER BY (event_time IS NULL),event_time DESC,source_id DESC,event_id DESC)"
-        " AS previous_key FROM timed),"
-        " numbered AS (SELECT *,SUM(CASE WHEN grouping_key IS NOT NULL "
+        " keyed AS (SELECT e.*," + status_key + " AS status_key FROM eligible_base e),"
+        " neighbors AS (SELECT *, " + next_sql + " FROM keyed),"
+        " eligible AS (SELECT *, CASE"
+        " WHEN action='Heartbeat' AND kind='ocpp'"
+        "  AND source_id IS NOT NULL AND COALESCE(charger_id,'')!=''"
+        "  THEN json_array(source_id,charger_id,'Heartbeat')"
+        " WHEN status_key IS NOT NULL THEN status_key"
+        " WHEN action='StatusNotification' AND kind='status'"
+        "  AND status IS NULL AND connector_id IS NULL"
+        "  AND COALESCE(error_code,'')='' AND COALESCE(info,'')=''"
+        "  AND next_source_id=source_id AND next_charger_id=charger_id"
+        "  AND next_action=action AND next_kind=kind"
+        "  AND next_event_id=event_id-1 AND next_status_key IS NOT NULL"
+        "  AND (event_time-next_event_time)*86400 BETWEEN 0 AND 2"
+        "  THEN next_status_key"
+        " ELSE NULL END AS grouping_key FROM neighbors),"
+        " compared AS (SELECT *,LAG(grouping_key) OVER"
+        " (ORDER BY " + ordering + ") AS previous_key FROM eligible),"
+        " numbered AS (SELECT *,SUM(CASE WHEN grouping_key IS NOT NULL"
         " AND grouping_key=previous_key THEN 0 ELSE 1 END)"
-        " OVER (ORDER BY (event_time IS NULL),event_time DESC,source_id DESC,event_id DESC"
-        " ROWS UNBOUNDED PRECEDING) AS group_number FROM compared) "
+        " OVER (ORDER BY " + ordering + " ROWS UNBOUNDED PRECEDING)"
+        " AS group_number FROM compared) "
     )
     return cte, [*parameters, *filter_args]
 
@@ -165,12 +190,26 @@ def event_groups_page(
             ", ranked AS (SELECT *,COUNT(*) OVER (PARTITION BY group_number) AS event_count,"
             " ROW_NUMBER() OVER (PARTITION BY group_number"
             " ORDER BY (event_time IS NULL),event_time DESC,source_id DESC,event_id DESC)"
-            " AS group_rank FROM numbered)"
+            " AS group_rank,"
+            " MAX(status) OVER (PARTITION BY group_number) AS status_for_info,"
+            " MAX(connector_id) OVER (PARTITION BY group_number) AS connector_for_info,"
+            " MAX(error_code) OVER (PARTITION BY group_number) AS error_for_info,"
+            " MAX(transaction_id) OVER (PARTITION BY group_number) AS tx_for_info"
+            " FROM numbered)"
             " SELECT source_id,charger_id,location,action,at,event_count,"
-            " event_id AS first_event_id FROM ranked WHERE group_rank=1"
+            " event_id AS first_event_id,status_for_info,connector_for_info,"
+            " error_for_info,tx_for_info,kind FROM ranked WHERE group_rank=1"
             " ORDER BY group_number ASC LIMIT ? OFFSET ?"
         )
         rows = [dict(r) for r in db.execute(sql, [*args, page_size + 1, (page - 1) * page_size])]
+    for row in rows:
+        row["information"] = event_information({
+            "action": row["action"], "kind": row.pop("kind"),
+            "status": row.pop("status_for_info"),
+            "connector_id": row.pop("connector_for_info"),
+            "error_code": row.pop("error_for_info"),
+            "transaction_id": row.pop("tx_for_info"),
+        })
     return {"groups": rows[:page_size], "page": page, "has_next": len(rows) > page_size}
 
 
@@ -221,6 +260,7 @@ def event_group_details(
             "source_id": row["source_id"], "location": row["location"],
             "id": payload.get("id"), "charger_id": payload.get("charger_id"),
             "action": payload.get("action"), "at": payload.get("at"),
+            "information": event_information(payload),
         })
     return {"events": events, "has_next": len(rows) > limit}
 
