@@ -12,7 +12,7 @@ def test_dashboard_polls_data_in_place_without_meta_refresh(monkeypatch, tmp_pat
     assert page.status_code == 200
     html = page.text
     assert 'http-equiv="refresh"' not in html
-    assert 'id="live-event-groups"' in html
+    assert 'id="live-event-groups"' not in html
     assert 'window.setInterval(refreshDashboard, 15000)' in html
     assert 'cache: "no-store"' in html
     assert 'window.location.pathname + window.location.search' in html
@@ -24,9 +24,9 @@ def test_dashboard_polls_data_in_place_without_meta_refresh(monkeypatch, tmp_pat
         '".sync-panel tbody"',
     ):
         assert selector in html
-    assert 'eventRegion.querySelector("details[open]")' in html
+    assert 'eventRegion.querySelector("details[open]")' not in html
     assert 'current.contains(document.activeElement)' in html
-    assert 'setupEventGroups(eventRegion)' in html
+    assert 'setupEventGroups(eventRegion)' not in html
     # Filter buttons retain their original listeners and selected state.
     assert 'button.textContent = next.textContent' in html
     assert '".transaction-filters",' not in html
