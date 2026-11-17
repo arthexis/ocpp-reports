@@ -85,9 +85,10 @@ def test_source_security_and_filter_scope(tmp_path):
     assert "event-groups;dur=" not in home.headers["server-timing"]
     html = client.get("/chargers/a/cp-1")
     assert html.status_code == 200
-    assert "× 69" in html.text
+    assert 'class="events-table"' in html.text
+    assert "<td>69</td>" in html.text
     assert 'data-first-id="194"' in html.text
-    assert "Abre el grupo" in html.text
+    assert "Ver eventos del grupo" in html.text
     assert "Ver 50 más" in html.text
     assert client.get("/chargers/b/cp-b").status_code == 404
     assert client.get("/chargers/a/nonexistent").status_code == 404

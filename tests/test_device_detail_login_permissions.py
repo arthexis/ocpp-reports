@@ -75,7 +75,8 @@ def test_auth_sessions_allow_device_pages_without_widening_event_access(tmp_path
         charger = admin.get("/chargers/a/same")
         assert charger.status_code == 200
         assert "Eventos recientes de same" in charger.text
-        assert "Cursor del origen" in charger.text
+        assert "Último Heartbeat" in charger.text
+        assert "Sincronización" not in charger.text
         event = admin.get("/api/event-group", params={
             "group_source": "a", "source_id": "a",
             "charger_id": "same", "first_event_id": 1,
