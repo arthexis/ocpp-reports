@@ -12,6 +12,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .history_enrichment import verified_overlay
+
 
 def _when(value):
     if not isinstance(value, str):
@@ -68,20 +70,33 @@ def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit:
         if bounds and (type(bounds[0]) is int and type(bounds[1]) is int
                        and bounds[0] >= 0 and bounds[1] > bounds[0]):
             sample_source = "local-energy-samples"
+            overlay = ("LEFT JOIN sample_enrichments x ON "
+                       "x.source_id=e.source_id AND x.event_id=e.event_id "
+                       "AND x.sample_index=e.sample_index "
+                       if "sample_enrichments" in tables else "")
+            enrichment = "x.payload" if overlay else "NULL"
             rows = db.execute(
-                "SELECT event_id,sample_index,payload FROM energy_samples "
-                "WHERE source_id=? AND event_id>? AND event_id<=? "
-                "ORDER BY event_id DESC,sample_index DESC LIMIT ?",
+                f"SELECT e.event_id,e.sample_index,e.payload,{enrichment} "
+                f"FROM energy_samples e {overlay}"
+                "WHERE e.source_id=? AND e.event_id>? AND e.event_id<=? "
+                "ORDER BY e.event_id DESC,e.sample_index DESC LIMIT ?",
                 (source, bounds[0], bounds[1], scan_limit + 1),
             ).fetchall()
         elif "collector_meter_samples" in tables:
             # Only verified per-session immutable samples. No scanning a remote
             # source or fabricating a time series from collector_latest.
             sample_source = "replicated-meter-samples"
+            overlay = ("LEFT JOIN collector_meter_enrichments x ON "
+                       "x.source_id=e.source_id AND x.event_id=e.event_id "
+                       "AND x.sample_index=e.sample_index "
+                       if "collector_meter_enrichments" in tables else "")
+            enrichment = "x.payload" if overlay else "NULL"
             rows = db.execute(
-                "SELECT event_id,sample_index,payload FROM collector_meter_samples "
-                "WHERE source_id=? AND charger_id=? AND connector_id=? AND transaction_id=? "
-                "ORDER BY event_id DESC,sample_index DESC LIMIT ?",
+                f"SELECT e.event_id,e.sample_index,e.payload,{enrichment} "
+                f"FROM collector_meter_samples e {overlay}"
+                "WHERE e.source_id=? AND e.charger_id=? AND e.connector_id=? "
+                "AND e.transaction_id=? "
+                "ORDER BY e.event_id DESC,e.sample_index DESC LIMIT ?",
                 (source, charger, connector, tx_id, scan_limit + 1),
             ).fetchall()
         else:
@@ -92,9 +107,13 @@ def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit:
     samples = {}
     # Preserve physical cursor order before time sorting or point selection.
     # A rejected/corrupt sample occupies a slot, so gaps cannot be joined.
-    for source_order, (event_id, sample_index, payload) in enumerate(reversed(rows[:scan_limit])):
+    for source_order, (event_id, sample_index, payload, enrichment) in enumerate(reversed(rows[:scan_limit])):
         try:
             item = json.loads(payload)
+            if enrichment is not None:
+                verified = verified_overlay(item, payload, json.loads(enrichment))
+                if verified is not None:
+                    item = verified
         except (ValueError, TypeError):
             continue
         if not isinstance(item, dict) or (
