@@ -33,3 +33,20 @@ def test_mobile_filter_profile_share_row_and_connector_cards_use_two_columns(das
     assert 'data-label="Estado informado"' not in source
     assert "c.status_observed_at|display_date(timezone)" in source
     assert "no la hora de recepción del snapshot" in source
+
+
+def test_mobile_power_qualifier_stays_inline_and_values_outweigh_labels(dashboard_source):
+    source = dashboard_source
+    css = source.split("<style>", 1)[1].split("</style>", 1)[0]
+    mobile = css.split("/* Mobile header and connector cards:", 1)[1].split("\n}", 1)[0]
+    assert "overflow-wrap:anywhere;font-size:.98rem" in mobile
+    assert ".connectors-panel td::before{flex:0 0 auto;width:100%;font-size:.82rem}" in mobile
+    assert '.connectors-panel td[data-label="Potencia"] .connector-power{display:inline-flex;' in mobile
+    assert "white-space:nowrap" in mobile
+    assert '.connectors-panel td[data-label="Potencia"] .connector-power .note{font-size:.72rem}' in mobile
+    cell = source.split('<td data-label="Potencia" class="numeric">', 1)[1].split("</td>", 1)[0]
+    assert cell.startswith('<span class="connector-power">')
+    assert cell.endswith("</span>")
+    assert ">nominal</span>" in cell
+    assert ">medida</span>" in cell
+    assert "c.power_fresh" in cell and "c.rated_power_w" in cell
