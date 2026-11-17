@@ -298,9 +298,10 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
     ZoneInfo(zone)
     if allowed_source_ids is not None and source_id not in allowed_source_ids:
         return {"groups": [], "page": page, "has_next": False}
-    groups = []
+    selected = []
     previous_key, group = None, None
-    wanted = page * page_size + 1
+    completed, has_next = 0, False
+    first, last = (page - 1) * page_size, page * page_size
     with sqlite3.connect(f"file:{Path(database).resolve()}?mode=ro", uri=True) as db:
         db.execute("PRAGMA query_only=ON")
         db.execute("BEGIN")
@@ -309,8 +310,11 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
             payload = row["payload"]
             if key is None or key != previous_key:
                 if group is not None:
-                    groups.append(group)
-                    if len(groups) >= wanted:
+                    completed += 1
+                    if first < completed <= last:
+                        selected.append(group)
+                    if completed > last:
+                        has_next = True
                         group = None
                         break
                 group = {
@@ -331,8 +335,9 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
                 group[field_name] = _sql_max(group[field_name], payload.get(field))
             previous_key = key
         if group is not None:
-            groups.append(group)
-    selected = groups[(page - 1) * page_size:page * page_size]
+            completed += 1
+            if first < completed <= last:
+                selected.append(group)
     for row in selected:
         row["information"] = event_information({
             "action": row["action"], "kind": row.pop("kind"),
@@ -341,7 +346,7 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
             "error_code": row.pop("error_for_info"),
             "transaction_id": row.pop("tx_for_info"),
         })
-    return {"groups": selected, "page": page, "has_next": len(groups) > page * page_size}
+    return {"groups": selected, "page": page, "has_next": has_next}
 
 
 def _scoped_group_details(database, *, source_id: str, charger_id: str,
