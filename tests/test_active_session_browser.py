@@ -339,7 +339,7 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                     "<= el.parentElement.getBoundingClientRect().right + 2"
                 )
                 charger_link = page.locator(".connectors-panel a.charger-session-link").first
-                assert charger_link.bounding_box()["height"] >= 44
+                assert charger_link.bounding_box()["height"] < 44  # no extra blank space
                 for identity in ("Cargador", "Conector"):
                     link = card.locator(f'td[data-label="{identity}"] a.charger-session-link')
                     assert link.count() == 1
@@ -347,14 +347,17 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                       const bounds = el.getBoundingClientRect();
                       const text = document.createRange();
                       text.selectNodeContents(el);
+                      const touch = getComputedStyle(el, "::after");
                       return {topGap: text.getBoundingClientRect().top - bounds.top,
-                              align: getComputedStyle(el).alignItems,
-                              targetHeight: bounds.height};
+                              textHeight: bounds.height, touchHeight: parseFloat(touch.height),
+                              touchBottom: touch.bottom,
+                              minHeight: getComputedStyle(el).minHeight};
                     }""")
-                    # Chromium normalizes logical flex-start to flow-start.
-                    assert alignment["align"] in ("flex-start", "flow-start")
                     assert alignment["topGap"] <= 4, (width, identity, alignment)
-                    assert alignment["targetHeight"] >= 44
+                    assert alignment["minHeight"] == "0px", (width, identity, alignment)
+                    assert alignment["touchHeight"] >= 44, (width, identity, alignment)
+                    assert alignment["textHeight"] <= 43, (width, identity, alignment)
+                    assert alignment["touchBottom"] == "0px"
                 assert card.locator('td[data-label="Conector"]').evaluate(
                     "(el) => parseFloat(getComputedStyle(el).fontSize)") >= 17
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")

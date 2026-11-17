@@ -250,7 +250,9 @@ def test_last_charger_receipt_is_not_source_ingest_or_last_heartbeat(tmp_path):
     assert "2026-11-17 18:00 UTC" not in page.text
     assert 'id="energy-30-days"' in page.text
     assert page.text.count('id="energy-chart"') == 1
-    assert 'data-days="7" role="list"' in page.text
+    assert 'data-days="7" data-view="total" role="list"' in page.text
+    assert 'data-energy-view="total" aria-pressed="true"' in page.text
+    assert 'data-energy-view="connectors" aria-pressed="false"' in page.text
     assert page.text.count('class="energy-bar"') == 30
     assert 'data-energy-days="7" aria-pressed="true"' in page.text
     assert 'data-energy-days="30" aria-pressed="false"' in page.text
@@ -320,6 +322,9 @@ def test_charger_energy_30_days_local_remote_dedup_and_timezone(tmp_path):
     assert data["sessions_count"] == 5
     assert data["total_kwh"] == 9.0
     assert data["last_7"] == {"total_kwh": 3.0, "sessions_count": 1}
+    assert data["connector_ids"] == [1, 2]
+    assert sum(c["kwh"] for bar in data["bars"] for c in bar["connectors"]) == data["total_kwh"]
+    assert data["bars"][-2]["connectors"][1]["kwh"] == 3.0
     assert sum(1 for bar in data["bars"] if bar["label_7"]) == 7
     assert data["bars"][-2]["height_pct_7"] == 100  # Nov 16: the only energy in last 7 days
     assert data["bars"][-1]["height_pct_7"] == 0
@@ -347,6 +352,7 @@ def test_charger_energy_30_days_empty_and_unparseable(tmp_path):
         allowed_source_ids=("a",), now=today)
     assert data["total_kwh"] == 0 and data["sessions_count"] == 0
     assert data["last_7"] == {"total_kwh": 0.0, "sessions_count": 0}
+    assert data["connector_ids"] == []
     assert all(item["height"] == 0 for item in data["bars"])
     assert all(item["height_pct_7"] == 0 and item["height_pct_30"] == 0
                for item in data["bars"])
@@ -381,7 +387,12 @@ def test_charger_energy_buttons_are_single_chart_and_mobile_fields_removed(tmp_p
     assert body.count('class="energy-bar"') == 30
     assert 'data-energy-days="7" aria-pressed="true"' in body
     assert 'data-energy-days="30" aria-pressed="false"' in body
-    assert 'data-days="7" role="list"' in body
+    assert 'data-energy-view="total" aria-pressed="true"' in body
+    assert 'data-energy-view="connectors" aria-pressed="false"' in body
+    assert 'data-days="7" data-view="total" role="list"' in body
+    assert "<h2 id=\"energy-30-title\">Energía</h2>" in body
+    assert 'id="energy-help" hidden' in body
+    assert body.count('id="energy-legend"') == 1
     assert 'data-total-7=' in body and 'data-total-30=' in body
     assert 'overflow-x:auto' not in body.split(".energy-days{")[1].split(".energy-day{")[0]
     assert "min-width:850px" not in body
@@ -430,3 +441,54 @@ def test_charger_energy_recent_window_scales_independently(tmp_path):
     assert max(item["height_pct_7"] for item in last) == 100
     assert all(item["height_pct_7"] == 0 for item in data["bars"][:-7])
     assert max(item["height_pct_30"] for item in data["bars"]) == 100
+
+
+
+def test_charger_energy_split_by_physical_connector_exactly_matches_total(tmp_path):
+    """C0 must never double-count C1 + C2; duplicates and bad sessions excluded."""
+    from datetime import datetime, timezone
+    from ocpp_reports.warehouse.charger_energy import charger_energy_30_days
+    path = tmp_path / "split.sqlite"
+    seed(path)
+    now = datetime(2026, 11, 17, 18, tzinfo=timezone.utc)
+    with sqlite3.connect(path) as db:
+        for tid, connector, wh, stopped, active in (
+            (701, 1, 2000, "2026-11-17T10:00:00Z", False),
+            (702, 2, 4500, "2026-11-17T10:00:00Z", False),
+            (703, 0, 6500, "2026-11-17T10:00:00Z", False),
+            (704, 2, 2500, "2026-11-10T03:00:00Z", False),
+            (705, 2, 9000, "2026-11-17T10:00:00Z", True),
+            (706, 2, -999, "2026-11-17T10:00:00Z", False),
+        ):
+            db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)", (
+                "a", "transaction", f"same:{tid}", tid,
+                json.dumps({"id": tid, "charger_id": "same",
+                            "connector_id": connector, "energy_wh": wh,
+                            "stopped_at": stopped, "active": active})))
+        # This remote projection duplicates a local transaction and must lose.
+        db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)", (
+            "a", "transaction", "same:11", 90,
+            json.dumps({"id": 11, "charger_id": "same", "connector_id": 2,
+                        "energy_wh": 900000, "active": False,
+                        "stopped_at": "2026-11-17T10:00:00Z"})))
+    data = charger_energy_30_days(
+        path, source_id="a", charger_id="same", allowed_source_ids=("a",),
+        zone="America/Monterrey", now=now, physical_connector_ids=(0, 1, 2))
+    assert data["connector_ids"] == [1, 2]
+    assert data["total_kwh"] == 15.0  # local 4x1.5 + 2 + 4.5 + 2.5
+    assert data["last_7"] == {"total_kwh": 6.5, "sessions_count": 2}
+    assert sum(c["kwh"] for day in data["bars"] for c in day["connectors"]) == 15.0
+    day17 = next(item for item in data["bars"] if item["day"] == "2026-11-17")
+    assert [c["kwh"] for c in day17["connectors"]] == [2.0, 4.5]
+    assert day17["kwh"] == 6.5
+    assert max(c["height_pct_7"] for day in data["bars"][-7:]
+               for c in day["connectors"]) == 100
+    assert "C1: 2.00 kWh" in day17["connector_description"]
+    assert "C2: 4.50 kWh" in day17["connector_description"]
+    assert all(c["id"] > 0 for bar in data["bars"] for c in bar["connectors"])
+    other = charger_energy_30_days(
+        path, source_id="a", charger_id="same", allowed_source_ids=("a",),
+        now=now, physical_connector_ids=(0, 1, 2, 3))
+    assert other["connector_ids"] == [1, 2, 3]
+    assert all(c["kwh"] == 0 for bar in other["bars"]
+               for c in bar["connectors"] if c["id"] == 3)
