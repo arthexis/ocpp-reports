@@ -660,6 +660,15 @@ def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
                 assert all(energy_button_boxes), (width, energy_button_boxes)
                 assert max(b["width"] for b in energy_button_boxes) - min(
                     b["width"] for b in energy_button_boxes) <= 1.5, (width, energy_button_boxes)
+                if 390 <= width <= 520:
+                    # The group should not stretch over all remaining row space:
+                    # narrower buttons, not merely narrower gaps.
+                    assert max(b["width"] for b in energy_button_boxes) <= 66, (
+                        width, energy_button_boxes)
+                    for button in energy_buttons:
+                        assert button.evaluate(
+                            "(el) => el.scrollWidth <= el.clientWidth + 1"
+                        ), (width, button.inner_text())
                 if mobile:
                     for left, right in zip(energy_button_boxes, energy_button_boxes[1:]):
                         gap = right["x"] - (left["x"] + left["width"])
