@@ -338,6 +338,7 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
             completed += 1
             if first < completed <= last:
                 selected.append(group)
+            has_next = has_next or completed > last
     for row in selected:
         row["information"] = event_information({
             "action": row["action"], "kind": row.pop("kind"),
