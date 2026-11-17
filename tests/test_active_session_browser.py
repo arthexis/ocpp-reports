@@ -384,10 +384,13 @@ def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
                     assert page.get_by_role("button", name="Todas (4)").is_visible()
                     page.get_by_role("link", name="Ver detalles de transacción 6").click()
                     assert page.locator("main").get_attribute("data-active") == "false"
-                    assert page.locator(".timeline-plot svg").count() == 3
+                    assert page.locator(".timeline-plot svg").count() == 1
                     assert page.locator(".timeline-evidence tbody tr").count() == 2
-                    assert all(page.locator(".timeline-plot svg").nth(i).is_visible()
-                               for i in range(3))
+                    assert page.locator(".timeline-plot svg").first.is_visible()
+                    assert page.locator(".timeline-plot circle title").all_text_contents() == [
+                        "Energía de sesión: 0.200 kWh · SoC: 31.0%",
+                        "Energía de sesión: 1.300 kWh · SoC: 45.0%",
+                    ]
                     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
                     assert "tx_view=all" in page.locator(".back-link").get_attribute("href")
                     page.locator(".back-link").click()
@@ -395,7 +398,7 @@ def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
                     page.get_by_role("link", name="Ver detalles de transacción 7").click()
                     assert page.locator("main").get_attribute("data-active") == "true"
                     assert page.locator(".timeline-evidence tbody tr").count() in (2, 3)
-                    assert page.locator(".timeline-plot svg").count() == 3
+                    assert page.locator(".timeline-plot svg").count() == 1
                     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
                     # Required visual empty-state and single-point contracts.
                     page.goto("http://reports.test/transactions/a/cp/8?tz=UTC")
@@ -403,7 +406,7 @@ def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
                     assert page.locator(".timeline-plot svg").count() == 0
                     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
                     page.goto("http://reports.test/transactions/a/cp/9?tz=UTC")
-                    assert page.locator(".timeline-plot svg").count() == 3
+                    assert page.locator(".timeline-plot svg").count() == 1
                     assert page.locator(".timeline-evidence tbody tr").count() == 1
                     assert page.locator(".timeline-segment").count() == 0
                     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
@@ -429,6 +432,8 @@ def test_215_measured_timeline_browser_viewports_and_refresh(tmp_path):
                         page.clock.fast_forward(15_200)
                         page.wait_for_function(
                             "document.querySelectorAll('.timeline-evidence tbody tr').length === 3")
+                        assert any("Energía de sesión: 1.500 kWh · SoC: 67.0%" in title
+                                   for title in page.locator(".timeline-plot circle title").all_text_contents())
                         assert page.evaluate("document.activeElement.classList.contains('back-link')")
                         assert abs(page.evaluate("window.scrollY") - before) <= 3
                         _shot(page, "215-timeline-refresh-390.png")
@@ -472,8 +477,8 @@ def test_215_decimation_never_draws_false_bridge_chromium(tmp_path):
             page.goto("http://reports.test/transactions/a/cp/50?tz=UTC",
                       wait_until="load")
             assert page.locator(".timeline-evidence tbody tr").count() == 120
-            assert page.locator(".timeline-plot svg").count() == 2
-            # Each chart omits the 15 artificial long jumps from decimation.
+            assert page.locator(".timeline-plot svg").count() == 1
+            # The sole energy plot omits artificial long jumps from decimation.
             for plot in page.locator(".timeline-plot").all():
                 dots = plot.locator("circle").count()
                 strokes = plot.locator(".timeline-segment").count()
