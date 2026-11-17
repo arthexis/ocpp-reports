@@ -340,6 +340,22 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                 )
                 charger_link = page.locator(".connectors-panel a.charger-session-link").first
                 assert charger_link.bounding_box()["height"] >= 44
+                for identity in ("Cargador", "Conector"):
+                    link = card.locator(f'td[data-label="{identity}"] a.charger-session-link')
+                    assert link.count() == 1
+                    alignment = link.evaluate("""(el) => {
+                      const bounds = el.getBoundingClientRect();
+                      const text = document.createRange();
+                      text.selectNodeContents(el);
+                      return {topGap: text.getBoundingClientRect().top - bounds.top,
+                              align: getComputedStyle(el).alignItems,
+                              targetHeight: bounds.height};
+                    }""")
+                    assert alignment["align"] == "flex-start"
+                    assert alignment["topGap"] <= 4, (width, identity, alignment)
+                    assert alignment["targetHeight"] >= 44
+                assert card.locator('td[data-label="Conector"]').evaluate(
+                    "(el) => parseFloat(getComputedStyle(el).fontSize)") >= 17
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
                 page.locator(".profile-menu summary").click()
                 assert page.locator(".profile-popover .profile-name").inner_text() == "fixture-user"

@@ -216,3 +216,136 @@ def test_charger_without_heartbeat_shows_missing_date_and_no_sync_panel(tmp_path
     assert connector.status_code == 200
     assert 'id="synchronization"' not in connector.text
     assert 'id="events"' not in connector.text
+
+
+
+def test_last_charger_receipt_is_not_source_ingest_or_last_heartbeat(tmp_path):
+    from ocpp_reports.warehouse.event_groups import (
+        latest_charger_receipt_at, latest_heartbeat_at)
+    path = tmp_path / "receipts.sqlite"
+    seed(path)
+    with sqlite3.connect(path) as db:
+        db.execute("UPDATE sources SET last_ingested_at=? WHERE source_id='a'",
+                   ("2026-11-17T18:00:00Z",))
+        for source, event_id, charger, action, at in (
+            ("a", 3, "same", "Heartbeat", "2026-11-15T10:00:00Z"),
+            ("a", 4, "same", "StatusNotification", "2026-11-16T10:00:00Z"),
+            ("a", 5, "other", "StatusNotification", "2026-11-17T15:00:00Z"),
+            ("b", 3, "same", "Heartbeat", "2026-11-17T19:00:00Z"),
+        ):
+            db.execute("INSERT INTO events VALUES (?,?,?)", (
+                source, event_id, json.dumps({"id": event_id, "charger_id": charger,
+                    "kind": "ocpp", "action": action, "at": at})))
+    assert latest_heartbeat_at(path, source_id="a", charger_id="same",
+                               allowed_source_ids=("a",)) == "2026-11-15T10:00:00Z"
+    assert latest_charger_receipt_at(path, source_id="a", charger_id="same",
+                                     allowed_source_ids=("a",)) == "2026-11-16T10:00:00Z"
+    assert latest_charger_receipt_at(path, source_id="b", charger_id="same",
+                                     allowed_source_ids=("a",)) is None
+    page = TestClient(create_app(path, allowed_source_ids=("a",))).get(
+        "/chargers/a/same?tz=UTC")
+    assert page.status_code == 200
+    assert '<span class="note">Último Heartbeat</span><strong>2026-11-15 10:00 UTC</strong>' in page.text
+    assert "Último recibo</span><strong>2026-11-16 10:00 UTC</strong>" in page.text
+    assert "2026-11-17 18:00 UTC" not in page.text
+    assert 'id="energy-30-days"' in page.text
+    assert '<svg class="energy-chart"' in page.text
+    assert page.text.count('class="energy-bar"') == 30
+    connector = TestClient(create_app(path, allowed_source_ids=("a",))).get(
+        "/connectors/a/same/1")
+    assert connector.status_code == 200 and 'id="energy-30-days"' not in connector.text
+
+
+def test_last_charger_receipt_remote_projection_and_empty(tmp_path):
+    from ocpp_reports.warehouse.event_groups import latest_charger_receipt_at
+    path = tmp_path / "remote.sqlite"
+    seed(path)
+    with sqlite3.connect(path) as db:
+        for src, record, event_id, charger, at in (
+            ("a", "same:99", 99, "same", "2026-11-17T07:45:00Z"),
+            ("a", "other:100", 100, "other", "2026-11-17T10:45:00Z"),
+            ("b", "same:101", 101, "same", "2026-11-17T11:45:00Z"),
+        ):
+            db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                       (src, "event", record, event_id, json.dumps({
+                           "id": event_id, "charger_id": charger, "kind": "ocpp",
+                           "action": "StatusNotification", "at": at})))
+    assert latest_charger_receipt_at(path, source_id="a", charger_id="same",
+                                     allowed_source_ids=("a",)) == "2026-11-17T07:45:00Z"
+    assert latest_charger_receipt_at(path, source_id="a", charger_id="missing",
+                                     allowed_source_ids=("a",)) is None
+
+
+def test_charger_energy_30_days_local_remote_dedup_and_timezone(tmp_path):
+    from datetime import datetime, timezone
+    from ocpp_reports.warehouse.charger_energy import charger_energy_30_days
+    path = tmp_path / "energy.sqlite"
+    seed(path)
+    now = datetime(2026, 11, 17, 18, tzinfo=timezone.utc)
+    with sqlite3.connect(path) as db:
+        # Same local transaction is also replicated: it must count only once.
+        for source, kind, key, seq, tx in (
+            ("a", "transaction", "same:11", 3,
+             dict(id=11, charger_id="same", connector_id=1, active=False,
+                  energy_wh=9999999, stopped_at="2026-11-17T14:00:00Z")),
+            ("a", "transaction", "same:77", 4,
+             dict(id=77, charger_id="same", connector_id=2, active=False,
+                  energy_wh=3000, stopped_at="2026-11-17T05:30:00Z")),
+            ("a", "transaction", "same:78", 5,
+             dict(id=78, charger_id="same", connector_id=0, active=False,
+                  energy_wh=70000, stopped_at="2026-11-17T16:00:00Z")),
+            ("a", "transaction", "same:79", 6,
+             dict(id=79, charger_id="same", connector_id=1, active=True,
+                  energy_wh=9000, stopped_at="2026-11-17T16:00:00Z")),
+            ("a", "transaction", "same:80", 7,
+             dict(id=80, charger_id="same", connector_id=1, active=False,
+                  energy_wh=-1000, stopped_at="2026-11-17T16:00:00Z")),
+            ("a", "transaction", "other:81", 8,
+             dict(id=81, charger_id="other", connector_id=1, active=False,
+                  energy_wh=4000, stopped_at="2026-11-17T16:00:00Z")),
+            ("b", "transaction", "same:82", 9,
+             dict(id=82, charger_id="same", connector_id=1, active=False,
+                  energy_wh=7000, stopped_at="2026-11-17T16:00:00Z")),
+        ):
+            db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                       (source, kind, key, seq, json.dumps(tx)))
+    data = charger_energy_30_days(
+        path, source_id="a", charger_id="same",
+        allowed_source_ids=("a",), zone="America/Monterrey", now=now)
+    assert len(data["bars"]) == 30
+    assert data["date_from"] == "2026-10-19" and data["date_to"] == "2026-11-17"
+    assert data["sessions_count"] == 5
+    assert data["total_kwh"] == 9.0
+    days = {item["day"]: item for item in data["bars"]}
+    assert days["2026-11-16"]["kwh"] == 3.0  # UTC 05:30 = prior local day
+    assert days["2026-11-10"]["kwh"] == 6.0
+    assert days["2026-11-17"]["kwh"] == 0
+    assert days["2026-11-16"]["sessions"] == 1
+    assert all(item["height"] >= 0 for item in data["bars"])
+    import pytest
+    with pytest.raises(ValueError, match="authorized"):
+        charger_energy_30_days(path, source_id="b", charger_id="same",
+                               allowed_source_ids=("a",), now=now)
+
+
+def test_charger_energy_30_days_empty_and_unparseable(tmp_path):
+    from datetime import datetime, timezone
+    from ocpp_reports.warehouse.charger_energy import charger_energy_30_days
+    path = tmp_path / "empty.sqlite"
+    seed(path)
+    today = datetime(2026, 12, 20, 12, tzinfo=timezone.utc)
+    data = charger_energy_30_days(
+        path, source_id="a", charger_id="same",
+        allowed_source_ids=("a",), now=today)
+    assert data["total_kwh"] == 0 and data["sessions_count"] == 0
+    assert all(item["height"] == 0 for item in data["bars"])
+    # No false bars from a missing/broken final timestamp.
+    with sqlite3.connect(path) as db:
+        db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                   ("a", "transaction", "same:99", 99, json.dumps({
+                       "id": 99, "charger_id": "same", "connector_id": 1,
+                       "active": False, "energy_wh": 999,
+                       "stopped_at": "not-a-date"})))
+    assert charger_energy_30_days(
+        path, source_id="a", charger_id="same",
+        allowed_source_ids=("a",), now=today)["sessions_count"] == 0
