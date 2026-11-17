@@ -242,6 +242,17 @@ header{align-items:start;gap:.65rem}
   .transactions-panel th:nth-child(8),.transactions-panel tbody td:nth-child(8),
   .transactions-panel th:nth-child(9),.transactions-panel tbody td:nth-child(9){display:none}
 }
+/* The main dashboard is a summary on phones. Keep the identity/detail link,
+   status, end time and energy; hide secondary history/SoC columns only here. */
+@media(max-width:520px){
+  .transactions-panel th:nth-child(1),.transactions-panel tbody td:nth-child(1),
+  .transactions-panel th:nth-child(5),.transactions-panel tbody td:nth-child(5),
+  .transactions-panel th:nth-child(7),.transactions-panel tbody td:nth-child(7),
+  .transactions-panel th:nth-child(8),.transactions-panel tbody td:nth-child(8),
+  .transactions-panel th:nth-child(9),.transactions-panel tbody td:nth-child(9){display:none}
+  .transactions-panel th,.transactions-panel td{padding:.5rem .3rem}
+  .transactions-panel tbody td:nth-child(2){white-space:normal;overflow-wrap:anywhere}
+}
 /* Power is useful at tablet widths with room for its nominal/measured qualifier. */
 @media(min-width:760px) and (max-width:1100px){
   .connectors-panel th:nth-child(6),.connectors-panel td:nth-child(6){display:table-cell}
@@ -314,7 +325,7 @@ header{align-items:start;gap:.65rem}
 <td class="numeric">{{ (t.soc_end|string ~ '%') if t.soc_end is defined and t.soc_end is not none else '—' }}</td>
 <td class="numeric">{% if t.energy_wh is defined and t.energy_wh is not none %}{{ "%.2f"|format(t.energy_wh / 1000) }} kWh (final){% elif t.live_energy_wh is defined and t.live_energy_wh is not none and t.active %}{{ "%.2f"|format(t.live_energy_wh / 1000) }} kWh <span class="{{ 'stale' if t.live_energy_stale else 'muted' }}">(estimada{% if t.live_energy_stale %}, antigua{% else %}, en vivo{% endif %})</span><div class="note muted">Medición: {{ t.live_energy_observed_at|display_date(timezone) if t.live_energy_observed_at else "Sin fecha" }}</div>{% elif t.active %}Final pendiente · estimación no disponible{% else %}—{% endif %}</td></tr>
 {% else %}<tr><td class="empty" colspan="10">Sin transacciones</td></tr>{% endfor %}</tbody></table></div><nav class="transaction-pagination" aria-label="Páginas de transacciones">
-<span class="muted note">Mostrando {{ ((tx_page - 1) * 20 + 1) if tx_total else 0 }}–{{ [tx_page * 20, tx_total]|min }} de {{ tx_total }} transacciones recientes</span>
+<span class="muted note">Mostrando {{ ((tx_page - 1) * 10 + 1) if tx_total else 0 }}–{{ [tx_page * 10, tx_total]|min }} de {{ tx_total }} transacciones recientes</span>
 <div class="transaction-pages">
 {% if tx_page > 1 %}<a rel="prev" href="{{ request.url.include_query_params(tx_page=tx_page-1) }}#transactions" aria-label="Página anterior">Anterior</a>{% else %}<span class="page-disabled" aria-disabled="true">Anterior</span>{% endif %}
 {% set first_page = [1, tx_page - 3]|max %}

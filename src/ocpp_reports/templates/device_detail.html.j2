@@ -30,10 +30,14 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .status--warn{background:#fff3d9;color:#906000}.status--warn::before{background:#dfa000}
 .status--off{background:#f7e8e8;color:#984545}.status--off::before{background:#c55b5b}
 .event-group{border:0;margin:0;padding:0}
-.event-group summary{cursor:pointer;min-height:36px;padding:.2rem 0;color:var(--accent);font-weight:600;overflow-wrap:anywhere}
+.event-group summary{cursor:pointer;padding:.05rem 0;color:var(--accent);font-weight:600;overflow-wrap:anywhere}
+.event-group summary:hover{text-decoration:underline;text-underline-offset:2px}
 .event-detail{margin:.45rem 0}.event-expand-row td{padding:.05rem .65rem .5rem}
+.event-expand-row[hidden]{display:none}
 .events-table td{white-space:normal}.events-table th,.events-table td{vertical-align:top}
-.events-table .scroll{overflow-x:auto}.events-table .event-summary-row td{padding-bottom:.1rem}
+.events-table .event-summary-row td{padding-top:.55rem;padding-bottom:.55rem}
+.events-table .event-action{overflow-wrap:anywhere}
+.events-table .event-detail .scroll{overflow-x:auto;max-width:100%}
 .energy-overview{margin:0 0 .7rem}.energy-overview strong{font-size:1.4rem;font-variant-numeric:tabular-nums}
 .energy-heading{display:flex;justify-content:space-between;align-items:center;gap:.35rem .65rem;flex-wrap:wrap;margin-bottom:.55rem}
 .energy-heading h2{margin:0}
@@ -42,16 +46,15 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .energy-help-trigger:hover{color:var(--accent)}
 .energy-help[hidden],.energy-legend[hidden]{display:none}
 .energy-help{padding:.65rem .8rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:.83rem;margin:0 0 .7rem}
-.energy-controls{display:flex;align-items:center;justify-content:flex-end;gap:.35rem .6rem;flex-wrap:wrap;min-width:0}
+.energy-controls{display:flex;flex:0 1 26rem;align-items:center;justify-content:flex-end;gap:.35rem;flex-wrap:nowrap;min-width:0}
 .energy-legend{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap;margin:-.2rem 0 .7rem}
 .energy-legend-item{display:inline-flex;align-items:center;gap:.3rem;font-size:.8rem;color:var(--muted)}
 .energy-legend-swatch{height:.65rem;width:.75rem;border-radius:2px;background:var(--connector-a)}
 .energy-legend-swatch.connector-color-1{background:var(--connector-b)}
 .energy-legend-swatch.connector-color-2{background:var(--connector-c)}
 .energy-legend-swatch.connector-color-3{background:var(--connector-d)}
-.energy-range{display:inline-flex;align-items:center;gap:.2rem;flex-wrap:nowrap}
-.energy-day-short{display:none}
-.energy-range button{min-height:40px;padding:.35rem .65rem;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font-size:.86rem;font-weight:600;white-space:nowrap}
+.energy-range{flex:1 1 0;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:.2rem}
+.energy-range button{min-width:0;width:100%;min-height:40px;padding:.35rem .25rem;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font-size:.86rem;font-weight:600;white-space:nowrap}
 .energy-range button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 :root{--connector-a:#0072b2;--connector-b:#d55e00;--connector-c:#009e73;--connector-d:#885bb9}
 .energy-days[data-view="total"] .energy-connector-bars{display:none}
@@ -79,24 +82,34 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .energy-heading h2{font-size:.9rem}
 .energy-help-trigger{min-width:25px;min-height:34px;padding:0;font-size:1rem}
 .energy-controls{flex:1 1 auto;justify-content:flex-end;flex-wrap:nowrap;gap:.12rem}
-.energy-range{gap:0}
-.energy-range button{font-size:.69rem;min-height:36px;padding:.2rem .17rem;border-radius:5px}
-.energy-day-long{display:none}.energy-day-short{display:inline}
+.energy-range{gap:.1rem}
+.energy-range button{font-size:.68rem;min-height:36px;padding:.2rem 0;border-radius:5px;letter-spacing:-.15px}
 #energy-30-days{padding:.85rem .55rem}
 .connector dd{font-size:1.04rem;line-height:1.3}
 .connector dd .status{font-size:.96rem}
 .energy-connector-bars{gap:0}}
 @media(max-width:350px){
 .energy-heading h2{font-size:.86rem}
-.energy-range button{font-size:.66rem;padding:.15rem .1rem}
+.energy-range button{font-size:.59rem;padding:.15rem 0;letter-spacing:-.25px}
 .energy-help-trigger{min-width:23px}
 }
-@media(max-width:520px){.sessions-table .session-start{display:none}}
+@media(max-width:520px){
+  .sessions-table .session-start,.sessions-table .session-duration{display:none}
+  .sessions-table th,.sessions-table td{padding:.48rem .28rem}
+  .events-table{min-width:0;max-width:100%;table-layout:fixed;font-size:.77rem}
+  .events-table th,.events-table td{padding:.5rem .24rem;white-space:normal;overflow-wrap:anywhere}
+  .events-table .event-action summary{max-width:100%;overflow-wrap:anywhere;word-break:break-word}
+  .events-table .event-id{display:none}
+  .events-table .event-action{width:44%}
+  .events-table .event-date{width:39%}
+  .events-table .event-count{width:17%}
+  .events-table .event-expand-row td{padding:.35rem .18rem}
+}
 .pages{display:flex;gap:.7rem;align-items:center;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
 .pages a,.pages span{padding:.35rem .65rem;border:1px solid var(--line);border-radius:7px}
 button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:pointer;padding:.55rem .8rem;min-height:44px;font:inherit}
 @media(max-width:800px){.grid{grid-template-columns:1fr}main{padding:1rem .75rem}section{padding:1rem}header{padding:1rem}}
-@media(max-width:520px){.connector-list{grid-template-columns:1fr}header h1{font-size:1.12rem}table{font-size:.78rem}th,td{padding:.55rem .45rem}.events-table{min-width:480px}}
+@media(max-width:520px){.connector-list{grid-template-columns:1fr}header h1{font-size:1.12rem}table{font-size:.78rem}th,td{padding:.55rem .45rem}}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}th{background:#263647;color:#d7e5f5}.status{background:#354657;color:#e1e9f3}}
 </style></head><body>
 <a class="back-link" style="position:absolute;left:1rem;top:-5rem" href="#content">Ir al contenido</a>
@@ -119,8 +132,8 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 </div>
 <div class="energy-controls">
 <div class="energy-range" role="group" aria-label="Periodo de energía">
-<button type="button" data-energy-days="7" aria-label="7 días" aria-pressed="true"><span class="energy-day-long">7 días</span><span class="energy-day-short" aria-hidden="true">7d</span></button>
-<button type="button" data-energy-days="30" aria-label="30 días" aria-pressed="false"><span class="energy-day-long">30 días</span><span class="energy-day-short" aria-hidden="true">30d</span></button>
+<button type="button" data-energy-days="7" aria-label="7 días" aria-pressed="true">7 días</button>
+<button type="button" data-energy-days="30" aria-label="30 días" aria-pressed="false">30 días</button>
 </div>
 <div class="energy-range" role="group" aria-label="Desglose de energía">
 <button type="button" data-energy-view="total" aria-pressed="true">Estación</button>
@@ -168,11 +181,11 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 </section>
 <section id="transactions" aria-labelledby="transactions-title"><h2 id="transactions-title">Sesiones de carga</h2>
 <div class="scroll" role="region" tabindex="0" aria-label="Sesiones de este {{ 'conector' if selected_connector_id is not none else 'cargador' }}">
-<table class="sessions-table"><thead><tr>{% if selected_connector_id is none %}<th>Conector</th>{% endif %}<th>ID</th><th>Estado</th><th class="session-start">Inicio</th><th>Fin</th><th>Duración</th><th>Energía de sesión</th></tr></thead><tbody>
+<table class="sessions-table"><thead><tr>{% if selected_connector_id is none %}<th>Conector</th>{% endif %}<th>ID</th><th>Estado</th><th class="session-start">Inicio</th><th>Fin</th><th class="session-duration">Duración</th><th>Energía de sesión</th></tr></thead><tbody>
 {% for t in data.transactions %}<tr>{% if selected_connector_id is none %}<td><a href="/connectors/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ t.connector_id }}?tz={{ timezone|urlencode }}">{{ t.connector_id if t.connector_id is not none else '—' }}</a></td>{% endif %}
 <td><a href="/transactions/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ t.id }}?tz={{ timezone|urlencode }}">{{ t.id }}</a></td>
 <td>{{ t.state or 'Desconocido' }}</td><td class="session-start">{{ t.started_at|display_date(timezone) }}</td><td>{{ t.stopped_at|display_date(timezone) if t.stopped_at else 'Activa / sin cierre' }}</td>
-<td>{{ t.started_at|session_duration(t.stopped_at) }}</td>
+<td class="session-duration">{{ t.started_at|session_duration(t.stopped_at) }}</td>
 <td class="numeric">{{ '%.2f'|format(t.energy_wh / 1000) ~ ' kWh' if t.energy_wh is not none else 'En curso / pendiente' if t.active else '—' }}</td></tr>
 {% else %}<tr><td class="empty" colspan="{{ 7 if selected_connector_id is none else 6 }}">Sin sesiones</td></tr>{% endfor %}
 </tbody></table></div>
@@ -185,12 +198,13 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 {% if selected_connector_id is none %}
 <section id="events" aria-labelledby="events-title"><h2 id="events-title">Eventos registrados de {{ charger_id }}</h2>
 <div class="scroll" tabindex="0" role="region" aria-label="Eventos registrados de este cargador">
-<table class="events-table"><thead><tr><th>ID</th><th>Acción</th><th>Fecha</th><th>Registros</th></tr></thead>
+<table class="events-table"><thead><tr><th class="event-id">ID</th><th class="event-action">Acción</th><th class="event-date">Fecha</th><th class="event-count">Registros</th></tr></thead>
 <tbody id="live-event-groups">
 {% for group in event_groups %}
-<tr class="event-summary-row"><td>{{ group.first_event_id }}</td><td>{{ group.action or 'Sin acción' }}</td><td>{{ group.at|display_date(timezone) }}</td><td>{{ group.event_count }}</td></tr>
-<tr class="event-expand-row"><td colspan="4"><details class="event-group" data-source="{{ group.source_id }}" data-first-id="{{ group.first_event_id }}">
-<summary>Ver eventos del grupo</summary><div class="event-detail"><p class="muted note">Los detalles se consultan al abrir.</p></div></details></td></tr>
+<tr class="event-summary-row"><td class="event-id">{{ group.first_event_id }}</td>
+<td class="event-action"><details class="event-group" data-source="{{ group.source_id }}" data-first-id="{{ group.first_event_id }}"><summary aria-label="Ver eventos de {{ group.action or 'Sin acción' }}; grupo {{ group.first_event_id }} de {{ group.event_count }} registros">{{ group.action or 'Sin acción' }}</summary></details></td>
+<td class="event-date">{{ group.at|display_date(timezone) }}</td><td class="event-count">{{ group.event_count }}</td></tr>
+<tr class="event-expand-row" hidden><td colspan="4"><div class="event-detail"><p class="muted note">Los detalles se consultan al abrir.</p></div></td></tr>
 {% else %}<tr><td colspan="4" class="empty">Sin eventos recientes para este cargador</td></tr>{% endfor %}
 </tbody></table></div>
 <nav class="pages" aria-label="Páginas de eventos">
@@ -257,7 +271,8 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 <script>
 (() => {
   for (const details of document.querySelectorAll(".event-group")) {
-    const holder = details.querySelector(".event-detail");
+    const expandRow = details.closest(".event-summary-row").nextElementSibling;
+    const holder = expandRow.querySelector(".event-detail");
     let offset = 0, exhausted = false, loading = false;
     const table = document.createElement("table");
     const head = document.createElement("thead"); const headRow = document.createElement("tr");
@@ -297,7 +312,10 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
       finally {loading = false; more.disabled = false;}
     };
     more.addEventListener("click", load);
-    details.addEventListener("toggle", () => {if (details.open && offset === 0) load();});
+    details.addEventListener("toggle", () => {
+      expandRow.hidden = !details.open;
+      if (details.open && offset === 0) load();
+    });
   }
 })();
 </script>

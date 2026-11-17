@@ -452,7 +452,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         # Filter and paginate transactions inside SQLite, before decoding JSON.
         sql_page = dict(term=filter, status=status, location=location,
                         date_from=date_from, date_to=date_to, zone=tz,
-                        view=tx_view, page=tx_page)
+                        view=tx_view, page=tx_page, page_size=10)
         snapshot_started = perf_counter()
         data = read(source_id, charger_id, 100, transaction_pagination=sql_page, skip_events=True)
         snapshot_duration_ms = (perf_counter() - snapshot_started) * 1000
@@ -485,10 +485,10 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             }
             filtered_transactions = _filter_transaction_energy(data["transactions"], tx_view)
             tx_total = len(filtered_transactions)
-            tx_pages = max(1, (tx_total + 19) // 20)
+            tx_pages = max(1, (tx_total + 9) // 10)
             tx_page = min(tx_page, tx_pages)
-            start = (tx_page - 1) * 20
-            data["transactions"] = filtered_transactions[start:start + 20]
+            start = (tx_page - 1) * 10
+            data["transactions"] = filtered_transactions[start:start + 10]
         projected = project_dashboard_connectors(data, now=now, connector_view=connector_view,
                                                  source_freshness=source_freshness)
         # Operational 'Cargando' is a source-scoped summary, independent of

@@ -320,3 +320,25 @@ gráfica adicional ni scroll horizontal en 320/360/390/520 CSS px.
   y `/api/v1/event-group` siguen requiriendo permiso EVENTS_VIEW/admin.
   Los roles y la autoridad por tenant no cambian; usuarios sin CONNECTORS_VIEW
   nunca reciben los nuevos resultados.
+
+
+## Tabla de eventos compacta y sesiones recientes (#243)
+
+La vista individual del cargador conserva el historial paginado con una
+**sola fila visible por grupo cerrado**: el nombre de la acción es el
+`<summary>` desplegable, con un `aria-label` que identifica el grupo.
+El renglón de detalle ocupa las cuatro columnas pero permanece `hidden`
+hasta abrir el grupo. La carga diferida de hasta 50 registros y las
+comprobaciones exactas de source+charger/roles son las mismas.
+
+La gráfica «Energía» utiliza cuatro botones de igual anchura y los
+periodos se escriben completos («7 días», «30 días») también en móvil.
+En pantallas estrechas la tabla de eventos oculta ID, mientras mantiene
+la acción expandible, fecha y cantidad de registros, sin forzar 480 px.
+
+El resumen principal del dashboard pagina **10 sesiones**, sin perder
+filtros ni totales. Su tabla móvil muestra cargador, ID/enlace, estado,
+fecha de fin y energía; omite ubicación, inicio, duración y SoC.
+El historial de cada cargador/conector mantiene **20 por página** y en
+móvil omite inicio y duración. La rutina SQL común acepta únicamente 10
+o 20; el valor predeterminado sigue siendo 20 para consultas antiguas.

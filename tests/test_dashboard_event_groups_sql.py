@@ -86,9 +86,13 @@ def test_source_security_and_filter_scope(tmp_path):
     html = client.get("/chargers/a/cp-1")
     assert html.status_code == 200
     assert 'class="events-table"' in html.text
-    assert "<td>69</td>" in html.text
+    assert '<td class="event-count">69</td>' in html.text
     assert 'data-first-id="194"' in html.text
-    assert "Ver eventos del grupo" in html.text
+    assert "Ver eventos de" in html.text
+    assert "Ver eventos del grupo" not in html.text
+    assert 'class="event-expand-row" hidden' in html.text
+    assert 'class="event-action"><details class="event-group"' in html.text
+    assert '<summary aria-label="Ver eventos de ' in html.text
     assert "Ver 50 más" in html.text
     assert client.get("/chargers/b/cp-b").status_code == 404
     assert client.get("/chargers/a/nonexistent").status_code == 404

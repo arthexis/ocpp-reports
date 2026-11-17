@@ -646,6 +646,15 @@ def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
                 assert abs(heading["y"] - first_filter["y"]) <= 14, (width, heading, first_filter)
                 assert abs(heading["y"] - last_filter["y"]) <= 14, (width, heading, last_filter)
                 assert last_filter["x"] + last_filter["width"] <= width + 1, width
+                energy_button_boxes = [
+                    page.get_by_role("button", name=name, exact=True).bounding_box()
+                    for name in ("7 días", "30 días", "Estación", "Conectores")
+                ]
+                assert all(energy_button_boxes), (width, energy_button_boxes)
+                assert max(b["width"] for b in energy_button_boxes) - min(
+                    b["width"] for b in energy_button_boxes) <= 1.5, (width, energy_button_boxes)
+                for name in ("7 días", "30 días"):
+                    assert name in page.get_by_role("button", name=name).inner_text(), width
                 if mobile:
                     value_size = page.locator(".connector dd").first.evaluate(
                         "(el) => parseFloat(getComputedStyle(el).fontSize)")
@@ -673,6 +682,7 @@ def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
                 assert start_cells.count() >= 2
                 assert start_cells.first.is_visible() != mobile
                 assert page.locator(".sessions-table thead th").filter(has_text="Fin").is_visible()
+                assert page.locator(".sessions-table .session-duration").first.is_visible() != mobile
                 assert page.get_by_role("button", name="30 días").click() is None
                 assert page.locator("#energy-chart").get_attribute("data-days") == "30"
                 assert page.locator("#energy-chart .energy-day:visible").count() == 30
@@ -706,6 +716,65 @@ def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
                 assert chart.locator(".energy-day:visible").count() == 7
                 assert page.locator("#energy-total").inner_text() == "3.00 kWh"
                 assert page.url.endswith("/chargers/a/cp?tz=UTC")
+                page.goto("http://reports.test/?tx_view=all&source_id=a&tz=UTC", wait_until="load")
+                assert page.locator(".transactions-panel tbody tr").count() > 0
+                hidden = (1, 5, 7, 8, 9)
+                shown = (2, 3, 4, 6, 10)
+                for index in hidden:
+                    assert page.locator(f".transactions-panel thead th:nth-child({index})").is_visible() != mobile
+                for index in shown:
+                    assert page.locator(f".transactions-panel thead th:nth-child({index})").is_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2"), width
+                context.close()
+        finally:
+            browser.close()
+
+
+def test_charger_event_action_expands_in_same_table_row_offline(tmp_path):
+    """Closed groups use one rendered row; action text opens full-width lazy details."""
+    from test_device_details import seed
+    playwright = pytest.importorskip("playwright.sync_api")
+    path = tmp_path / "events-compact.sqlite"
+    seed(path)
+    client = TestClient(create_app(path, allowed_source_ids=("a",), timezones=("UTC",)))
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            for width in (320, 360, 390, 520, 1280):
+                mobile = width <= 520
+                context = browser.new_context(
+                    viewport={"width": width, "height": 844}, is_mobile=mobile,
+                    has_touch=mobile, locale="es-MX")
+                page = context.new_page()
+                requests = {"GET": 0}
+                page.route("**/*", _offline_route(client, requests))
+                page.goto("http://reports.test/chargers/a/same?tz=UTC", wait_until="load")
+                assert page.locator(".events-table .event-summary-row").count() == 1
+                assert page.locator(".events-table .event-expand-row:visible").count() == 0
+                assert page.locator(".events-table .event-group summary").inner_text() == "BootNotification"
+                summary = page.locator(".events-table .event-group summary").first
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2"), width
+                if mobile:
+                    assert page.locator(".events-table .event-id").first.is_hidden()
+                    assert page.locator(".events-table .event-count").first.is_visible()
+                    metrics = page.locator(".events-table").evaluate(
+                        "(el) => ({scroll:el.scrollWidth,client:el.clientWidth,"
+                        "columns:[...el.querySelectorAll('thead th')].map(c=>({name:c.textContent,w:c.getBoundingClientRect().width,scroll:c.scrollWidth}))})")
+                    assert metrics["scroll"] <= metrics["client"] + 2, (width, metrics)
+                else:
+                    assert page.locator(".events-table .event-id").first.is_visible()
+                before = requests["GET"]
+                summary.click()
+                page.locator(".events-table .event-expand-row").first.wait_for(state="visible")
+                page.locator(".event-detail tbody tr").first.wait_for()
+                assert page.locator(".event-detail tbody tr").count() == 1
+                assert "never-expose" not in page.locator(".event-detail").inner_text()
+                assert requests["GET"] > before
+                summary.click()
+                page.locator(".events-table .event-expand-row").first.wait_for(state="hidden")
+                assert page.locator(".events-table .event-expand-row:visible").count() == 0
+                assert page.locator(".events-table .event-summary-row").count() == 1
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2"), width
                 context.close()
         finally:
             browser.close()

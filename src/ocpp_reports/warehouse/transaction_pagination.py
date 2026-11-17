@@ -34,7 +34,7 @@ def transaction_page(
 ) -> dict:
     if view not in ("success", "failed", "all", "active"):
         raise ValueError("Invalid transaction view")
-    if page < 1 or page_size != 20:
+    if page < 1 or page_size not in (10, 20):
         raise ValueError("Invalid transaction page")
     if connector_id is not None and (type(connector_id) is not int or connector_id < 0):
         raise ValueError("Invalid connector ID")
