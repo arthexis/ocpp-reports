@@ -101,7 +101,8 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
             if not endpoint.rstrip("/").endswith("/api/replication"):
                 raise ValueError("Meter-sample replication requires an explicit collector endpoint")
             ready = client.post(endpoint.rstrip("/") + "/ready",
-                                json={"source_id": source_id},
+                                json={"source_id": source_id,
+                                      "capabilities": sorted(historical_kinds)},
                                 headers={"Authorization": "Bearer " + token})
             ready.raise_for_status()
             info = ready.json()
