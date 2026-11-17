@@ -106,19 +106,19 @@ main{max-width:1320px}
 <section class="timeline-card" id="transaction-timeline" aria-label="Evolución temporal de la carga">
 {% if timeline.points %}
 <div class="timeline-grid">
-{% for chart in timeline_charts %}
+{% if timeline_charts %}{% set chart = timeline_charts[0] %}
 <article class="timeline-plot">
 <h3>{{ chart.label }} ({{ chart.unit }})</h3>
 <svg role="img" aria-label="{{ chart.label }}: {{ chart.dots|length }} muestras observadas, mínimo {{ '%.2f'|format(chart.min) }} y máximo {{ '%.2f'|format(chart.max) }} {{ chart.unit }}" viewBox="0 0 600 185">
 <line class="axis" x1="30" y1="155" x2="580" y2="155"/>
 <line class="axis" x1="30" y1="20" x2="30" y2="155"/>
 {% for segment in chart.segments %}<line class="timeline-segment" x1="{{ segment.a.x }}" y1="{{ segment.a.y }}" x2="{{ segment.b.x }}" y2="{{ segment.b.y }}"/>{% endfor %}
-{% for dot in chart.dots %}<circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="4"><title>{{ '%.3f'|format(dot.value) }} {{ chart.unit }}</title></circle>{% endfor %}
+{% for dot in chart.dots %}<circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="4"><title>Energía de sesión: {{ '%.3f'|format(dot.value) }} kWh{% if dot.soc is not none %} · SoC: {{ '%.1f'|format(dot.soc) }}%{% else %} · SoC: no disponible{% endif %}</title></circle>{% endfor %}
 <text x="33" y="15" font-size="12" fill="currentColor">{{ '%.2f'|format(chart.max) }} {{ chart.unit }}</text>
 <text x="33" y="174" font-size="12" fill="currentColor">{{ '%.2f'|format(chart.min) }} {{ chart.unit }}</text>
 </svg>
 </article>
-{% endfor %}
+{% endif %}
 </div>
 <div class="timeline-evidence" tabindex="0" aria-label="Tabla de mediciones verificadas"><table>
 <thead><tr><th>Observada</th><th>Energía sesión (kWh)</th>{% if timeline_has_power %}<th>Potencia (kW)</th>{% endif %}{% if timeline_available.soc %}<th>SoC (%)</th>{% endif %}{% if timeline_available.voltage_v %}<th>Voltaje (V)</th>{% endif %}{% if timeline_available.current_import_a %}<th>Corriente (A)</th>{% endif %}{% if timeline_available.temperature_c %}<th>Temp. (°C)</th>{% endif %}</tr></thead>

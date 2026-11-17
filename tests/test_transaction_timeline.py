@@ -66,8 +66,8 @@ def test_identity_window_and_real_meter_samples(tmp_path):
     assert [p["energy_kwh"] for p in series["points"]] == [0.5, 1.0]
     assert series["points"][1]["power_kw"] == 6
     assert series["points"][1]["soc"] == 45
-    assert [c["field"] for c in timeline_charts(series["points"])] == [
-        "energy_kwh", "power_kw", "soc"]
+    assert [c["field"] for c in timeline_charts(series["points"])] == ["energy_kwh"]
+    assert [d["soc"] for d in timeline_charts(series["points"])[0]["dots"]] == [None, 45]
     assert len(transaction_timeline(path, _tx(connector_id=2))["points"]) == 1
     assert transaction_timeline(path, _tx(connector_id=3))["points"] == []
     assert transaction_timeline(path, _tx(started_at="2026-01-01T12:30:00Z"))["points"] == []
@@ -206,10 +206,10 @@ def test_null_rows_and_out_of_order_times_break_chart_strokes(tmp_path):
     charts = {c["field"]: c for c in timeline_charts(result["points"])}
     # Time disorder also exposes a real counter regression: energy is gated
     # after that regression, while all three independent power samples remain.
+    assert list(charts) == ["energy_kwh"]
     assert len(charts["energy_kwh"]["dots"]) == 2
-    assert len(charts["power_kw"]["dots"]) == 3
     assert charts["energy_kwh"]["segments"] == []
-    assert charts["power_kw"]["segments"] == []
+    assert [p["power_kw"] for p in result["points"]] == [5.5, 7.0, 6.5]
 
 
 def test_counter_regression_never_reconnects_energy_after_downsampling(tmp_path):
@@ -236,8 +236,8 @@ def test_counter_regression_never_reconnects_energy_after_downsampling(tmp_path)
     assert all(p["energy_kwh"] is None for p in result["points"]
                if p["_source_order"] >= 70)
     charts = timeline_charts(result["points"])
-    assert [c["field"] for c in charts] == ["energy_kwh", "power_kw"]
-    assert len(charts[1]["segments"]) < len(charts[1]["dots"]) - 1
+    assert [c["field"] for c in charts] == ["energy_kwh"]
+    assert len(charts[0]["segments"]) < len(charts[0]["dots"]) - 1
     assert any(b["_source_order"] - a["_source_order"] > 1
                for a, b in zip(result["points"], result["points"][1:]))
 
@@ -324,8 +324,10 @@ def test_electrical_telemetry_timeline_and_optional_offered_current(tmp_path):
     assert timeline["points"][0]["current_offered_a"] == 32
     assert timeline["points"][0]["temperature_c"] == -4.5
     fields = [c["field"] for c in timeline_charts(timeline["points"])]
-    assert fields == ["energy_kwh", "power_kw", "soc", "voltage_v",
-                      "current_import_a", "current_offered_a", "temperature_c"]
+    assert fields == ["energy_kwh"]
+    assert '<article class="timeline-plot">' in TestClient(
+        web.create_app(path, allowed_source_ids=("a",))).get(
+        "/transactions/a/cp/7").text
     page = TestClient(web.create_app(path, allowed_source_ids=("a",))).get(
         "/transactions/a/cp/7")
     assert page.status_code == 200
@@ -354,5 +356,45 @@ def test_invalid_temperature_does_not_create_a_chart(tmp_path):
     result = transaction_timeline(path, _tx())
     assert len(result["points"]) == 1
     assert result["points"][0]["temperature_c"] == -8
-    assert [chart["field"] for chart in timeline_charts(result["points"])] == [
-        "energy_kwh", "power_kw", "temperature_c"]
+    assert [chart["field"] for chart in timeline_charts(result["points"])] == ["energy_kwh"]
+
+
+def test_energy_plot_tooltip_pairs_only_same_observation_soc(tmp_path):
+    path = _db(tmp_path)
+    _bound(path)
+    _sample(path, 5)
+    _sample(path, 10, soc=50, soc_provenance="ocpp-meter-values")
+    _sample(path, 15, soc=80)  # Not verified: never show in tooltip.
+    record = {k: v for k, v in _tx().items() if k != "source_id"}
+    with sqlite3.connect(path) as db:
+        db.execute("INSERT INTO current_transactions VALUES (?,?,?,?)",
+                   ("a", "cp", 7, json.dumps(record)))
+    page = TestClient(web.create_app(path, allowed_source_ids=("a",))).get(
+        "/transactions/a/cp/7")
+    assert page.status_code == 200
+    assert page.text.count('<article class="timeline-plot">') == 1
+    assert '<h3>Energía de sesión medida (kWh)</h3>' in page.text
+    assert 'Energía de sesión: 0.500 kWh · SoC: no disponible' in page.text
+    assert 'Energía de sesión: 1.000 kWh · SoC: 50.0%' in page.text
+    assert 'Energía de sesión: 1.500 kWh · SoC: no disponible' in page.text
+    assert '<h3>Estado de carga medido' not in page.text
+    assert '<h3>Potencia medida' not in page.text
+    assert '<th>SoC (%)</th>' in page.text  # Evidence table preserved.
+    assert '50.0</td>' in page.text
+
+
+def test_soc_without_energy_has_table_but_never_fabricates_energy_curve(tmp_path):
+    path = _db(tmp_path)
+    _bound(path)
+    _sample(path, 5, energy_wh=None, power_w=None,
+            soc=45, soc_provenance="ocpp-meter-values")
+    record = {k: v for k, v in _tx().items() if k != "source_id"}
+    with sqlite3.connect(path) as db:
+        db.execute("INSERT INTO current_transactions VALUES (?,?,?,?)",
+                   ("a", "cp", 7, json.dumps(record)))
+    page = TestClient(web.create_app(path, allowed_source_ids=("a",))).get(
+        "/transactions/a/cp/7")
+    assert page.status_code == 200
+    assert '<article class="timeline-plot">' not in page.text
+    assert '<th>SoC (%)</th>' in page.text
+    assert '45.0</td>' in page.text
