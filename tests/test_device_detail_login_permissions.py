@@ -80,7 +80,7 @@ def test_auth_sessions_allow_device_pages_without_widening_event_access(tmp_path
             "action", "at", "display_at", "information"
         }
         assert "never-expose" not in scoped.text
-        assert scoped.json()["events"][0]["information"] == "Señal recibida"
+        assert scoped.json()["events"][0]["information"] == "Inicio del cargador registrado"
         for params, expected in (
             ({"source_id": "b", "charger_id": "same", "first_event_id": 1}, 404),
             ({"source_id": "a", "charger_id": "other", "first_event_id": 1}, 404),
