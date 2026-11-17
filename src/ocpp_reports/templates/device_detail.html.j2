@@ -23,7 +23,12 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}.scroll{overflow:auto;m
 table{width:100%;border-collapse:collapse;font-size:.87rem}th,td{padding:.72rem .65rem;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
 th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .empty{text-align:center;color:var(--muted);padding:1.5rem}
-.status{display:inline-block;padding:.2rem .5rem;border-radius:999px;font-size:.84rem;font-weight:650;background:#edf1f5}
+.status{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .5rem;border-radius:999px;font-size:.84rem;font-weight:650;background:#edf1f5}
+.status::before{content:"";width:.5rem;height:.5rem;border-radius:50%;background:#8795a7}
+.status--ok{background:#e3f6ed;color:#087342}.status--ok::before{background:#0b9960}
+.status--active{background:#e4f0ff;color:#155bad}.status--active::before{background:#1976e9}
+.status--warn{background:#fff3d9;color:#906000}.status--warn::before{background:#dfa000}
+.status--off{background:#f7e8e8;color:#984545}.status--off::before{background:#c55b5b}
 .event-group{border:1px solid var(--line);border-radius:9px;margin:.5rem 0;padding:.6rem .8rem}
 .event-group summary{cursor:pointer;min-height:36px;overflow-wrap:anywhere}.event-detail{margin:.65rem 0}
 .pages{display:flex;gap:.7rem;align-items:center;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
@@ -49,11 +54,11 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 <div class="connector-list">{% for c in connectors %}
 <article class="connector"><h3>{% if selected_connector_id is none %}<a href="/connectors/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ c.connector_id }}?tz={{ timezone|urlencode }}">{{ 'Estación (C0)' if c.connector_id == 0 else 'Conector ' ~ c.connector_id }}</a>{% else %}Conector {{ c.connector_id }}{% endif %}</h3>
 <dl>
-<dt>Estado informado</dt><dd><span class="status">{{ c.status or 'Desconocido' }}</span></dd>
+<dt>Estado informado</dt><dd>{% set state = (c.status or '')|lower %}<span class="status {{ 'status--off' if state in ['faulted','unavailable'] else 'status--active' if state == 'charging' and not c.stale else 'status--ok' if state in ['available','finishing'] and not c.stale else 'status--warn' if state in ['preparing','suspendedev','suspendedevse'] else '' }}">{{ c.status or 'Desconocido' }}</span></dd>
 <dt>Conexión observada</dt><dd>{{ 'Sí' if c.connected is sameas true else 'No' if c.connected is sameas false else 'Sin datos' }}</dd>
 <dt>Último estado</dt><dd>{{ c.status_observed_at|display_date(timezone) if c.status_observed_at else 'Fecha desconocida' }}</dd>
 <dt>Sincronizado</dt><dd>{{ c.synced_at|display_date(timezone) if c.synced_at else 'Sin fecha' }}</dd>
-<dt>Potencia medida</dt><dd>{{ '%.2f'|format(c.power_w / 1000) ~ ' kW' if c.power_fresh and c.power_w is not none else 'No disponible' }}</dd>
+<dt>Potencia</dt><dd>{% if c.power_fresh and c.power_w is not none %}{{ '%.2f'|format(c.power_w / 1000) }} kW <span class="note muted">medida</span>{% elif c.rated_power_w is defined and c.rated_power_w is not none %}{{ '%.2f'|format(c.rated_power_w / 1000) }} kW <span class="note muted">nominal (no medida)</span>{% else %}No disponible{% endif %}</dd>
 <dt>Medición de potencia</dt><dd>{{ c.power_observed_at|display_date(timezone) if c.power_observed_at else 'Sin fecha' }}</dd>
 <dt>Medidor acumulado</dt><dd>{{ '%.2f'|format(c.energy_wh / 1000) ~ ' kWh' if c.energy_wh is not none else '—' }}</dd>
 <dt>Medición de energía</dt><dd>{{ c.energy_observed_at|display_date(timezone) if c.energy_observed_at else 'Sin fecha' }}</dd>
