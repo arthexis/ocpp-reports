@@ -166,6 +166,223 @@ def _query(db: sqlite3.Connection, *, source_id: str | None, charger_id: str | N
 
 
 
+def _scoped_event_stream(db: sqlite3.Connection, source_id: str, charger_id: str):
+    """Stream one charger's events in exact global time order, with one-row lookahead.
+
+    Only the precise source/charger dashboard path uses this bounded-memory
+    alternative to multiple whole-history SQLite window passes. Its ordering,
+    local precedence and grouping keys match _query(). Raw payloads remain
+    private; callers build allowlisted presentation fields only.
+    """
+    tables = {row[0] for row in db.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    pieces, args = [], []
+    if "events" in tables:
+        pieces.append("SELECT source_id,event_id,payload FROM events "
+                      "WHERE source_id=? AND json_extract(payload,'$.charger_id')=?")
+        args.extend((source_id, charger_id))
+    if "collector_latest" in tables:
+        remote = (
+            "SELECT r.source_id,CAST(json_extract(r.payload,'$.id') AS INTEGER),r.payload "
+            "FROM collector_latest r WHERE r.source_id=? AND r.kind='event' "
+            "AND json_extract(r.payload,'$.charger_id')=?"
+        )
+        if "events" in tables:
+            remote += (
+                " AND NOT EXISTS (SELECT 1 FROM events l WHERE l.source_id=r.source_id "
+                "AND l.event_id=CAST(json_extract(r.payload,'$.id') AS INTEGER))"
+            )
+        pieces.append(remote)
+        args.extend((source_id, charger_id))
+    if not pieces:
+        return
+    sql = (
+        "SELECT source_id,event_id,payload,"
+        "julianday(json_extract(payload,'$.at')) AS event_time FROM ("
+        + " UNION ALL ".join(pieces)
+        + ") ORDER BY (event_time IS NULL),event_time DESC,source_id DESC,event_id DESC"
+    )
+    rows = iter(db.execute(sql, args))
+
+    def prepared(record):
+        if record is None:
+            return None
+        source, event_id, raw, event_time = record
+        payload = json.loads(raw)
+        status_key = None
+        if (source is not None and payload.get("charger_id") not in (None, "")
+                and payload.get("action") == "StatusNotification"
+                and payload.get("kind") == "status"
+                and payload.get("status") is not None
+                and payload.get("connector_id") is not None):
+            state = payload["status"]
+            routine = state in (
+                "Available", "Preparing", "Charging", "SuspendedEV",
+                "SuspendedEVSE", "Finishing", "Reserved"
+            ) and payload.get("error_code") in (None, "") and payload.get("info") in (None, "")
+            status_key = (source, payload["charger_id"], "StatusNotification",
+                          payload["connector_id"], state, "routine" if routine else event_id)
+        return {"source_id": source, "event_id": event_id, "payload": payload,
+                "event_time": event_time, "status_key": status_key}
+
+    current = prepared(next(rows, None))
+    following = prepared(next(rows, None))
+    while current is not None:
+        e = current["payload"]
+        key = current["status_key"]
+        if (key is None and current["source_id"] is not None
+                and e.get("charger_id") not in (None, "")
+                and e.get("action") == "Heartbeat" and e.get("kind") == "ocpp"):
+            key = (current["source_id"], e["charger_id"], "Heartbeat")
+        if (key is None and e.get("action") == "StatusNotification"
+                and e.get("kind") == "status" and e.get("status") is None
+                and e.get("connector_id") is None
+                and e.get("error_code") in (None, "")
+                and e.get("info") in (None, "") and following is not None):
+            next_e = following["payload"]
+            at, next_at = current["event_time"], following["event_time"]
+            if (following["source_id"] == current["source_id"]
+                    and next_e.get("charger_id") == e.get("charger_id")
+                    and next_e.get("action") == e.get("action")
+                    and next_e.get("kind") == e.get("kind")
+                    and following["event_id"] == current["event_id"] - 1
+                    and following["status_key"] is not None
+                    and at is not None and next_at is not None
+                    and 0 <= (at - next_at) * 86400 <= 2):
+                key = following["status_key"]
+        yield current, key
+        current = following
+        following = prepared(next(rows, None))
+
+
+def _sql_value(value):
+    """Normalize JSON scalars to sqlite json_extract representations."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return value
+
+
+def _sql_max(previous, value):
+    value = _sql_value(value)
+    if value is None:
+        return previous
+    if previous is None:
+        return value
+    # SQLite sorts text above numbers for MAX, then compares within a type.
+    if isinstance(value, str):
+        return value if not isinstance(previous, str) or value > previous else previous
+    if isinstance(previous, str):
+        return previous
+    return max(previous, value)
+
+
+def _scoped_location(db: sqlite3.Connection, source_id: str, charger_id: str) -> str:
+    tables = {row[0] for row in db.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    if "collector_charger_locations" in tables:
+        row = db.execute(
+            "SELECT location FROM collector_charger_locations "
+            "WHERE source_id=? AND charger_id=? LIMIT 1",
+            (source_id, charger_id)).fetchone()
+        if row and row[0] is not None:
+            return row[0]
+    return source_id
+
+
+def _scoped_groups_page(database, *, source_id: str, charger_id: str,
+                        allowed_source_ids, zone: str, page: int, page_size: int):
+    if allowed_source_ids is not None and not allowed_source_ids:
+        raise ValueError("Source allowlist must not be empty")
+    ZoneInfo(zone)
+    if allowed_source_ids is not None and source_id not in allowed_source_ids:
+        return {"groups": [], "page": page, "has_next": False}
+    groups = []
+    previous_key, group = None, None
+    wanted = page * page_size + 1
+    with sqlite3.connect(f"file:{Path(database).resolve()}?mode=ro", uri=True) as db:
+        db.execute("PRAGMA query_only=ON")
+        db.execute("BEGIN")
+        location = _scoped_location(db, source_id, charger_id)
+        for row, key in _scoped_event_stream(db, source_id, charger_id):
+            payload = row["payload"]
+            if key is None or key != previous_key:
+                if group is not None:
+                    groups.append(group)
+                    if len(groups) >= wanted:
+                        group = None
+                        break
+                group = {
+                    "source_id": row["source_id"], "charger_id": payload.get("charger_id"),
+                    "location": location, "action": payload.get("action"),
+                    "at": payload.get("at"), "first_event_id": row["event_id"],
+                    "event_count": 0, "kind": payload.get("kind"),
+                    "status_for_info": None, "connector_for_info": None,
+                    "error_for_info": None, "tx_for_info": None,
+                }
+            group["event_count"] += 1
+            for field, field_name in (
+                ("status", "status_for_info"),
+                ("connector_id", "connector_for_info"),
+                ("error_code", "error_for_info"),
+                ("transaction_id", "tx_for_info"),
+            ):
+                group[field_name] = _sql_max(group[field_name], payload.get(field))
+            previous_key = key
+        if group is not None:
+            groups.append(group)
+    selected = groups[(page - 1) * page_size:page * page_size]
+    for row in selected:
+        row["information"] = event_information({
+            "action": row["action"], "kind": row.pop("kind"),
+            "status": row.pop("status_for_info"),
+            "connector_id": row.pop("connector_for_info"),
+            "error_code": row.pop("error_for_info"),
+            "transaction_id": row.pop("tx_for_info"),
+        })
+    return {"groups": selected, "page": page, "has_next": len(groups) > page * page_size}
+
+
+def _scoped_group_details(database, *, source_id: str, charger_id: str,
+                          allowed_source_ids, zone: str, first_event_id: int,
+                          offset: int, limit: int):
+    ZoneInfo(zone)
+    if allowed_source_ids is not None and source_id not in allowed_source_ids:
+        raise PermissionError("Source is not available in this dashboard")
+    found, selected, previous_key, events, seen = False, False, None, [], 0
+    with sqlite3.connect(f"file:{Path(database).resolve()}?mode=ro", uri=True) as db:
+        db.execute("PRAGMA query_only=ON")
+        db.execute("BEGIN")
+        location = _scoped_location(db, source_id, charger_id)
+        for row, key in _scoped_event_stream(db, source_id, charger_id):
+            if key is None or key != previous_key:
+                if selected:
+                    break
+                selected = row["event_id"] == first_event_id
+                if selected:
+                    found = True
+            if selected:
+                if seen >= offset and len(events) <= limit:
+                    payload = row["payload"]
+                    events.append({
+                        "source_id": row["source_id"], "location": location,
+                        "id": payload.get("id"), "charger_id": payload.get("charger_id"),
+                        "action": payload.get("action"), "at": payload.get("at"),
+                        "information": event_information(payload),
+                    })
+                seen += 1
+                if len(events) > limit:
+                    break
+            previous_key = key
+    if not found and offset == 0:
+        raise LookupError("Event group not found")
+    return {"events": events[:limit], "has_next": len(events) > limit}
+
+
+
+
+
 def event_groups_page(
     database: str | Path, *, source_id: str | None = None, charger_id: str | None = None,
     allowed_source_ids: tuple[str, ...] | None = None, term: str = "", status: str = "",
@@ -174,6 +391,11 @@ def event_groups_page(
 ) -> dict:
     if page < 1 or page_size != 10:
         raise ValueError("Invalid event group page")
+    if source_id and charger_id and not any((term, status, location, date_from, date_to)):
+        return _scoped_groups_page(
+            database, source_id=source_id, charger_id=charger_id,
+            allowed_source_ids=allowed_source_ids, zone=zone,
+            page=page, page_size=page_size)
     path = Path(database).resolve()
     with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as db:
         db.row_factory = sqlite3.Row
@@ -224,6 +446,12 @@ def event_group_details(
         raise ValueError("Invalid event group detail selector")
     if allowed_source_ids is not None and group_source not in allowed_source_ids:
         raise PermissionError("Source is not available in this dashboard")
+    if (source_id == group_source and charger_id
+            and not any((term, status, location, date_from, date_to))):
+        return _scoped_group_details(
+            database, source_id=source_id, charger_id=charger_id,
+            allowed_source_ids=allowed_source_ids, zone=zone,
+            first_event_id=first_event_id, offset=offset, limit=limit)
     path = Path(database).resolve()
     with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as db:
         db.row_factory = sqlite3.Row
