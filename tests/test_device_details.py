@@ -318,7 +318,7 @@ def test_charger_energy_30_days_local_remote_dedup_and_timezone(tmp_path):
     assert data["total_kwh"] == 9.0
     days = {item["day"]: item for item in data["bars"]}
     assert days["2026-11-16"]["kwh"] == 3.0  # UTC 05:30 = prior local day
-    assert days["2026-11-10"]["kwh"] == 6.0
+    assert days["2026-11-09"]["kwh"] == 6.0  # 01:30 UTC is 19:30 on Nov 9 in Monterrey
     assert days["2026-11-17"]["kwh"] == 0
     assert days["2026-11-16"]["sessions"] == 1
     assert all(item["height"] >= 0 for item in data["bars"])

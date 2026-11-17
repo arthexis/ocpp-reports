@@ -351,7 +351,8 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                               align: getComputedStyle(el).alignItems,
                               targetHeight: bounds.height};
                     }""")
-                    assert alignment["align"] == "flex-start"
+                    # Chromium normalizes logical flex-start to flow-start.
+                    assert alignment["align"] in ("flex-start", "flow-start")
                     assert alignment["topGap"] <= 4, (width, identity, alignment)
                     assert alignment["targetHeight"] >= 44
                 assert card.locator('td[data-label="Conector"]').evaluate(
