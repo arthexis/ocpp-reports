@@ -93,7 +93,9 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
     if client is None:
         client = httpx.Client(timeout=10)
     try:
-        if any(change["kind"] == "meter_sample" for change in batch["changes"]):
+        historical_kinds = {change["kind"] for change in batch["changes"]} & {
+            "meter_sample", "meter_enrichment"}
+        if historical_kinds:
             # Never advance a cursor through new evidence the remote Collector
             # cannot persist. Deploy a capable consumer before its producer.
             if not endpoint.rstrip("/").endswith("/api/replication"):
@@ -104,7 +106,7 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
             ready.raise_for_status()
             info = ready.json()
             if (info.get("source_id") != source_id or info.get("ready") is not True
-                    or "meter_sample" not in info.get("supported_kinds", [])):
+                    or not historical_kinds <= set(info.get("supported_kinds", []))):
                 raise ValueError("Collector does not advertise durable meter-sample support")
         response = client.post(endpoint, json=batch,
                                headers={"Authorization": "Bearer " + token})
