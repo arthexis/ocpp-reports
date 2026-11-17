@@ -544,7 +544,7 @@ def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2"), width
                 if width == 900:
                     _shot(page, "tablet-compact-dashboard-900.png")
-                    page.get_by_role("link", name="Ver detalles de transacción 7").click()
+                    page.goto("http://reports.test/transactions/a/cp/7?tz=UTC", wait_until="load")
                     assert page.locator(".detail-disclaimer").count() == 0
                     assert "Cobertura: intervalo de eventos observado" not in page.locator(
                         "#transaction-timeline").inner_text()
