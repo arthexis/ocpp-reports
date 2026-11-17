@@ -35,11 +35,32 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .events-table td{white-space:normal}.events-table th,.events-table td{vertical-align:top}
 .events-table .scroll{overflow-x:auto}.events-table .event-summary-row td{padding-bottom:.1rem}
 .energy-overview{margin:0 0 .7rem}.energy-overview strong{font-size:1.4rem;font-variant-numeric:tabular-nums}
-.energy-heading{display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem}
+.energy-heading{display:flex;justify-content:space-between;align-items:center;gap:.35rem .65rem;flex-wrap:wrap;margin-bottom:.55rem}
 .energy-heading h2{margin:0}
+.energy-heading-title{display:flex;align-items:center;gap:.15rem;min-width:0}
+.energy-help-trigger{background:transparent;color:var(--muted);border:0;padding:.2rem;min-width:38px;min-height:38px;border-radius:50%;font-weight:600;font-size:1.15rem}
+.energy-help-trigger:hover{color:var(--accent)}
+.energy-help[hidden],.energy-legend[hidden]{display:none}
+.energy-help{padding:.65rem .8rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:.83rem;margin:0 0 .7rem}
+.energy-controls{display:flex;align-items:center;justify-content:flex-end;gap:.35rem .6rem;flex-wrap:wrap;min-width:0}
+.energy-legend{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap;margin:-.2rem 0 .7rem}
+.energy-legend-item{display:inline-flex;align-items:center;gap:.3rem;font-size:.8rem;color:var(--muted)}
+.energy-legend-swatch{height:.65rem;width:.75rem;border-radius:2px;background:var(--connector-a)}
+.energy-legend-swatch.connector-color-1{background:var(--connector-b)}
+.energy-legend-swatch.connector-color-2{background:var(--connector-c)}
+.energy-legend-swatch.connector-color-3{background:var(--connector-d)}
 .energy-range{display:inline-flex;align-items:center;gap:.2rem;flex-wrap:nowrap}
 .energy-range button{min-height:40px;padding:.35rem .65rem;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font-size:.86rem;font-weight:600;white-space:nowrap}
 .energy-range button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+:root{--connector-a:#0072b2;--connector-b:#d55e00;--connector-c:#009e73;--connector-d:#885bb9}
+.energy-days[data-view="total"] .energy-connector-bars{display:none}
+.energy-days[data-view="connectors"] .energy-bar{display:none}
+.energy-connector-bars{display:flex;align-items:flex-end;gap:1px;min-width:0;width:100%;height:100%}
+.energy-connector-bar{display:block;min-width:0;flex:1 1 0;height:var(--connector-height-7);border-radius:2px 2px 0 0;background:var(--connector-a)}
+.energy-connector-bar.connector-color-1{background:var(--connector-b)}
+.energy-connector-bar.connector-color-2{background:var(--connector-c)}
+.energy-connector-bar.connector-color-3{background:var(--connector-d)}
+.energy-days[data-days="30"] .energy-connector-bar{height:var(--connector-height-30)}
 .energy-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:.45rem;width:100%;min-width:0;max-width:100%;overflow:hidden;border-bottom:1px solid var(--line);padding:0 0 .25rem}
 .energy-days[data-days="30"]{grid-template-columns:repeat(30,minmax(0,1fr));column-gap:.13rem}
 .energy-day{min-width:0;display:grid;grid-template-rows:clamp(110px,18vw,180px) 1.25rem;gap:.3rem}
@@ -51,7 +72,10 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .energy-days[data-days="30"] .energy-date-7{display:none}
 .energy-axis-labels{display:none;width:100%;min-width:0;justify-content:space-between;gap:.1rem;font-size:.65rem;color:var(--muted);white-space:nowrap;padding-top:.22rem}
 .energy-days[data-days="30"] + .energy-axis-labels{display:flex}
-@media(max-width:520px){.energy-day{grid-template-rows:135px 1.25rem}.energy-days{column-gap:.2rem}.energy-days[data-days="30"]{column-gap:1px}.energy-range button{min-height:38px;padding:.25rem .48rem}.energy-date{font-size:.63rem}}
+@media(max-width:520px){.energy-day{grid-template-rows:135px 1.25rem}.energy-days{column-gap:.2rem}.energy-days[data-days="30"]{column-gap:1px}.energy-range button{min-height:38px;padding:.25rem .48rem}.energy-date{font-size:.63rem}
+.energy-heading{align-items:flex-start}.energy-controls{flex:1 1 100%;justify-content:flex-start;gap:.3rem}
+.energy-range{gap:.12rem}.energy-range button{font-size:.8rem;padding:.25rem .43rem}
+.energy-connector-bars{gap:0}}
 @media(max-width:520px){.sessions-table .session-start{display:none}}
 .pages{display:flex;gap:.7rem;align-items:center;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
 .pages a,.pages span{padding:.35rem .65rem;border:1px solid var(--line);border-radius:7px}
@@ -74,25 +98,45 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 </section>
 {% if selected_connector_id is none %}
 <section id="energy-30-days" aria-labelledby="energy-30-title">
-<div class="energy-heading"><h2 id="energy-30-title">Energía del cargador</h2>
+<div class="energy-heading">
+<div class="energy-heading-title"><h2 id="energy-30-title">Energía</h2>
+<button class="energy-help-trigger" type="button" aria-label="Información sobre energía" aria-expanded="false" aria-controls="energy-help">ⓘ</button>
+</div>
+<div class="energy-controls">
 <div class="energy-range" role="group" aria-label="Periodo de energía">
 <button type="button" data-energy-days="7" aria-pressed="true">7 días</button>
 <button type="button" data-energy-days="30" aria-pressed="false">30 días</button>
-</div></div>
+</div>
+<div class="energy-range" role="group" aria-label="Desglose de energía">
+<button type="button" data-energy-view="total" aria-pressed="true">Total</button>
+<button type="button" data-energy-view="connectors" aria-pressed="false">Conectores</button>
+</div></div></div>
+<p class="energy-help" id="energy-help" hidden>La energía es la suma de las sesiones cerradas por fecha local de finalización ({{ timezone }}). Total agrega los conectores físicos; Conectores muestra cada uno por separado. C0 es un medidor/resumen de estación y no se suma otra vez. No incluye sesiones activas ni estima períodos faltantes.</p>
 <div class="energy-overview" aria-live="polite">
 <strong id="energy-total" data-total-7="{{ '%.2f'|format(energy_30_days.last_7.total_kwh) }}" data-total-30="{{ '%.2f'|format(energy_30_days.total_kwh) }}">{{ '%.2f'|format(energy_30_days.last_7.total_kwh) }} kWh</strong>
 <span class="muted note" id="energy-sessions" data-count-7="{{ energy_30_days.last_7.sessions_count }}" data-count-30="{{ energy_30_days.sessions_count }}">· {{ energy_30_days.last_7.sessions_count }} sesiones cerradas</span>
 </div>
-<div id="energy-chart" class="energy-days" data-days="7" role="list" aria-label="Energía entregada por día del cargador, últimos 7 días, {{ timezone }}">
+<div class="energy-legend" id="energy-legend" hidden aria-label="Colores de los conectores">
+{% for id in energy_30_days.connector_ids %}
+<span class="energy-legend-item"><span class="energy-legend-swatch connector-color-{{ loop.index0 % 4 }}" aria-hidden="true"></span>C{{ id }}</span>
+{% else %}<span class="note muted">Sin sesiones de conectores físicos en el periodo.</span>{% endfor %}
+</div>
+<div id="energy-chart" class="energy-days" data-days="7" data-view="total" role="list" aria-label="Energía total entregada por día, últimos 7 días, {{ timezone }}">
 {% for bar in energy_30_days.bars %}
-<div class="energy-day{{ ' energy-older' if loop.index0 < 23 else '' }}" role="listitem" aria-label="{{ bar.day }}: {{ '%.2f'|format(bar.kwh) }} kWh, {{ bar.sessions }} sesiones" title="{{ bar.day }}: {{ '%.2f'|format(bar.kwh) }} kWh · {{ bar.sessions }} sesiones">
-<div class="energy-column"><span class="energy-bar" style="--energy-height-7:{{ bar.height_pct_7 }}%;--energy-height-30:{{ bar.height_pct_30 }}%"></span></div>
+<div class="energy-day{{ ' energy-older' if loop.index0 < 23 else '' }}" role="listitem" aria-label="{{ bar.day }}: {{ '%.2f'|format(bar.kwh) }} kWh, {{ bar.sessions }} sesiones" data-total-description="{{ bar.day }}: {{ '%.2f'|format(bar.kwh) }} kWh, {{ bar.sessions }} sesiones" data-connector-description="{{ bar.day }}: {{ bar.connector_description or 'Sin mediciones por conector' }}" title="{{ bar.day }}: {{ '%.2f'|format(bar.kwh) }} kWh · {{ bar.sessions }} sesiones">
+<div class="energy-column">
+<span class="energy-bar" style="--energy-height-7:{{ bar.height_pct_7 }}%;--energy-height-30:{{ bar.height_pct_30 }}%"></span>
+<span class="energy-connector-bars">
+{% for c in bar.connectors %}
+<span class="energy-connector-bar connector-color-{{ loop.index0 % 4 }}" style="--connector-height-7:{{ c.height_pct_7 }}%;--connector-height-30:{{ c.height_pct_30 }}%" title="C{{ c.id }} · {{ bar.day }}: {{ '%.2f'|format(c.kwh) }} kWh, {{ c.sessions }} sesiones"></span>
+{% endfor %}
+</span>
+</div>
 <span class="energy-date energy-date-7">{{ bar.label_7 or '' }}</span>
 </div>
 {% endfor %}
 </div>
 <div class="energy-axis-labels" aria-hidden="true">{% for bar in energy_30_days.bars %}{% if bar.label %}<span>{{ bar.label }}</span>{% endif %}{% endfor %}</div>
-<p class="note muted">Energía de sesiones cerradas, por fecha local de finalización ({{ timezone }}). Sin estimar sesiones abiertas ni periodos faltantes.</p>
 </section>
 {% endif %}
 <section aria-labelledby="connector-title"><h2 id="connector-title">{{ 'Conector' if selected_connector_id is not none else 'Conectores del cargador' }}</h2>
@@ -147,17 +191,50 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
   const chart = document.getElementById("energy-chart");
   const total = document.getElementById("energy-total");
   const count = document.getElementById("energy-sessions");
-  const controls = document.querySelectorAll("[data-energy-days]");
-  if (!chart || !total || !count) return;
-  controls.forEach(button => button.addEventListener("click", () => {
+  const dayControls = document.querySelectorAll("[data-energy-days]");
+  const viewControls = document.querySelectorAll("[data-energy-view]");
+  const legend = document.getElementById("energy-legend");
+  const helpButton = document.querySelector(".energy-help-trigger");
+  const help = document.getElementById("energy-help");
+  if (!chart || !total || !count || !legend || !helpButton || !help) return;
+  const updateChartLabels = () => {
+    const days = chart.dataset.days;
+    const view = chart.dataset.view;
+    chart.setAttribute("aria-label",
+      "Energía " + (view === "total" ? "total" : "por conector") +
+      " entregada por día, últimos " + days + " días, " + {{ timezone|tojson }});
+    for (const day of chart.querySelectorAll(".energy-day")) {
+      day.setAttribute("aria-label", day.dataset[
+        view === "total" ? "totalDescription" : "connectorDescription"]);
+    }
+  };
+  dayControls.forEach(button => button.addEventListener("click", () => {
     const days = button.dataset.energyDays;
     if (days !== "7" && days !== "30") return;
     chart.dataset.days = days;
-    chart.setAttribute("aria-label", "Energía entregada por día del cargador, últimos " + days + " días, " + {{ timezone|tojson }});
     total.textContent = total.getAttribute("data-total-" + days) + " kWh";
     count.textContent = "· " + count.getAttribute("data-count-" + days) + " sesiones cerradas";
-    controls.forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+    dayControls.forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+    updateChartLabels();
   }));
+  viewControls.forEach(button => button.addEventListener("click", () => {
+    const view = button.dataset.energyView;
+    if (view !== "total" && view !== "connectors") return;
+    chart.dataset.view = view;
+    legend.hidden = view !== "connectors";
+    viewControls.forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+    updateChartLabels();
+  }));
+  helpButton.addEventListener("click", () => {
+    help.hidden = !help.hidden;
+    helpButton.setAttribute("aria-expanded", String(!help.hidden));
+  });
+  helpButton.addEventListener("keydown", event => {
+    if (event.key === "Escape") {
+      help.hidden = true;
+      helpButton.setAttribute("aria-expanded", "false");
+    }
+  });
 })();
 </script>
 {% endif %}
