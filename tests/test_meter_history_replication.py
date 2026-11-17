@@ -185,3 +185,22 @@ def test_forwarder_never_advances_without_collector_meter_capability(tmp_path):
     assert ack > 0
     assert observed[-2:] == ["/api/replication/ready", "/api/replication"]
     assert confirmed_cursor(state, "node-002") == ack
+
+
+def test_collector_maintenance_resets_only_held_historical_source(tmp_path):
+    from pathlib import Path
+    from ocpp_reports.collector_admin import maintain
+
+    source, collector = tmp_path / "source.db", tmp_path / "collector.db"
+    ingest_page(source, _page(_sample()))
+    batch, _ = _forward(source, collector, source_id="node-002")
+    other = {**batch, "source_id": "node-003"}
+    accept_batch(collector, Batch.model_validate(other))
+    assert maintain(collector, "node-002", "hold")["held"]
+    result = maintain(collector, "node-002", "reset", tmp_path / "private-backup.db")
+    assert result["backup_verified"] and result["other_sources_unchanged"]
+    assert not any(result["after"]["rows"].values())
+    with sqlite3.connect(collector) as db:
+        assert db.execute("SELECT COUNT(*) FROM collector_meter_samples WHERE source_id='node-002'").fetchone()[0] == 0
+        assert db.execute("SELECT COUNT(*) FROM collector_meter_samples WHERE source_id='node-003'").fetchone()[0] == 1
+        assert db.execute("SELECT COUNT(*) FROM collector_changes WHERE source_id='node-003'").fetchone()[0] == len(batch["changes"])
