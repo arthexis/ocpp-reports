@@ -311,3 +311,22 @@ def test_status_echo_never_crosses_time_source_action_or_event_identity(tmp_path
     groups = event_groups_page(db)
     assert len(groups["groups"]) == 6
     assert all(g["event_count"] == 1 for g in groups["groups"])
+
+
+def test_scoped_event_pagination_exactly_eleven_groups(tmp_path):
+    db = tmp_path / "exact-page.sqlite"
+    with sqlite3.connect(db) as connection:
+        _schema(connection)
+        for event_id in range(1, 12):
+            payload = _event(event_id, "StartTransaction")
+            payload["at"] = f"2026-11-16T00:00:{event_id:02d}Z"
+            connection.execute("INSERT INTO events VALUES (?,?,?)",
+                               ("a", event_id, json.dumps(payload)))
+    opts = dict(source_id="a", charger_id="cp-1", allowed_source_ids=("a",))
+    first = event_groups_page(db, page=1, **opts)
+    last = event_groups_page(db, page=2, **opts)
+    assert len(first["groups"]) == 10 and first["has_next"]
+    assert len(last["groups"]) == 1 and not last["has_next"]
+    assert event_groups_page(db, page=3, **opts)["groups"] == []
+    assert first == event_groups_page(db, page=1, term="cp-1", **opts)
+    assert last == event_groups_page(db, page=2, term="cp-1", **opts)
