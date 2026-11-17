@@ -27,6 +27,10 @@ def _quantity(value):
     return value if type(value) in (int, float) and math.isfinite(value) and value >= 0 else None
 
 
+def _temperature(value):
+    return value if type(value) in (int, float) and math.isfinite(value) and -273.15 <= value <= 1000 else None
+
+
 def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit: int = 2048,
                          point_limit: int = 120) -> dict:
     """Fetch no more than scan_limit+1 indexed samples in a proven event window.
@@ -103,12 +107,18 @@ def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit:
                if item.get("soc_provenance") == "ocpp-meter-values" else None)
         if soc is not None and soc > 100:
             soc = None
-        if meter is None and watts is None and soc is None:
+        voltage = _quantity(item.get("voltage_v"))
+        current = _quantity(item.get("current_import_a"))
+        offered = _quantity(item.get("current_offered_a"))
+        temperature = _temperature(item.get("temperature_c"))
+        if all(value is None for value in
+               (meter, watts, soc, voltage, current, offered, temperature)):
             continue
         key = (at.isoformat(), event_id, sample_index)
         samples[key] = {"at": at.isoformat(), "_source_order": source_order, "meter_wh": meter,
                         "power_kw": watts / 1000 if watts is not None else None,
-                        "soc": soc}
+                        "soc": soc, "voltage_v": voltage, "current_import_a": current,
+                        "current_offered_a": offered, "temperature_c": temperature}
     ordered = [samples[k] for k in sorted(samples)]
     # A meter reset (or any counter regression) invalidates subsequent session
     # energy. Power and independently sourced SoC remain distinct observations.
@@ -144,7 +154,11 @@ def timeline_charts(points: list[dict]) -> list[dict]:
     charts = []
     for field, label, unit in (("energy_kwh", "Energía de sesión medida", "kWh"),
                                 ("power_kw", "Potencia medida", "kW"),
-                                ("soc", "Estado de carga medido", "%")):
+                                ("soc", "Estado de carga medido", "%"),
+                                ("voltage_v", "Voltaje observado", "V"),
+                                ("current_import_a", "Corriente importada", "A"),
+                                ("current_offered_a", "Corriente ofrecida", "A"),
+                                ("temperature_c", "Temperatura informada", "°C")):
         # Source-order positions survive sorting, rejected values and decimation.
         # A line may join only adjacent retained source samples, never skip one.
         present = [(p.get("_source_order", i), datetime.fromisoformat(p["at"]).timestamp(), p[field])
