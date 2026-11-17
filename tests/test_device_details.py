@@ -47,7 +47,7 @@ def test_charger_and_connector_pages_are_distinct_and_tenant_safe(tmp_path):
     charger = client.get("/chargers/a/same?tz=UTC")
     assert charger.status_code == 200
     assert 'id="events"' in charger.text
-    assert "Eventos recientes de same" in charger.text
+    assert "Eventos registrados de same" in charger.text
     assert "Conectores del cargador" in charger.text
     assert "Sesiones de carga" in charger.text
     assert "Origen a" in charger.text
@@ -254,8 +254,8 @@ def test_last_charger_receipt_is_not_source_ingest_or_last_heartbeat(tmp_path):
     assert 'data-energy-view="total" aria-pressed="true"' in page.text
     assert 'data-energy-view="connectors" aria-pressed="false"' in page.text
     assert page.text.count('class="energy-bar"') == 30
-    assert 'data-energy-days="7" aria-pressed="true"' in page.text
-    assert 'data-energy-days="30" aria-pressed="false"' in page.text
+    assert 'data-energy-days="7" aria-label="7 días" aria-pressed="true"' in page.text
+    assert 'data-energy-days="30" aria-label="30 días" aria-pressed="false"' in page.text
     connector = TestClient(create_app(path, allowed_source_ids=("a",))).get(
         "/connectors/a/same/1")
     assert connector.status_code == 200 and 'id="energy-30-days"' not in connector.text
@@ -385,9 +385,9 @@ def test_charger_energy_buttons_are_single_chart_and_mobile_fields_removed(tmp_p
     body = page.text
     assert body.count('id="energy-chart"') == 1
     assert body.count('class="energy-bar"') == 30
-    assert 'data-energy-days="7" aria-pressed="true"' in body
-    assert 'data-energy-days="30" aria-pressed="false"' in body
-    assert 'data-energy-view="total" aria-pressed="true"' in body
+    assert 'data-energy-days="7" aria-label="7 días" aria-pressed="true"' in body
+    assert 'data-energy-days="30" aria-label="30 días" aria-pressed="false"' in body
+    assert 'data-energy-view="total" aria-pressed="true">Estación</button>' in body
     assert 'data-energy-view="connectors" aria-pressed="false"' in body
     assert 'data-days="7" data-view="total" role="list"' in body
     assert "<h2 id=\"energy-30-title\">Energía</h2>" in body
@@ -492,3 +492,37 @@ def test_charger_energy_split_by_physical_connector_exactly_matches_total(tmp_pa
     assert other["connector_ids"] == [1, 2, 3]
     assert all(c["kwh"] == 0 for bar in other["bars"]
                for c in bar["connectors"] if c["id"] == 3)
+
+
+
+def test_device_event_pagination_is_charger_scoped_across_multiple_pages(tmp_path):
+    path = tmp_path / "events.sqlite"
+    seed(path)
+    with sqlite3.connect(path) as db:
+        for event_id in range(11, 27):
+            db.execute("INSERT INTO events VALUES (?,?,?)", (
+                "a", event_id, json.dumps({
+                    "id": event_id, "charger_id": "same",
+                    "action": "Heartbeat" if event_id % 2 else "BootNotification",
+                    "kind": "ocpp", "at": f"2026-11-17T10:{event_id:02d}:00Z",
+                    "rfid": "should-never-appear",
+                })))
+    client = TestClient(create_app(path, allowed_source_ids=("a",)))
+    first = client.get("/chargers/a/same?event_page=1")
+    second = client.get("/chargers/a/same?event_page=2")
+    assert first.status_code == second.status_code == 200
+    assert first.text.count('class="event-summary-row"') == 10
+    assert second.text.count('class="event-summary-row"') >= 1
+    assert "Siguiente" in first.text and "Anterior" in second.text
+    assert "should-never-appear" not in first.text + second.text
+    assert 'id="events"' in first.text
+    assert client.get("/connectors/a/same/1").text.find('id="events"') == -1
+    event = client.get("/api/v1/charger-event-group", params={
+        "source_id": "a", "charger_id": "same", "first_event_id": 26
+    })
+    assert event.status_code == 200
+    assert event.json()["events"][0]["id"] == 26
+    assert "should-never-appear" not in event.text
+    assert client.get("/api/v1/charger-event-group", params={
+        "source_id": "b", "charger_id": "same", "first_event_id": 26
+    }).status_code == 404

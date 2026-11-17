@@ -639,11 +639,24 @@ def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
                 page.goto("http://reports.test/chargers/a/cp?tz=UTC", wait_until="load")
                 chart = page.locator("#energy-chart")
                 assert chart.count() == 1 and chart.get_attribute("data-days") == "7"
+                heading = page.locator(".energy-heading h2").bounding_box()
+                first_filter = page.get_by_role("button", name="7 días").bounding_box()
+                last_filter = page.get_by_role("button", name="Conectores", exact=True).bounding_box()
+                assert heading and first_filter and last_filter
+                assert abs(heading["y"] - first_filter["y"]) <= 14, (width, heading, first_filter)
+                assert abs(heading["y"] - last_filter["y"]) <= 14, (width, heading, last_filter)
+                assert last_filter["x"] + last_filter["width"] <= width + 1, width
+                if mobile:
+                    value_size = page.locator(".connector dd").first.evaluate(
+                        "(el) => parseFloat(getComputedStyle(el).fontSize)")
+                    label_size = page.locator(".connector dt").first.evaluate(
+                        "(el) => parseFloat(getComputedStyle(el).fontSize)")
+                    assert value_size >= label_size + 2.5, (width, value_size, label_size)
                 assert chart.locator(".energy-day:visible").count() == 7
                 assert page.locator("#energy-total").inner_text() == "3.00 kWh"
                 assert page.locator("#energy-sessions").inner_text().strip() == "· 2 sesiones cerradas"
                 assert page.get_by_role("button", name="7 días").get_attribute("aria-pressed") == "true"
-                assert page.get_by_role("button", name="Total", exact=True).get_attribute("aria-pressed") == "true"
+                assert page.get_by_role("button", name="Estación", exact=True).get_attribute("aria-pressed") == "true"
                 assert page.get_by_role("button", name="Conectores", exact=True).click() is None
                 assert chart.get_attribute("data-view") == "connectors"
                 assert page.locator("#energy-legend").is_visible()
@@ -669,7 +682,7 @@ def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
                 assert page.locator("#energy-sessions").inner_text().strip() == "· 3 sesiones cerradas"
                 assert page.get_by_role("button", name="30 días").get_attribute("aria-pressed") == "true"
                 assert page.get_by_role("button", name="7 días").get_attribute("aria-pressed") == "false"
-                assert page.get_by_role("button", name="Total", exact=True).click() is None
+                assert page.get_by_role("button", name="Estación", exact=True).click() is None
                 assert chart.get_attribute("data-view") == "total"
                 assert chart.locator(".energy-bar").count() == 30
                 assert chart.locator(".energy-bar:visible").count() == 3

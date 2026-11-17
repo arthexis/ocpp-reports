@@ -39,7 +39,8 @@ def test_mobile_power_qualifier_stays_inline_and_values_outweigh_labels(dashboar
     source = dashboard_source
     css = source.split("<style>", 1)[1].split("</style>", 1)[0]
     mobile = css.split("/* Mobile header and connector cards:", 1)[1].split("\n}", 1)[0]
-    assert "overflow-wrap:anywhere;font-size:1.1rem" in mobile
+    assert "overflow-wrap:anywhere;font-size:1.18rem" in mobile
+    assert "padding:.1rem .02rem calc(.1rem + 1px)" in mobile
     assert 'td[data-label="Cargador"] .charger-session-link,' in mobile
     assert 'td[data-label="Conector"] .charger-session-link{' in mobile
     assert "display:inline-block;position:relative;min-height:0" in mobile
