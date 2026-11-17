@@ -48,7 +48,7 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .energy-bar{display:block;width:100%;min-height:0;height:var(--energy-height-7);background:var(--accent);border-radius:3px 3px 0 0}
 .energy-days[data-days="30"] .energy-bar{height:var(--energy-height-30)}
 .energy-date{min-width:0;white-space:nowrap;text-align:center;font-size:.7rem;color:var(--muted)}
-.energy-days[data-days="30"] .energy-date-7{visibility:hidden}
+.energy-days[data-days="30"] .energy-date-7{display:none}
 .energy-axis-labels{display:none;width:100%;min-width:0;justify-content:space-between;gap:.1rem;font-size:.65rem;color:var(--muted);white-space:nowrap;padding-top:.22rem}
 .energy-days[data-days="30"] + .energy-axis-labels{display:flex}
 @media(max-width:520px){.energy-day{grid-template-rows:135px 1.25rem}.energy-days{column-gap:.2rem}.energy-days[data-days="30"]{column-gap:1px}.energy-range button{min-height:38px;padding:.25rem .48rem}.energy-date{font-size:.63rem}}
