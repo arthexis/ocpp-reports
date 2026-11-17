@@ -660,6 +660,10 @@ def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
                 assert all(energy_button_boxes), (width, energy_button_boxes)
                 assert max(b["width"] for b in energy_button_boxes) - min(
                     b["width"] for b in energy_button_boxes) <= 1.5, (width, energy_button_boxes)
+                if mobile:
+                    for left, right in zip(energy_button_boxes, energy_button_boxes[1:]):
+                        gap = right["x"] - (left["x"] + left["width"])
+                        assert 0 <= gap <= 1.2, (width, gap, energy_button_boxes)
                 for name in ("7 días", "30 días"):
                     assert name in page.get_by_role("button", name=name).inner_text(), width
                 if mobile:
