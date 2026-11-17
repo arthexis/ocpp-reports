@@ -262,8 +262,14 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
     database = tmp_path / "mobile-card-fixture.sqlite"
     _seed(database)
     _, nominal_connector = _data()
-    nominal_connector.update(power_w=None, power_observed_at=None, rated_power_w=60000)
+    nominal_connector.update(power_w=None, power_observed_at=None)
     _replace(database, connector=nominal_connector)
+    # Collector stores nominal ratings independently from connector status.
+    with sqlite3.connect(database) as db:
+        db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                   ("a", "rating", "cp:1", 3, json.dumps({
+                       "charger_id": "cp", "connector_id": 1,
+                       "rated_power_w": 60000, "rating_scope": "connector"})))
     app = create_app(database, allowed_source_ids=("a",))
 
     @app.middleware("http")
