@@ -163,7 +163,7 @@ header{align-items:start;gap:.65rem}
 @media(max-width:520px){
   .connector-mobile-text{display:inline}
   .connectors-panel td[data-label="Estado"] .status,
-  .connectors-panel td[data-label="Conectado"] .status{font-size:.86rem;line-height:1.25;padding:.2rem .35rem;gap:.25rem}
+  .connectors-panel td[data-label="Conectado"] .status{font-size:.96rem;line-height:1.25;padding:.2rem .35rem;gap:.25rem}
   .connectors-panel td[data-label="Estado"] .status::before,
   .connectors-panel td[data-label="Conectado"] .status::before{width:.4rem;height:.4rem;flex-shrink:0}
   .connectors-panel td[data-label="Estado"]{align-items:center}
@@ -190,7 +190,10 @@ header{align-items:start;gap:.65rem}
   .profile-menu summary{min-width:44px;min-height:44px}
   /* Short values on the left; longer identity/status/date values on the right. */
   .connectors-panel tbody tr{display:grid;grid-template-columns:minmax(0,.76fr) minmax(0,1.24fr);column-gap:.28rem;row-gap:.14rem;align-items:start}
-  .connectors-panel td{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;min-width:0;overflow-wrap:anywhere;font-size:1.04rem;line-height:1.23;padding:.1rem .02rem;gap:.08rem}
+  .connectors-panel td{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;min-width:0;overflow-wrap:anywhere;font-size:1.1rem;line-height:1.2;padding:.1rem .02rem;gap:.08rem}
+  /* Top-align text in both links while preserving their 44px tap target. */
+  .connectors-panel td[data-label="Cargador"] .charger-session-link,
+  .connectors-panel td[data-label="Conector"] .charger-session-link{align-items:flex-start;min-height:44px;margin:0;padding:0;line-height:1.2}
   .connectors-panel td::before{flex:0 0 auto;width:100%;font-size:.77rem;line-height:1.13}
   .connectors-panel td[data-label="Conector"]{grid-area:1/1}
   .connectors-panel td[data-label="Conectado"]{grid-area:2/1}
