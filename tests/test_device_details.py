@@ -321,9 +321,9 @@ def test_charger_energy_30_days_local_remote_dedup_and_timezone(tmp_path):
     assert data["total_kwh"] == 9.0
     assert data["last_7"] == {"total_kwh": 3.0, "sessions_count": 1}
     assert sum(1 for bar in data["bars"] if bar["label_7"]) == 7
-    assert data["bars"][-2]["height_pct_7"] == 0
+    assert data["bars"][-2]["height_pct_7"] == 100  # Nov 16: the only energy in last 7 days
     assert data["bars"][-1]["height_pct_7"] == 0
-    assert data["bars"][-2]["height_pct_30"] == 0
+    assert 0 < data["bars"][-2]["height_pct_30"] < 100
     days = {item["day"]: item for item in data["bars"]}
     assert days["2026-11-16"]["kwh"] == 3.0  # UTC 05:30 = prior local day
     assert days["2026-11-09"]["kwh"] == 6.0  # 01:30 UTC is 19:30 on Nov 9 in Monterrey
@@ -366,6 +366,13 @@ def test_charger_energy_30_days_empty_and_unparseable(tmp_path):
 def test_charger_energy_buttons_are_single_chart_and_mobile_fields_removed(tmp_path):
     path = tmp_path / "warehouse.sqlite"
     seed(path)
+    with sqlite3.connect(path) as db:
+        db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)", (
+            "a", "connector", "same:1", 17, json.dumps({
+                "charger_id": "same", "connector_id": 1,
+                "status": "Available", "connected": True, "energy_wh": 25000,
+                "observed_at": "2026-11-17T15:00:00Z"
+            })))
     client = TestClient(create_app(path, allowed_source_ids=("a",)))
     page = client.get("/chargers/a/same?tz=UTC")
     assert page.status_code == 200

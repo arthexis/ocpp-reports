@@ -48,10 +48,9 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .energy-bar{display:block;width:100%;min-height:0;height:var(--energy-height-7);background:var(--accent);border-radius:3px 3px 0 0}
 .energy-days[data-days="30"] .energy-bar{height:var(--energy-height-30)}
 .energy-date{min-width:0;white-space:nowrap;text-align:center;font-size:.7rem;color:var(--muted)}
-.energy-date-30{display:none}
-.energy-days[data-days="30"] .energy-date-7{display:none}
-.energy-days[data-days="30"] .energy-date-30{display:block}
-.energy-days[data-days="30"] .energy-date{font-size:.65rem}
+.energy-days[data-days="30"] .energy-date-7{visibility:hidden}
+.energy-axis-labels{display:none;width:100%;min-width:0;justify-content:space-between;gap:.1rem;font-size:.65rem;color:var(--muted);white-space:nowrap;padding-top:.22rem}
+.energy-days[data-days="30"] + .energy-axis-labels{display:flex}
 @media(max-width:520px){.energy-day{grid-template-rows:135px 1.25rem}.energy-days{column-gap:.2rem}.energy-days[data-days="30"]{column-gap:1px}.energy-range button{min-height:38px;padding:.25rem .48rem}.energy-date{font-size:.63rem}}
 @media(max-width:520px){.sessions-table .session-start{display:none}}
 .pages{display:flex;gap:.7rem;align-items:center;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
@@ -88,10 +87,11 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 {% for bar in energy_30_days.bars %}
 <div class="energy-day{{ ' energy-older' if loop.index0 < 23 else '' }}" role="listitem" aria-label="{{ bar.day }}: {{ '%.2f'|format(bar.kwh) }} kWh, {{ bar.sessions }} sesiones" title="{{ bar.day }}: {{ '%.2f'|format(bar.kwh) }} kWh · {{ bar.sessions }} sesiones">
 <div class="energy-column"><span class="energy-bar" style="--energy-height-7:{{ bar.height_pct_7 }}%;--energy-height-30:{{ bar.height_pct_30 }}%"></span></div>
-<span class="energy-date energy-date-7">{{ bar.label_7 or '' }}</span><span class="energy-date energy-date-30">{{ bar.label or '' }}</span>
+<span class="energy-date energy-date-7">{{ bar.label_7 or '' }}</span>
 </div>
 {% endfor %}
 </div>
+<div class="energy-axis-labels" aria-hidden="true">{% for bar in energy_30_days.bars %}{% if bar.label %}<span>{{ bar.label }}</span>{% endif %}{% endfor %}</div>
 <p class="note muted">Energía de sesiones cerradas, por fecha local de finalización ({{ timezone }}). Sin estimar sesiones abiertas ni periodos faltantes.</p>
 </section>
 {% endif %}
