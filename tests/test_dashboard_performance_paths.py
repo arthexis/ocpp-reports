@@ -72,7 +72,7 @@ def test_dashboard_stage_timings_and_source_scope(tmp_path):
     assert response.status_code == 200
     timings = response.headers["server-timing"]
     assert "snapshot;dur=" in timings
-    assert "event-groups;dur=" in timings
+    assert "event-groups;dur=" not in timings  # historical SQL belongs to charger detail
     assert "template;dur=" in timings
     assert "remote" not in client.get("/api/snapshot").text
     assert client.get("/?source_id=remote").status_code == 403

@@ -123,7 +123,7 @@ def test_location_applies_to_transactions_and_events(tmp_path):
     html = TestClient(create_app(db)).get("/").text
     assert "<th>Ubicación</th>" in html
     # Detail rows are lazy, so locations are no longer rendered in initial HTML.
-    assert html.count("Site West") >= 2
+    assert html.count("Site West") >= 1  # recent events have moved to charger detail
     response = TestClient(create_app(db)).get(
         "/api/event-group?group_source=node-a&first_event_id=3")
     assert response.status_code == 200

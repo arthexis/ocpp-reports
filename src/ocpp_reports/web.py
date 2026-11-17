@@ -504,25 +504,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         if not is_admin:
             data["events"] = []
             data["sources"] = []
-        # SQL window grouping reads only summaries; details are fetched lazily.
+        # Event history belongs to the individual charger page, not dashboard.
+        event_groups, event_has_next = [], False
         group_duration_ms = None
-        if paginated is not None and is_admin:
-            started = perf_counter()
-            try:
-                grouped = event_groups_page(
-                    warehouse, source_id=source_id, charger_id=charger_id,
-                    allowed_source_ids=allowed_source_ids, term=filter, status=status,
-                    location=location, date_from=date_from, date_to=date_to,
-                    zone=tz, page=event_page,
-                )
-            except (ValueError, OSError, sqlite3.Error) as exc:
-                raise HTTPException(503, "Event history unavailable") from exc
-            group_duration_ms = (perf_counter() - started) * 1000
-            event_groups = grouped["groups"]
-            event_has_next = grouped["has_next"]
-        else:
-            event_groups = _group_events(data["events"])[:10]
-            event_has_next = False
         template_started = perf_counter()
         response = templates.TemplateResponse(request, "dashboard.html.j2",
                                           {"data": data, "is_admin": is_admin,
@@ -550,15 +534,103 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         response.headers["Server-Timing"] = ", ".join(timings)
         return response
 
+    def _device_page(request: Request, source_id: str, charger_id: str,
+                     connector_id: int | None, tz: str | None, tx_page: int,
+                     event_page: int):
+        selected_zone = tz or zones[0]
+        if selected_zone not in zones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
+        if tx_page < 1 or event_page < 1 or (connector_id is not None and connector_id < 0):
+            raise HTTPException(422, "Invalid page or connector")
+        # Exact source+charger identity, not a display name or location. A
+        # forbidden source and an unknown device share the same 404 response.
+        if allowed_source_ids is not None and source_id not in allowed_source_ids:
+            raise HTTPException(404, "Device not found")
+        sql_page = dict(term="", status="", location="", date_from="",
+                        date_to="", zone=selected_zone, view="all", page=tx_page,
+                        connector_id=connector_id)
+        data = read(source_id, charger_id, 100, transaction_pagination=sql_page,
+                    skip_events=True)
+        now = datetime.now(timezone.utc)
+        source = next((s for s in data["sources"] if s["source_id"] == source_id), None)
+        freshness = _source_freshness(source, now) if source else "unknown"
+        projected = project_dashboard_connectors(
+            data, now=now, connector_view="combined",
+            source_freshness={source_id: freshness})
+        connectors = [
+            row for row in projected["connectors"]
+            if row.get("source_id") == source_id and row.get("charger_id") == charger_id
+            and (connector_id is None or row.get("connector_id") == connector_id)
+        ]
+        page = data.get("transaction_pagination")
+        if page is None:
+            # Preserve read-only compatibility for injected snapshot providers,
+            # never leaking another source/charger or connector.
+            matched = [t for t in data["transactions"]
+                       if t.get("source_id") == source_id
+                       and t.get("charger_id") == charger_id
+                       and (connector_id is None or
+                            type(t.get("connector_id")) is int and
+                            t.get("connector_id") == connector_id)]
+            total = len(matched)
+            pages = max(1, (total + 19) // 20)
+            actual_page = min(tx_page, pages)
+            data["transactions"] = matched[(actual_page - 1) * 20:actual_page * 20]
+        else:
+            total, pages, actual_page = page["total"], page["pages"], page["page"]
+        principal = getattr(request.state, "principal", None)
+        is_admin = principal is None or principal.role.value == "admin"
+        event_groups, event_has_next = [], False
+        if connector_id is None and is_admin:
+            try:
+                events = event_groups_page(
+                    warehouse, source_id=source_id, charger_id=charger_id,
+                    allowed_source_ids=allowed_source_ids, zone=selected_zone,
+                    page=event_page)
+            except (ValueError, OSError, sqlite3.Error) as exc:
+                raise HTTPException(503, "Event history unavailable") from exc
+            event_groups, event_has_next = events["groups"], events["has_next"]
+        if not connectors and not total and not event_groups:
+            raise HTTPException(404, "Device not found")
+        location = (next((row.get("location") for row in connectors if row.get("location")), None)
+                    or next((row.get("location") for row in data["transactions"]
+                             if row.get("location")), None) or source_id)
+        return templates.TemplateResponse(
+            request, "device_detail.html.j2",
+            {"title": title, "source_id": source_id, "charger_id": charger_id,
+             "selected_connector_id": connector_id, "connectors": connectors,
+             "data": data, "location": location, "source": source,
+             "source_freshness": freshness, "timezone": selected_zone,
+             "timezones": zones, "tx_total": total, "tx_page": actual_page,
+             "tx_pages": pages, "event_groups": event_groups,
+             "event_page": event_page, "event_has_next": event_has_next,
+             "is_admin": is_admin},
+            headers={"Cache-Control": "no-store"})
+
+    @app.get("/chargers/{source_id}/{charger_id}", response_class=HTMLResponse)
+    def charger_page(request: Request, source_id: str, charger_id: str,
+                     tz: str | None = None, tx_page: int = Query(1, ge=1),
+                     event_page: int = Query(1, ge=1)):
+        return _device_page(request, source_id, charger_id, None, tz, tx_page, event_page)
+
+    @app.get("/connectors/{source_id}/{charger_id}/{connector_id}", response_class=HTMLResponse)
+    def connector_page(request: Request, source_id: str, charger_id: str,
+                       connector_id: int, tz: str | None = None,
+                       tx_page: int = Query(1, ge=1)):
+        return _device_page(request, source_id, charger_id, connector_id, tz, tx_page, 1)
+
     @app.get("/api/v1/event-group", tags=["Dashboard API v1"])
     @app.get("/api/event-group")
     def api_event_group(
-        group_source: str, first_event_id: int = Query(..., ge=1),
+        request: Request, group_source: str, first_event_id: int = Query(..., ge=1),
         source_id: str | None = None, charger_id: str | None = None,
         filter: str = "", status: str = "", location: str = "",
         date_from: str = "", date_to: str = "", tz: str | None = None,
         offset: int = Query(0, ge=0),
     ):
+        principal = getattr(request.state, "principal", None)
+        if principal is not None and principal.role.value != "admin":
+            raise HTTPException(403, "Event history requires administrator access")
         if allowed_source_ids is not None and (
             group_source not in allowed_source_ids or
             (source_id is not None and source_id not in allowed_source_ids)

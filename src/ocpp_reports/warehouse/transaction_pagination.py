@@ -30,12 +30,14 @@ def transaction_page(
     allowed_source_ids: tuple[str, ...] | None,
     term: str, status: str, location: str,
     date_from: str, date_to: str, zone: str,
-    view: str, page: int, page_size: int = 20,
+    view: str, page: int, page_size: int = 20, connector_id: int | None = None,
 ) -> dict:
     if view not in ("success", "failed", "all", "active"):
         raise ValueError("Invalid transaction view")
     if page < 1 or page_size != 20:
         raise ValueError("Invalid transaction page")
+    if connector_id is not None and (type(connector_id) is not int or connector_id < 0):
+        raise ValueError("Invalid connector ID")
     if allowed_source_ids is not None and not allowed_source_ids:
         raise ValueError("Source allowlist must not be empty")
     for day in (date_from, date_to):
@@ -113,6 +115,12 @@ def transaction_page(
             " instr(dashboard_casefold(json_extract(x.payload,'$.state')),?)>0)"
         )
         filter_args.extend([term] * 4)
+    if connector_id is not None:
+        # Filter before counts and LIMIT on *both* local and replicated rows.
+        # Require JSON integer to avoid coercing arbitrary strings to C0.
+        filters.append("json_type(x.payload,'$.connector_id')='integer' AND "
+                       "json_extract(x.payload,'$.connector_id')=?")
+        filter_args.append(connector_id)
     if location:
         filters.append("instr(dashboard_casefold(" + location_expression + "),?)>0")
         filter_args.append(location)

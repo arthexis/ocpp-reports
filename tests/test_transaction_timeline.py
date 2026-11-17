@@ -374,9 +374,9 @@ def test_energy_plot_tooltip_pairs_only_same_observation_soc(tmp_path):
     assert page.status_code == 200
     assert page.text.count('<article class="timeline-plot">') == 1
     assert '<h3>Energía de sesión medida (kWh)</h3>' in page.text
-    assert 'Energía de sesión: 0.500 kWh · SoC: no disponible' in page.text
-    assert 'Energía de sesión: 1.000 kWh · SoC: 50.0%' in page.text
-    assert 'Energía de sesión: 1.500 kWh · SoC: no disponible' in page.text
+    assert '0.500 kWh · —' in page.text
+    assert '1.000 kWh · 50.0%' in page.text
+    assert '1.500 kWh · —' in page.text
     assert '<h3>Estado de carga medido' not in page.text
     assert '<h3>Potencia medida' not in page.text
     assert '<th>SoC (%)</th>' in page.text  # Evidence table preserved.

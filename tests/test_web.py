@@ -87,5 +87,5 @@ def test_d4_accessibility_and_empty_state(tmp_path):
     assert 'tabindex="0"' in page.text
     assert "Sin conectores registrados" in page.text
     assert "Sin transacciones" in page.text
-    assert "Sin eventos" in page.text
+    assert "Sin eventos" not in page.text  # events live on the charger page
     assert client.get("/api/snapshot?charger_id=unknown").json()["connectors"] == []

@@ -6,7 +6,7 @@ Run `ocpp-reports ingest --follow --data-dir /path/to/csms/schemas/8 --database 
 ocpp-reports serve --database /var/lib/ocpp-reports/reports.sqlite --host 127.0.0.1 --port 8080
 ```
 
-Open http://127.0.0.1:8080/ locally. The dashboard reads **only** Reports-owned SQLite, using a read-only connection. It does not import CSMS Python modules or contact chargers. It displays last-known connector state separately from source ingestion freshness, plus transactions, events and source cursors. Filter by source or charger. A JSON read-only endpoint is available at `/api/snapshot`.
+Open http://127.0.0.1:8080/ locally. The dashboard reads **only** Reports-owned SQLite, using a read-only connection. It does not import CSMS Python modules or contact chargers. It displays last-known connector state separately from source ingestion freshness, plus transactions and administrative source cursors. Recent events appear only on each charger's detail page. Filter by source or charger. A JSON read-only endpoint is available at `/api/snapshot`.
 
 Security: `serve` rejects non-loopback binds. It has no user accounts or authentication; do not expose it publicly. M4 will add nginx HTTPS, authentication, and Ansible services. The browser updates data in place every 15 seconds without reloading the page; no WebSockets. M2 does not require forwarder or collector.
 
@@ -124,24 +124,22 @@ Browsers cache Basic credentials, so test with a private window after changes.
 
 ## Event groups: read-only window implementation (PR #127)
 
-The **Eventos recientes** panel now selects the latest **10 groups per page**
+The **Eventos recientes** panel on `/chargers/{source_id}/{charger_id}` selects the latest **10 groups per page**
 with SQLite window functions over the same source-scoped local and replicated
 events. Only adjacent routine Heartbeats and eligible benign status messages
 collapse; faults and transaction lifecycle events remain individual groups.
 Grouping follows the existing source/event-ID ordering rather than merging
-unrelated events across sources. SQL selects summaries only, so opening the
-dashboard does not download the groups' underlying event payloads.
+unrelated events across sources. SQL selects summaries only, so opening a charger page does not download the groups' underlying event payloads. The main `/` dashboard does not query or render event groups.
 
 Expanding a group fetches up to **50 display-only event entries** using
-`GET /api/event-group?group_source=SOURCE&first_event_id=ID&offset=0`.
+`GET /api/event-group?group_source=SOURCE&source_id=SOURCE&charger_id=CHARGER&first_event_id=ID&offset=0`.
 The API revalidates the exact group boundary and source allowlist on each
-request. The browser can request the next 50 entries explicitly. The JSON
+request; application-role users other than administrators cannot fetch the event history. The browser can request the next 50 entries explicitly. The JSON
 response intentionally contains only event ID, source, charger, location,
 action, and timestamp fields, not raw OCPP payloads, RFID or customer secrets.
 Event-group queries never write to the warehouse, CSMS or replication cursors.
 
-**Field performance check:** capture dashboard response header
-`Server-Timing: event-groups;dur=...` and the scoped group-detail JSON
+**Field performance check:** measure the charger-specific event-group page and the scoped group-detail JSON
 `query_duration_ms` on several normal refreshes and expanded large groups.
 Compare warm/cold timings to current dashboard response latency and watch
 CPU/SQLite load; treat repeated high latency as evidence for a future
@@ -192,8 +190,8 @@ the same watchtower after merging and deploying the optimization.
 Do not treat CI passing or a single fast request as proof.
 
 The benchmark now records `stages` with percentile distributions from
-the dashboard's `Server-Timing` header: `snapshot`, `event-groups`, and
-`template`. The default first event page streams groups without the full
+the main dashboard's `Server-Timing` header: `snapshot` and `template`.
+Event grouping is scoped to the charger detail view and does not run on `/`. The default first event page streams groups without the full
 historic window calculation; filtered requests and subsequent pages
 retain the exact window path. API snapshot history is bounded to the
 requested limit; raw evidence and stored records are unchanged.
@@ -201,3 +199,23 @@ requested limit; raw evidence and stored records are unchanged.
 After deploying, run the benchmark with a new filename and compare
 the HTML p95, API p95, API `peak_python_bytes`, and stage breakdown
 against issue #140. Keep the benchmark read-only and sequential.
+
+
+## Charger and connector detail navigation (#230)
+
+The charger name in the main **Conectores** section opens
+`/chargers/{source_id}/{charger_id}`. The connector number opens
+`/connectors/{source_id}/{charger_id}/{connector_id}`; the status link for
+an active charging session continues to open its transaction directly.
+The charger view contains all recorded connectors and its own recent events;
+the connector view contains only the selected connector and its SQL-paginated
+sessions. Both use source+charger-qualified identities, not unscoped IDs or
+location text. Unknown and forbidden detail identities return 404.
+
+The connector card shows the original status/energy/power observation times and
+the last synchronized timestamp when present. The separate admin-only origin
+section shows its cursor, local ingestion and replica-receipt timestamps. These
+**do not** prove that a particular charger has communicated recently.
+No periodic background work, schema change or inferred SoC is introduced.
+The energy chart tooltip contains only measured kWh and verified, same-point
+SoC (or a missing-value marker when no such reading exists).

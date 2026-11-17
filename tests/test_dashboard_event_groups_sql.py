@@ -79,13 +79,18 @@ def test_source_security_and_filter_scope(tmp_path):
     _seed(db)
     app = create_app(db, allowed_source_ids=("a",), timezones=("UTC",))
     client = TestClient(app)
-    html = client.get("/")
+    home = client.get("/")
+    assert home.status_code == 200
+    assert "Eventos recientes" not in home.text
+    assert "event-groups;dur=" not in home.headers["server-timing"]
+    html = client.get("/chargers/a/cp-1")
     assert html.status_code == 200
     assert "× 69" in html.text
-    assert "event-groups;dur=" in html.headers["server-timing"]
     assert 'data-first-id="194"' in html.text
     assert "Abre el grupo" in html.text
     assert "Ver 50 más" in html.text
+    assert client.get("/chargers/b/cp-b").status_code == 404
+    assert client.get("/chargers/a/nonexistent").status_code == 404
     assert client.get("/?source_id=b").status_code == 403
     assert client.get("/api/event-group?group_source=b&first_event_id=3").status_code == 403
     details = client.get("/api/event-group?group_source=a&first_event_id=194")
