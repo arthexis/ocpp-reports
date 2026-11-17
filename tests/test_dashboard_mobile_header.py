@@ -65,7 +65,13 @@ def test_tablet_header_and_tables_preserve_mobile_and_desktop_semantics(dashboar
     for column in (2, 6, 7, 8):
         assert f".connectors-panel th:nth-child({column})" in tablet
         assert f".connectors-panel td:nth-child({column})" in tablet
-    assert ".transactions-panel th:nth-child(5),.transactions-panel tbody td:nth-child(5){display:none}" in tablet
+    for column in (2, 5, 8, 9):
+        assert f".transactions-panel th:nth-child({column})" in tablet
+        assert f".transactions-panel tbody td:nth-child({column})" in tablet
+    wide_tablet = css.split("/* Power is useful at tablet widths", 1)[1]
+    assert "@media(min-width:760px) and (max-width:1100px)" in wide_tablet
+    assert ".connectors-panel th:nth-child(6),.connectors-panel td:nth-child(6){display:table-cell}" in wide_tablet
+    assert ".connectors-panel th:nth-child(6){width:21%}" in wide_tablet
     assert "<th>Estado</th>" in source
     assert "<th>Energía</th>" in source
     assert '<td data-label="Estado">' in source

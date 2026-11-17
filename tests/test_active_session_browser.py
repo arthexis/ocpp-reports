@@ -503,7 +503,7 @@ def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
     with TestClient(app) as client, playwright.sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
         try:
-            for width in (390, 521, 700, 900, 1100, 1200):
+            for width in (390, 521, 700, 759, 760, 900, 1100, 1200):
                 mobile = width <= 520
                 context = browser.new_context(
                     viewport={"width": width, "height": 844}, is_mobile=mobile,
@@ -525,13 +525,18 @@ def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
                     assert abs(search["y"] + search["height"]
                                - profile["y"] - profile["height"]) <= 12
                     assert profile["width"] >= 44 and profile["height"] >= 44
-                    for index in (2, 6, 7, 8):
+                    hidden_connectors = (2, 7, 8) if width >= 760 else (2, 6, 7, 8)
+                    for index in hidden_connectors:
                         cell = page.locator(".connectors-panel thead th").nth(index - 1)
                         assert not cell.is_visible(), (width, index)
-                    for index in (1, 3, 4, 5):
+                    shown_connectors = (1, 3, 4, 5, 6) if width >= 760 else (1, 3, 4, 5)
+                    for index in shown_connectors:
                         assert page.locator(".connectors-panel thead th").nth(index - 1).is_visible()
-                    assert not page.locator(".transactions-panel thead th").nth(4).is_visible()
-                    assert not page.locator(".transactions-panel tbody td").nth(4).is_visible()
+                    for index in (2, 5, 8, 9):
+                        assert not page.locator(".transactions-panel thead th").nth(index - 1).is_visible()
+                        assert not page.locator(".transactions-panel tbody td").nth(index - 1).is_visible()
+                    for index in (1, 3, 4, 6, 7, 10):
+                        assert page.locator(".transactions-panel thead th").nth(index - 1).is_visible()
                     assert page.locator(".connectors-panel a.status-session-link").count() == 1
                     assert page.locator(".connectors-panel .scroll").evaluate(
                         "(el) => el.scrollWidth <= el.clientWidth + 2"), width

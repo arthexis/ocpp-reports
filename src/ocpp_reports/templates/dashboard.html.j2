@@ -217,7 +217,19 @@ header{align-items:start;gap:.65rem}
   .connectors-panel th:nth-child(5){width:20%}
   .connectors-panel td:nth-child(1),.connectors-panel td:nth-child(4){white-space:normal;overflow-wrap:anywhere}
   .transactions-panel th,.transactions-panel td{padding:.65rem .45rem}
-  .transactions-panel th:nth-child(5),.transactions-panel tbody td:nth-child(5){display:none}
+  .transactions-panel th:nth-child(2),.transactions-panel tbody td:nth-child(2),
+  .transactions-panel th:nth-child(5),.transactions-panel tbody td:nth-child(5),
+  .transactions-panel th:nth-child(8),.transactions-panel tbody td:nth-child(8),
+  .transactions-panel th:nth-child(9),.transactions-panel tbody td:nth-child(9){display:none}
+}
+/* Power is useful at tablet widths with room for its nominal/measured qualifier. */
+@media(min-width:760px) and (max-width:1100px){
+  .connectors-panel th:nth-child(6),.connectors-panel td:nth-child(6){display:table-cell}
+  .connectors-panel th:nth-child(1){width:29%}
+  .connectors-panel th:nth-child(3){width:12%}
+  .connectors-panel th:nth-child(4){width:24%}
+  .connectors-panel th:nth-child(5){width:14%}
+  .connectors-panel th:nth-child(6){width:21%}
 }
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand"><h1>{{ title }}</h1>
