@@ -765,12 +765,13 @@ def test_charger_event_action_expands_in_same_table_row_offline(tmp_path):
                     assert page.locator(".events-table .event-id").first.is_visible()
                 before = requests["GET"]
                 summary.click()
-                assert page.locator(".events-table .event-expand-row").first.is_visible()
+                page.locator(".events-table .event-expand-row").first.wait_for(state="visible")
                 page.locator(".event-detail tbody tr").first.wait_for()
                 assert page.locator(".event-detail tbody tr").count() == 1
                 assert "never-expose" not in page.locator(".event-detail").inner_text()
                 assert requests["GET"] > before
                 summary.click()
+                page.locator(".events-table .event-expand-row").first.wait_for(state="hidden")
                 assert page.locator(".events-table .event-expand-row:visible").count() == 0
                 assert page.locator(".events-table .event-summary-row").count() == 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2"), width
