@@ -123,6 +123,15 @@ def accept_batch(database: Path, batch: Batch) -> int:
                 ).fetchone()
                 if prior is not None and prior[0] != encoded:
                     raise ValueError("Conflicting immutable replicated meter sample")
+                pending = db.execute(
+                    "SELECT payload FROM collector_meter_enrichments WHERE source_id=?"
+                    " AND event_id=? AND sample_index=?",
+                    (batch.source_id, event, index),
+                ).fetchone()
+                if pending is not None and verified_overlay(
+                    change.payload, encoded, json.loads(pending[0])
+                ) is None:
+                    raise ValueError("Pending historical enrichment does not match sample")
                 db.execute("""INSERT OR IGNORE INTO collector_meter_samples
                     (source_id,event_id,sample_index,charger_id,connector_id,
                      transaction_id,observed_at,payload) VALUES (?,?,?,?,?,?,?,?)""",
