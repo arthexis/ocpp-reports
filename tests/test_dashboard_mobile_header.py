@@ -50,3 +50,39 @@ def test_mobile_power_qualifier_stays_inline_and_values_outweigh_labels(dashboar
     assert ">nominal</span>" in cell
     assert ">medida</span>" in cell
     assert "c.power_fresh" in cell and "c.rated_power_w" in cell
+
+
+def test_tablet_header_and_tables_preserve_mobile_and_desktop_semantics(dashboard_source):
+    source = dashboard_source
+    css = source.split("<style>", 1)[1].split("</style>", 1)[0]
+    tablet = css.split("/* Tablet and compact desktop:", 1)[1]
+    assert "@media(min-width:521px) and (max-width:1100px)" in tablet
+    assert "header .brand{flex:0 0 100%;width:100%}" in tablet
+    assert "header .header-filters{flex:1 1 0;width:auto;min-width:0;" in tablet
+    assert "header .header-filters .unified-filter{width:100%;min-width:0}" in tablet
+    assert "header .profile-menu summary{min-width:44px;min-height:44px}" in tablet
+    assert ".connectors-panel table{min-width:0;width:100%;table-layout:fixed}" in tablet
+    for column in (2, 6, 7, 8):
+        assert f".connectors-panel th:nth-child({column})" in tablet
+        assert f".connectors-panel td:nth-child({column})" in tablet
+    assert ".transactions-panel th:nth-child(5),.transactions-panel tbody td:nth-child(5){display:none}" in tablet
+    assert "<th>Estado</th>" in source
+    assert "<th>Energía</th>" in source
+    assert '<td data-label="Estado">' in source
+    assert '<td data-label="Medidor"' in source
+    assert "<h2>Sesiones de carga</h2>" in source
+    assert '<p class="note" id="transaction-history-help">' not in source
+    assert '<th>Inicio</th>' in source  # hidden in tablet only
+    assert '<td data-label="Cargador"' in source  # retained for mobile/desktop
+
+
+def test_transaction_detail_removes_only_redundant_explanations():
+    from importlib.resources import files
+
+    source = files("ocpp_reports").joinpath("templates/transaction_detail.html.j2").read_text()
+    assert "Cobertura: intervalo de eventos observado para la transacción" not in source
+    assert 'class="detail-disclaimer"' not in source
+    assert "Discontinuidad del medidor detectada" in source
+    assert "Vista parcial: se aplicó el límite" in source
+    assert "medición antigua / no verificada" in source
+    assert 'id="transaction-session-data"' in source
