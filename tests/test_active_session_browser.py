@@ -261,6 +261,15 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
     playwright = pytest.importorskip("playwright.sync_api")
     database = tmp_path / "mobile-card-fixture.sqlite"
     _seed(database)
+    _, nominal_connector = _data()
+    nominal_connector.update(power_w=None, power_observed_at=None)
+    _replace(database, connector=nominal_connector)
+    # Collector stores nominal ratings independently from connector status.
+    with sqlite3.connect(database) as db:
+        db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                   ("a", "rating", "cp:1", 3, json.dumps({
+                       "charger_id": "cp", "connector_id": 1,
+                       "rated_power_w": 60000, "rating_scope": "connector"})))
     app = create_app(database, allowed_source_ids=("a",))
 
     @app.middleware("http")
@@ -299,6 +308,14 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                 assert abs(first["y"] - second["y"]) <= 2
                 assert second["x"] > first["x"]
                 assert cells.nth(7).get_attribute("data-label") == "Recibido"
+                power = card.locator('td[data-label="Potencia"] .connector-power')
+                assert power.count() == 1
+                assert " ".join(power.inner_text().split()) == "60.00 kW nominal"
+                assert power.evaluate("(el) => getComputedStyle(el).whiteSpace") == "nowrap"
+                assert power.evaluate(
+                    "(el) => el.getBoundingClientRect().right "
+                    "<= el.parentElement.getBoundingClientRect().right + 2"
+                )
                 charger_link = page.locator(".connectors-panel a.charger-session-link").first
                 assert charger_link.bounding_box()["height"] >= 44
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
