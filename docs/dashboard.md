@@ -256,3 +256,24 @@ read-only accessible SVG with no third-party assets or changes to storage.
 
 On the mobile connector cards, all values are slightly larger, and links
 align their text to the top while keeping a 44px touch target.
+
+
+## Detalle compacto y selector de energía 7/30 días (#237)
+
+Una sola gráfica en la pantalla del cargador ofrece botones `7 días` y
+`30 días` sin navegar ni hacer consultas adicionales. La agregación original
+de treinta días, filtrada por origen y cargador, proporciona ambos totales.
+El periodo de siete días comprende los siete días **calendario locales**
+más recientes; ambos periodos incluyen hoy. Los máximos de altura se
+recalculan para que la escala se aproveche en cada vista. Inicio: siete días.
+
+Las barras usan CSS Grid adaptable a cualquier anchura de móvil: 7 barras
+anchas o 30 compactas, sin ancho mínimo ni scroll horizontal. Cada barra
+conserva descripción accesible con día, kWh y sesiones cerradas. Ausencia de
+sesiones contabilizadas no equivale a consumo físico cero.
+
+Las tarjetas de conector ya no muestran conexión observada, fecha de último
+estado, fecha de sincronización ni momento de medición de potencia. La columna
+`Inicio` de sesiones se oculta únicamente en pantalla <=520px; en escritorio
+permanece en el HTML y en pantalla. Se conservan los cuatro KPIs de
+cabecera, enlaces de sesiones activas y eventos según permisos.
