@@ -138,3 +138,50 @@ def test_bounded_historical_enrichment_keeps_raw_bytes_and_cursors(tmp_path):
     with pytest.raises(ValueError, match="unbounded"):
         enrich_historical_page(source, upgraded, source_id="local-uuid",
                                max_samples=0)
+
+
+def test_forwarder_never_advances_without_collector_meter_capability(tmp_path):
+    import httpx
+    from ocpp_reports.replication.forwarder import forward_once, confirmed_cursor
+
+    source, state = tmp_path / "local.db", tmp_path / "forward-state.db"
+    ingest_page(source, _page(_sample()))
+    observed = []
+
+    def unsupported(request):
+        observed.append(request.url.path)
+        if request.url.path.endswith("/ready"):
+            return httpx.Response(200, json={
+                "schema": "ocpp-reports/readiness/v1", "source_id": "node-002",
+                "ready": True, "supported_kinds": ["event", "transaction", "connector"],
+            })
+        raise AssertionError("Unsupported collector must not receive sample batch")
+
+    with httpx.Client(transport=httpx.MockTransport(unsupported)) as client:
+        with pytest.raises(ValueError, match="does not advertise"):
+            forward_once(source, state, "node-002",
+                         "https://collector.invalid/api/replication",
+                         "synthetic", client=client)
+    assert observed == ["/api/replication/ready"]
+    assert confirmed_cursor(state, "node-002") == 0
+
+    def supported(request):
+        observed.append(request.url.path)
+        if request.url.path.endswith("/ready"):
+            return httpx.Response(200, json={
+                "source_id": "node-002", "ready": True,
+                "supported_kinds": ["meter_sample", "meter_enrichment"],
+            })
+        if request.url.path.endswith("/replication"):
+            payload = json.loads(request.content)
+            return httpx.Response(200, json={"source_id": "node-002",
+                                             "ack": payload["next"]})
+        raise AssertionError("Unexpected network path")
+
+    with httpx.Client(transport=httpx.MockTransport(supported)) as client:
+        ack = forward_once(source, state, "node-002",
+                           "https://collector.invalid/api/replication",
+                           "synthetic", client=client)
+    assert ack > 0
+    assert observed[-2:] == ["/api/replication/ready", "/api/replication"]
+    assert confirmed_cursor(state, "node-002") == ack
