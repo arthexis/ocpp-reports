@@ -304,3 +304,55 @@ def test_timeline_table_hides_power_only_when_unmeasured(tmp_path):
     assert with_power.status_code == 200
     assert "<th>Potencia (kW)</th>" in with_power.text
     assert ">0.000</td>" in with_power.text
+
+
+def test_electrical_telemetry_timeline_and_optional_offered_current(tmp_path):
+    path = _db(tmp_path)
+    _bound(path)
+    _sample(path, 5, soc=45, soc_provenance="ocpp-meter-values",
+            voltage_v=220, current_import_a=10.5, current_offered_a=32,
+            temperature_c=-4.5)
+    _sample(path, 10, power_w=None, voltage_v=None, current_import_a=None,
+            current_offered_a=None, temperature_c=None)
+    record = {k: v for k, v in _tx().items() if k != "source_id"}
+    with sqlite3.connect(path) as db:
+        db.execute("INSERT INTO current_transactions VALUES (?,?,?,?)",
+                   ("a", "cp", 7, json.dumps(record)))
+    timeline = transaction_timeline(path, _tx())
+    assert timeline["points"][0]["voltage_v"] == 220
+    assert timeline["points"][0]["current_import_a"] == 10.5
+    assert timeline["points"][0]["current_offered_a"] == 32
+    assert timeline["points"][0]["temperature_c"] == -4.5
+    fields = [c["field"] for c in timeline_charts(timeline["points"])]
+    assert fields == ["energy_kwh", "power_kw", "soc", "voltage_v",
+                      "current_import_a", "current_offered_a", "temperature_c"]
+    page = TestClient(web.create_app(path, allowed_source_ids=("a",))).get(
+        "/transactions/a/cp/7")
+    assert page.status_code == 200
+    for title in ("SoC (%)", "Voltaje (V)", "Corriente (A)", "Temp. (°C)",
+                  "Corriente ofrecida (A)"):
+        assert title in page.text
+    assert "-4.5" in page.text
+
+    # Readings absent from every point must not become misleading columns.
+    with sqlite3.connect(path) as db:
+        db.execute("UPDATE energy_samples SET payload=json_remove(payload,"
+                   " '$.voltage_v', '$.current_import_a', '$.current_offered_a',"
+                   " '$.temperature_c', '$.soc', '$.soc_provenance')")
+    empty = TestClient(web.create_app(path)).get("/transactions/a/cp/7")
+    assert "Voltaje (V)</th>" not in empty.text
+    assert "Temp. (°C)</th>" not in empty.text
+    assert "Corriente ofrecida por el cargador" not in empty.text
+    assert "SoC (%)</th>" not in empty.text
+
+
+def test_invalid_temperature_does_not_create_a_chart(tmp_path):
+    path = _db(tmp_path)
+    _bound(path)
+    _sample(path, 5, power_w=None, energy_wh=None, temperature_c=float("nan"))
+    _sample(path, 10, temperature_c=-8)
+    result = transaction_timeline(path, _tx())
+    assert len(result["points"]) == 1
+    assert result["points"][0]["temperature_c"] == -8
+    assert [chart["field"] for chart in timeline_charts(result["points"])] == [
+        "energy_kwh", "power_kw", "temperature_c"]

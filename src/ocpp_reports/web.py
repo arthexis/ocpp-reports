@@ -659,12 +659,18 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         )
         # Show the power column only when at least one verified sample exists.
         timeline_has_power = any(p.get("power_kw") is not None for p in timeline["points"])
+        timeline_available = {
+            field: any(p.get(field) is not None for p in timeline["points"])
+            for field in ("soc", "voltage_v", "current_import_a",
+                          "current_offered_a", "temperature_c")
+        }
         return templates.TemplateResponse(
             request, "transaction_detail.html.j2",
             {"title": title, "transaction": transaction, "timezone": selected_zone,
              "timezones": zones, "refresh_active": active,
              "timeline": timeline, "timeline_charts": timeline_charts(timeline["points"]),
              "timeline_soc_end": timeline_soc_end, "timeline_has_power": timeline_has_power,
+             "timeline_available": timeline_available,
              "back_href": back_href,
               "elapsed_duration": session_duration(transaction.get("started_at"), datetime.now(timezone.utc).isoformat()) if active else None},
             headers={"Cache-Control": "no-store"},
