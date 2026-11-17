@@ -601,3 +601,64 @@ def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
                 context.close()
         finally:
             browser.close()
+
+
+
+def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
+    """Real Chromium: one 7/30 chart, instant selection and no side-scroll."""
+    playwright = pytest.importorskip("playwright.sync_api")
+    database = tmp_path / "charger-energy-mobile.sqlite"
+    _seed(database)
+    with sqlite3.connect(database) as db:
+        for tid, age, wh in ((800, 2, 2000), (801, 10, 3000)):
+            db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                       ("a", "transaction", f"cp:{tid}", tid,
+                        json.dumps({"id": tid, "charger_id": "cp",
+                                    "connector_id": 1, "active": False,
+                                    "state": "closed", "energy_wh": wh,
+                                    "started_at": _now(-age * 86400 - 3600),
+                                    "stopped_at": _now(-age * 86400)})))
+    client = TestClient(create_app(database, allowed_source_ids=("a",)))
+    assert client.get("/chargers/b/cp").status_code == 404
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            for width in (320, 360, 390, 520, 1280):
+                mobile = width <= 520
+                context = browser.new_context(
+                    viewport={"width": width, "height": 844}, is_mobile=mobile,
+                    has_touch=mobile, locale="es-MX")
+                page = context.new_page()
+                page.route("**/*", _offline_route(client, {"GET": 0}))
+                page.goto("http://reports.test/chargers/a/cp?tz=UTC", wait_until="load")
+                chart = page.locator("#energy-chart")
+                assert chart.count() == 1 and chart.get_attribute("data-days") == "7"
+                assert chart.locator(".energy-day:visible").count() == 7
+                assert page.locator("#energy-total").inner_text() == "2.00 kWh"
+                assert page.locator("#energy-sessions").inner_text().strip() == "· 1 sesiones cerradas"
+                assert page.get_by_role("button", name="7 días").get_attribute("aria-pressed") == "true"
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2"), width
+                assert chart.evaluate("(el) => el.scrollWidth <= el.clientWidth + 2"), width
+                start_cells = page.locator(".sessions-table .session-start")
+                assert start_cells.count() >= 2
+                assert start_cells.first.is_visible() != mobile
+                assert page.locator(".sessions-table thead th").filter(has_text="Fin").is_visible()
+                assert page.get_by_role("button", name="30 días").click() is None
+                assert page.locator("#energy-chart").get_attribute("data-days") == "30"
+                assert page.locator("#energy-chart .energy-day:visible").count() == 30
+                assert page.locator("#energy-total").inner_text() == "5.00 kWh"
+                assert page.locator("#energy-sessions").inner_text().strip() == "· 2 sesiones cerradas"
+                assert page.get_by_role("button", name="30 días").get_attribute("aria-pressed") == "true"
+                assert page.get_by_role("button", name="7 días").get_attribute("aria-pressed") == "false"
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2"), width
+                assert chart.evaluate("(el) => el.scrollWidth <= el.clientWidth + 2"), width
+                if mobile:
+                    assert chart.bounding_box()["width"] <= width - 10
+                    _shot(page, f"charger-energy-30d-{width}.png")
+                page.get_by_role("button", name="7 días").click()
+                assert chart.locator(".energy-day:visible").count() == 7
+                assert page.locator("#energy-total").inner_text() == "2.00 kWh"
+                assert page.url.endswith("/chargers/a/cp?tz=UTC")
+                context.close()
+        finally:
+            browser.close()

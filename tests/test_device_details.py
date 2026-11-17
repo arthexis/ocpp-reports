@@ -249,8 +249,11 @@ def test_last_charger_receipt_is_not_source_ingest_or_last_heartbeat(tmp_path):
     assert "Último recibo</span><strong>2026-11-16 10:00 UTC</strong>" in page.text
     assert "2026-11-17 18:00 UTC" not in page.text
     assert 'id="energy-30-days"' in page.text
-    assert '<svg class="energy-chart"' in page.text
+    assert page.text.count('id="energy-chart"') == 1
+    assert 'data-days="7" role="list"' in page.text
     assert page.text.count('class="energy-bar"') == 30
+    assert 'data-energy-days="7" aria-pressed="true"' in page.text
+    assert 'data-energy-days="30" aria-pressed="false"' in page.text
     connector = TestClient(create_app(path, allowed_source_ids=("a",))).get(
         "/connectors/a/same/1")
     assert connector.status_code == 200 and 'id="energy-30-days"' not in connector.text
@@ -316,6 +319,11 @@ def test_charger_energy_30_days_local_remote_dedup_and_timezone(tmp_path):
     assert data["date_from"] == "2026-10-19" and data["date_to"] == "2026-11-17"
     assert data["sessions_count"] == 5
     assert data["total_kwh"] == 9.0
+    assert data["last_7"] == {"total_kwh": 3.0, "sessions_count": 1}
+    assert sum(1 for bar in data["bars"] if bar["label_7"]) == 7
+    assert data["bars"][-2]["height_pct_7"] == 0
+    assert data["bars"][-1]["height_pct_7"] == 0
+    assert data["bars"][-2]["height_pct_30"] == 0
     days = {item["day"]: item for item in data["bars"]}
     assert days["2026-11-16"]["kwh"] == 3.0  # UTC 05:30 = prior local day
     assert days["2026-11-09"]["kwh"] == 6.0  # 01:30 UTC is 19:30 on Nov 9 in Monterrey
@@ -338,7 +346,10 @@ def test_charger_energy_30_days_empty_and_unparseable(tmp_path):
         path, source_id="a", charger_id="same",
         allowed_source_ids=("a",), now=today)
     assert data["total_kwh"] == 0 and data["sessions_count"] == 0
+    assert data["last_7"] == {"total_kwh": 0.0, "sessions_count": 0}
     assert all(item["height"] == 0 for item in data["bars"])
+    assert all(item["height_pct_7"] == 0 and item["height_pct_30"] == 0
+               for item in data["bars"])
     # No false bars from a missing/broken final timestamp.
     with sqlite3.connect(path) as db:
         db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
@@ -349,3 +360,66 @@ def test_charger_energy_30_days_empty_and_unparseable(tmp_path):
     assert charger_energy_30_days(
         path, source_id="a", charger_id="same",
         allowed_source_ids=("a",), now=today)["sessions_count"] == 0
+
+
+
+def test_charger_energy_buttons_are_single_chart_and_mobile_fields_removed(tmp_path):
+    path = tmp_path / "warehouse.sqlite"
+    seed(path)
+    client = TestClient(create_app(path, allowed_source_ids=("a",)))
+    page = client.get("/chargers/a/same?tz=UTC")
+    assert page.status_code == 200
+    body = page.text
+    assert body.count('id="energy-chart"') == 1
+    assert body.count('class="energy-bar"') == 30
+    assert 'data-energy-days="7" aria-pressed="true"' in body
+    assert 'data-energy-days="30" aria-pressed="false"' in body
+    assert 'data-days="7" role="list"' in body
+    assert 'data-total-7=' in body and 'data-total-30=' in body
+    assert 'overflow-x:auto' not in body.split(".energy-days{")[1].split(".energy-day{")[0]
+    assert "min-width:850px" not in body
+    assert 'class="sessions-table"' in body
+    assert '<th class="session-start">Inicio</th>' in body
+    assert '<td class="session-start">' in body
+    assert "@media(max-width:520px){.sessions-table .session-start{display:none}}" in body
+    for obsolete in ("<dt>Conexión observada</dt>", "<dt>Último estado</dt>",
+                     "<dt>Sincronizado</dt>", "<dt>Medición de potencia</dt>"):
+        assert obsolete not in body
+    for kept in ("<dt>Estado informado</dt>", "<dt>Potencia</dt>",
+                 "<dt>Medidor acumulado</dt>", "<dt>Medición de energía</dt>"):
+        assert kept in body
+    for caption in ("Último Heartbeat", "Último recibo", "Conectores visibles"):
+        assert caption in body
+    connector = client.get("/connectors/a/same/1?tz=UTC")
+    assert connector.status_code == 200
+    assert 'id="energy-chart"' not in connector.text
+    assert '<th class="session-start">Inicio</th>' in connector.text
+    assert "Medidor acumulado" in connector.text
+    assert "Medición de potencia" not in connector.text
+
+
+def test_charger_energy_recent_window_scales_independently(tmp_path):
+    from datetime import datetime, timezone
+    from ocpp_reports.warehouse.charger_energy import charger_energy_30_days
+    path = tmp_path / "recent.sqlite"
+    seed(path)
+    now = datetime(2026, 11, 17, 18, tzinfo=timezone.utc)
+    # Seed 10-day and 2-day completed sessions: one belongs only to 30 days.
+    with sqlite3.connect(path) as db:
+        for tid,day,kwh in ((201, 7, 3000), (202, 15, 2000)):
+            db.execute("INSERT INTO current_transactions VALUES (?,?,?,?,?,?,?,?)",
+                       ("a", "same", tid, 0, 0, "digest",
+                        json.dumps({"id": tid, "charger_id": "same", "connector_id": 1,
+                                    "active": False, "energy_wh": kwh,
+                                    "stopped_at": f"2026-11-{day:02d}T14:00:00Z"}),
+                        "2026-11-17T16:00:00Z"))
+    data = charger_energy_30_days(path, source_id="a", charger_id="same",
+                                   allowed_source_ids=("a",), now=now)
+    assert data["total_kwh"] == 11.0  # Four existing x 1.5 + 3 + 2
+    assert data["sessions_count"] == 6
+    assert data["last_7"] == {"total_kwh": 2.0, "sessions_count": 1}
+    last = data["bars"][-7:]
+    assert len(last) == 7
+    assert max(item["height_pct_7"] for item in last) == 100
+    assert all(item["height_pct_7"] == 0 for item in data["bars"][:-7])
+    assert max(item["height_pct_30"] for item in data["bars"]) == 100
