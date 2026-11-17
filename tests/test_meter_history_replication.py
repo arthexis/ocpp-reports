@@ -215,3 +215,26 @@ def test_collector_maintenance_resets_only_held_historical_source(tmp_path):
         assert db.execute("SELECT COUNT(*) FROM collector_meter_samples WHERE source_id='node-002'").fetchone()[0] == 0
         assert db.execute("SELECT COUNT(*) FROM collector_meter_samples WHERE source_id='node-003'").fetchone()[0] == 1
         assert db.execute("SELECT COUNT(*) FROM collector_changes WHERE source_id='node-003'").fetchone()[0] == len(batch["changes"])
+
+
+def test_future_samples_do_not_replicate_until_explicit_opt_in(tmp_path):
+    source = tmp_path / "source.db"
+    ingest_page(source, _page(_sample()))
+    with sqlite3.connect(source) as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM replication_changes WHERE kind='meter_sample'"
+        ).fetchone()[0] == 0
+    preview = future_replication(source, "local-uuid")
+    assert preview == {"source_id": "local-uuid", "dry_run": True,
+                       "previously_enabled": False, "enabled": False,
+                       "changed": False}
+    assert future_replication(source, "local-uuid", apply=True)["changed"] is True
+    assert future_replication(source, "local-uuid", apply=True)["changed"] is False
+    second = {**_sample(), "source_event_id": 2, "sample_index": 1}
+    with sqlite3.connect(source) as db:
+        db.execute("INSERT INTO energy_samples VALUES (?,?,?,?)",
+                   ("local-uuid", 2, 1, json.dumps(second)))
+        assert db.execute(
+            "SELECT COUNT(*) FROM replication_changes WHERE kind='meter_sample'"
+        ).fetchone()[0] == 1
+    assert queue_history(source, "local-uuid", apply=False)["pending"] == 1
