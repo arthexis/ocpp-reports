@@ -7,7 +7,7 @@ import pytest
 
 from ocpp_reports.changefeed import changes_page
 from ocpp_reports.replication.collector import Batch, accept_batch
-from ocpp_reports.replication.history_queue import queue_history
+from ocpp_reports.replication.history_queue import queue_history, future_replication
 from ocpp_reports.warehouse.history_enrichment import enrich_historical_page
 from ocpp_reports.warehouse.ingestion import ingest_page
 from ocpp_reports.warehouse.transaction_timeline import transaction_timeline
@@ -48,8 +48,16 @@ def _forward(source, collector, after=0, source_id="node-002"):
     return batch, accept_batch(collector, Batch.model_validate(batch))
 
 
+def _opt_in(database):
+    from ocpp_reports.warehouse.schema import _schema
+    with sqlite3.connect(database) as db:
+        _schema(db)
+        db.execute("INSERT INTO meter_replication_sources VALUES ('local-uuid',1)")
+
+
 def test_replication_sample_is_immutable_scoped_and_outside_latest(tmp_path):
     source, collector = tmp_path / "source.db", tmp_path / "collector.db"
+    _opt_in(source)
     ingest_page(source, _page(_sample()))
     batch, cursor = _forward(source, collector)
     assert any(row["kind"] == "meter_sample" for row in batch["changes"])
@@ -125,6 +133,7 @@ def test_bounded_historical_enrichment_keeps_raw_bytes_and_cursors(tmp_path):
         assert db.execute("SELECT count(*) FROM replication_changes WHERE kind='meter_enrichment'").fetchone()[0] == 1
     points = transaction_timeline(source, _tx("local-uuid"))["points"]
     assert points[0]["soc"] == 85.0 and points[0]["voltage_v"] == 220.0
+    assert queue_history(source, "local-uuid", apply=True)["queued"] == 1
     batch, ack = _forward(source, collector)
     remote = transaction_timeline(collector, _tx("node-002"))["points"]
     assert ack == batch["next"] and remote[0]["soc"] == 85.0
@@ -145,6 +154,7 @@ def test_forwarder_never_advances_without_collector_meter_capability(tmp_path):
     from ocpp_reports.replication.forwarder import forward_once, confirmed_cursor
 
     source, state = tmp_path / "local.db", tmp_path / "forward-state.db"
+    _opt_in(source)
     ingest_page(source, _page(_sample()))
     observed = []
 
@@ -192,6 +202,7 @@ def test_collector_maintenance_resets_only_held_historical_source(tmp_path):
     from ocpp_reports.collector_admin import maintain
 
     source, collector = tmp_path / "source.db", tmp_path / "collector.db"
+    _opt_in(source)
     ingest_page(source, _page(_sample()))
     batch, _ = _forward(source, collector, source_id="node-002")
     other = {**batch, "source_id": "node-003"}
