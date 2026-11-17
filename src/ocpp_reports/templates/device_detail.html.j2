@@ -34,6 +34,12 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
 .event-detail{margin:.45rem 0}.event-expand-row td{padding:.05rem .65rem .5rem}
 .events-table td{white-space:normal}.events-table th,.events-table td{vertical-align:top}
 .events-table .scroll{overflow-x:auto}.events-table .event-summary-row td{padding-bottom:.1rem}
+.energy-overview{margin:0 0 .7rem}.energy-overview strong{font-size:1.4rem;font-variant-numeric:tabular-nums}
+.energy-chart-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+.energy-chart{display:block;min-width:850px;width:100%;height:auto}
+.energy-axis{stroke:var(--line);stroke-width:2}.energy-bar{fill:var(--accent)}
+.energy-tick{fill:var(--muted);font-size:14px}
+.energy-chart-scroll:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .pages{display:flex;gap:.7rem;align-items:center;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
 .pages a,.pages span{padding:.35rem .65rem;border:1px solid var(--line);border-radius:7px}
 button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:pointer;padding:.55rem .8rem;min-height:44px;font:inherit}
@@ -50,8 +56,28 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 <p class="muted">{{ location }} · Origen {{ source_id }}</p>
 <div class="stats"><div class="stat"><span class="note">Sesiones registradas</span><strong>{{ tx_total }}</strong></div>
 <div class="stat"><span class="note">Conectores visibles</span><strong>{{ physical_connector_count }}</strong></div>
-<div class="stat"><span class="note">Último Heartbeat</span><strong>{{ heartbeat_at|display_date(timezone) if heartbeat_at else 'Sin fecha' }}</strong></div></div>
+<div class="stat"><span class="note">Último Heartbeat</span><strong>{{ heartbeat_at|display_date(timezone) if heartbeat_at else 'Sin fecha' }}</strong></div>
+<div class="stat"><span class="note" title="Último mensaje OCPP registrado por el CSMS para este cargador; no es la fecha de importación del origen">Último recibo</span><strong>{{ receipt_at|display_date(timezone) if receipt_at else 'Sin fecha' }}</strong></div></div>
 </section>
+{% if selected_connector_id is none %}
+<section id="energy-30-days" aria-labelledby="energy-30-title">
+<h2 id="energy-30-title">Energía del cargador · últimos 30 días</h2>
+{% if energy_30_days.sessions_count %}
+<div class="energy-overview"><strong>{{ '%.2f'|format(energy_30_days.total_kwh) }} kWh</strong> <span class="muted note">· {{ energy_30_days.sessions_count }} sesiones cerradas</span></div>
+<div class="energy-chart-scroll" role="region" tabindex="0" aria-label="Gráfica de energía diaria del cargador; desplazar horizontalmente para ver los treinta días">
+<svg class="energy-chart" viewBox="0 0 900 240" width="900" height="240" role="img" aria-labelledby="energy-chart-title energy-chart-desc">
+<title id="energy-chart-title">Energía diaria entregada por el cargador durante los últimos 30 días</title>
+<desc id="energy-chart-desc">Suma de kWh por día de cierre de sesión, en {{ timezone }}. Total {{ '%.2f'|format(energy_30_days.total_kwh) }} kWh. No incluye sesiones abiertas.</desc>
+<line x1="46" y1="194" x2="890" y2="194" class="energy-axis"/>
+{% for bar in energy_30_days.bars %}
+<rect class="energy-bar" x="{{ bar.x }}" y="{{ bar.y }}" width="18" height="{{ bar.height }}" rx="2"><title>{{ bar.day }}: {{ '%.2f'|format(bar.kwh) }} kWh, {{ bar.sessions }} sesiones</title></rect>
+{% if bar.label %}<text class="energy-tick" x="{{ bar.x + 9 }}" y="218" text-anchor="middle">{{ bar.label }}</text>{% endif %}
+{% endfor %}
+</svg></div>
+{% else %}<p class="muted">Sin energía de sesiones cerradas registrada en los últimos 30 días.</p>{% endif %}
+<p class="note muted">Sesiones cerradas por fecha local de finalización. No incluye sesiones activas ni estima datos faltantes.</p>
+</section>
+{% endif %}
 <section aria-labelledby="connector-title"><h2 id="connector-title">{{ 'Conector' if selected_connector_id is not none else 'Conectores del cargador' }}</h2>
 <div class="connector-list">{% for c in connectors %}
 <article class="connector"><h3>{% if selected_connector_id is none %}<a href="/connectors/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ c.connector_id }}?tz={{ timezone|urlencode }}">{{ 'Estación (C0)' if c.connector_id == 0 else 'Conector ' ~ c.connector_id }}</a>{% else %}Conector {{ c.connector_id }}{% endif %}</h3>

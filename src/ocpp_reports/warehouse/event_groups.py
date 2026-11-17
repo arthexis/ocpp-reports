@@ -279,3 +279,49 @@ def latest_heartbeat_at(
     except (ValueError, OverflowError):
         return None
     return at
+
+
+
+def latest_charger_receipt_at(database: str | Path, *, source_id: str,
+                              charger_id: str,
+                              allowed_source_ids: tuple[str, ...] | None = None) -> str | None:
+    """Last OCPP event recorded by the source CSMS for this exact charger.
+
+    Do not substitute the source-level warehouse ingestion/replica receipt time:
+    a source may contain multiple chargers.
+    """
+    if not source_id or not charger_id:
+        raise ValueError("Exact source and charger required")
+    if allowed_source_ids is not None and source_id not in allowed_source_ids:
+        return None
+    with sqlite3.connect(f"file:{Path(database).resolve()}?mode=ro", uri=True) as db:
+        db.execute("PRAGMA query_only=ON")
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        rows = []
+        if "events" in tables:
+            row = db.execute(
+                "SELECT event_id,json_extract(payload,'$.at') FROM events "
+                "WHERE source_id=? AND json_extract(payload,'$.charger_id')=? "
+                "AND json_extract(payload,'$.kind')='ocpp' "
+                "ORDER BY event_id DESC LIMIT 1", (source_id, charger_id)).fetchone()
+            if row and type(row[0]) is int and isinstance(row[1], str):
+                rows.append(row)
+        if "collector_latest" in tables:
+            row = db.execute(
+                "SELECT CAST(json_extract(payload,'$.id') AS INTEGER), "
+                "json_extract(payload,'$.at') FROM collector_latest "
+                "WHERE source_id=? AND kind='event' AND json_type(payload,'$.id')='integer' "
+                "AND json_extract(payload,'$.charger_id')=? "
+                "AND json_extract(payload,'$.kind')='ocpp' "
+                "ORDER BY CAST(json_extract(payload,'$.id') AS INTEGER) DESC LIMIT 1",
+                (source_id, charger_id)).fetchone()
+            if row and type(row[0]) is int and isinstance(row[1], str):
+                rows.append(row)
+    if not rows:
+        return None
+    at = max(rows, key=lambda row: row[0])[1]
+    try:
+        parsed = datetime.fromisoformat(at.replace("Z", "+00:00"))
+        return at if parsed.tzinfo is not None else None
+    except (ValueError, OverflowError):
+        return None

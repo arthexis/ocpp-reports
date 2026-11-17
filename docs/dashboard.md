@@ -236,3 +236,23 @@ after sessions**, with 10 groups per page and expandable, bounded event rows
 administrator-only and source/charger-scoped; the main dashboard still has
 no event table. Narrow mobile connector cards use unequal short/long columns,
 larger values than labels and reduced gaps, with desktop/tablet layout unchanged.
+
+
+
+## Charger last receipt / energy over 30 days / mobile links (#235)
+
+“Último recibo” is the latest OCPP event timestamp for the **exact source
+and charger** recorded by CSMS, regardless of action. It is not the Reports
+source-level ingestion time (which could describe other chargers), and is
+separate from “Último Heartbeat”. Unavailable observations show “Sin fecha”.
+
+The charger chart sums **completed session** energy (final `energy_wh`)
+for all physical connectors >0 for 30 calendar days including today in the
+selected dashboard timezone, grouped by each session's completion date.
+Local current transactions take precedence over remote projections; C0 and
+open or invalid sessions are excluded. The total is not a continuous meter
+time-series, and empty days do not certify zero consumption. Chart is
+read-only accessible SVG with no third-party assets or changes to storage.
+
+On the mobile connector cards, all values are slightly larger, and links
+align their text to the top while keeping a 44px touch target.
