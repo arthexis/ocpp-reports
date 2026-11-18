@@ -566,6 +566,13 @@ def test_last_completed_charge_uses_all_scoped_transactions_not_visible_page(tmp
     path = tmp_path / "last-charge.sqlite"
     seed(path)
     with sqlite3.connect(path) as db:
+        # Show three actual connector rows; seed() only adds transaction history.
+        for connector_id in (0, 1, 2):
+            payload = {"charger_id": "same", "connector_id": connector_id,
+                       "status": "Available", "connected": True,
+                       "observed_at": "2026-11-16T06:00:00Z"}
+            db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                       ("a", "connector", f"same:{connector_id}", 50, json.dumps(payload)))
         def add(source, record_key, charge, connector, stopped_at):
             record = dict(id=int(record_key.split(":")[-1]),
                           charger_id=charge, connector_id=connector,
