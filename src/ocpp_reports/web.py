@@ -424,6 +424,10 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     def dashboard_brand_asset():
         return FileResponse(Path(__file__).parent / "assets" / "brand.png", media_type="image/png")
 
+    @app.get("/assets/brand-light.png", include_in_schema=False)
+    def dashboard_brand_light_asset():
+        return FileResponse(Path(__file__).parent / "assets" / "brand-light.png", media_type="image/png")
+
     templates.env.filters["minute_utc"] = minute_utc
     templates.env.filters["display_date"] = display_date
     templates.env.filters["session_duration"] = session_duration
