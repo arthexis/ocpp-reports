@@ -798,9 +798,9 @@ def test_charger_event_action_expands_in_same_table_row_offline(tmp_path):
                 page.locator(".event-detail tbody tr").first.wait_for()
                 assert page.locator(".event-detail tbody tr").count() == 1
                 assert page.locator(".event-detail thead th").all_inner_texts() == [
-                    "ID", "Fecha", "Información"
+                    "ID", "ID respuesta", "Fecha", "Dirección", "Información"
                 ]
-                assert page.locator(".event-detail tbody td").count() == 3
+                assert page.locator(".event-detail tbody td").count() == 5
                 assert "Inicio del cargador registrado" in page.locator(".event-detail").inner_text()
                 assert "never-expose" not in page.locator(".event-detail").inner_text()
                 assert requests["GET"] > before
