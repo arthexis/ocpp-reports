@@ -329,7 +329,9 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                 assert value_size >= label_size + 3.5, (width, label_size, value_size)
                 assert short.evaluate(
                     "(el) => parseFloat(getComputedStyle(el).gap)") <= 3
-                assert cells.nth(7).get_attribute("data-label") == "Recibido"
+                assert cells.nth(7).get_attribute("data-label") == "Última carga"
+                assert cells.nth(7).is_hidden()
+                assert cells.nth(8).get_attribute("data-label") == "Recibido"
                 power = card.locator('td[data-label="Potencia"] .connector-power')
                 assert power.count() == 1
                 assert " ".join(power.inner_text().split()) == "60.00 kW nominal"
