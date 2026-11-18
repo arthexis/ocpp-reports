@@ -269,28 +269,52 @@ def _scoped_visible_events(db: sqlite3.Connection, source_id: str, charger_id: s
     while newer is not None:
         older = next(stream, None)
         paired = False
+        inferred = False
         if older is not None:
             recent, previous = newer[0], older[0]
             first, second = recent["payload"], previous["payload"]
             time_delta = None
             if recent["event_time"] is not None and previous["event_time"] is not None:
                 time_delta = (recent["event_time"] - previous["event_time"]) * 86400
-            paired = (
-                first.get("direction") in ("in", "out")
-                and second.get("direction") in ("in", "out")
-                and first["direction"] != second["direction"]
-                and first.get("action") == second.get("action")
+            same_message = (
+                first.get("action") == second.get("action")
                 and first.get("kind") == second.get("kind")
                 and recent["source_id"] == previous["source_id"]
                 and first.get("charger_id") == second.get("charger_id")
                 and recent["event_id"] == previous["event_id"] + 1
-                and time_delta is not None and 0 <= time_delta <= 2
+                and time_delta is not None
             )
+            paired = (
+                same_message and 0 <= time_delta <= 2
+                and first.get("direction") in ("in", "out")
+                and second.get("direction") in ("in", "out")
+                and first["direction"] != second["direction"]
+            )
+            if (not paired and same_message and 0 < time_delta <= .1
+                    and "direction" not in first and "direction" not in second):
+                # Legacy CSMS export strips the persisted in/out direction.
+                # Status responses have no state or connector; paired
+                # Heartbeats are distinguishable only by short elapsed time.
+                # Mark these historical associations as inferred in the UI.
+                inferred = (
+                    (first.get("action") == "StatusNotification"
+                     and first.get("kind") == "status"
+                     and "derived_status" in first and "derived_status" in second
+                     and first.get("status") is None
+                     and first.get("connector_id") is None
+                     and second.get("status") is not None
+                     and type(second.get("connector_id")) is int)
+                    or (first.get("action") == "Heartbeat"
+                        and first.get("kind") == "ocpp"
+                        and set(first) == set(second)
+                        and set(first).issubset({"id", "at", "charger_id", "action", "kind"}))
+                )
+                paired = inferred
         if paired:
-            yield older[0], older[1], newer[0]["event_id"]
+            yield older[0], older[1], newer[0]["event_id"], inferred
             newer = next(stream, None)
         else:
-            yield newer[0], newer[1], None
+            yield newer[0], newer[1], None, False
             newer = older
 
 
@@ -307,16 +331,18 @@ def _scoped_group_records(db: sqlite3.Connection, source_id: str,
     legacy_run, previous_legacy_key = 0, None
     status_episodes = {}
     heartbeat_days = {}
-    for row, legacy_key, response_id in _scoped_visible_events(db, source_id, charger_id):
+    for row, legacy_key, response_id, inferred in _scoped_visible_events(db, source_id, charger_id):
         payload = row["payload"]
         direction = payload.get("direction")
-        if direction not in ("in", "out"):
+        if direction not in ("in", "out") and not inferred:
             if legacy_key is None or legacy_key != previous_legacy_key:
                 legacy_run += 1
             key = ("legacy", legacy_run)
             previous_legacy_key = legacy_key
         else:
             previous_legacy_key = None
+            if inferred:
+                direction = "in"
             day = _day(payload.get("at"), timezone)
             action = payload.get("action")
             if direction == "in" and action == "Heartbeat" and day:
@@ -338,7 +364,7 @@ def _scoped_group_records(db: sqlite3.Connection, source_id: str,
                 status_episodes[connector] = (status, day, key)
             else:
                 key = ("single", row["event_id"])
-        yield row, key, response_id
+        yield row, key, response_id, inferred
 
 
 def _sql_value(value):
@@ -389,7 +415,7 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
         db.execute("PRAGMA query_only=ON")
         db.execute("BEGIN")
         location = _scoped_location(db, source_id, charger_id)
-        for row, key, _ in _scoped_group_records(db, source_id, charger_id, zone):
+        for row, key, _, _ in _scoped_group_records(db, source_id, charger_id, zone):
             payload = row["payload"]
             group = by_key.get(key)
             if group is None:
@@ -434,7 +460,7 @@ def _scoped_group_details(database, *, source_id: str, charger_id: str,
         db.execute("PRAGMA query_only=ON")
         db.execute("BEGIN")
         location = _scoped_location(db, source_id, charger_id)
-        for row, key, response_id in _scoped_group_records(db, source_id, charger_id, zone):
+        for row, key, response_id, inferred in _scoped_group_records(db, source_id, charger_id, zone):
             if key not in first_by_group:
                 first_by_group[key] = row["event_id"]
                 if row["event_id"] == first_event_id:
@@ -452,6 +478,9 @@ def _scoped_group_details(database, *, source_id: str, charger_id: str,
                 if payload.get("direction") in ("in", "out"):
                     event["direction"] = payload["direction"]
                     event["response_id"] = response_id
+                elif inferred:
+                    event["response_id"] = response_id
+                    event["response_inferred"] = True
                 events.append(event)
             seen += 1
             if len(events) > limit:
