@@ -428,6 +428,22 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     def dashboard_brand_light_asset():
         return FileResponse(Path(__file__).parent / "assets" / "brand-light.png", media_type="image/png")
 
+    # Shared across dashboard instances; never sourced from tenant branding configuration.
+    _favicon_assets = {
+        "/favicon.ico": ("favicon.ico", "image/x-icon"),
+        **{f"/assets/favicon-{size}.png": (f"favicon-{size}.png", "image/png")
+           for size in (16, 32, 180, 192, 512)},
+    }
+    def _favicon_endpoint(name: str, mime: str):
+        def favicon_asset():
+            return FileResponse(Path(__file__).parent / "assets" / name,
+                                media_type=mime)
+        return favicon_asset
+
+    for asset_path, (asset_name, media_type) in _favicon_assets.items():
+        app.add_api_route(asset_path, _favicon_endpoint(asset_name, media_type),
+                          methods=["GET"], include_in_schema=False)
+
     templates.env.filters["minute_utc"] = minute_utc
     templates.env.filters["display_date"] = display_date
     templates.env.filters["session_duration"] = session_duration
