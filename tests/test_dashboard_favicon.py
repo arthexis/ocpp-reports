@@ -1,8 +1,6 @@
 """Shared Gelectriic favicon contract; assets must be binary, packaged and tenant-neutral."""
 from importlib import resources
-from pathlib import Path
 import struct
-import zipfile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -63,12 +61,10 @@ def test_no_favicon_route_wildcard(tmp_path):
     assert route_permission("/assets/favicon-secret.png", "GET") is None
 
 
-def test_wheel_contains_all_favicon_assets():
-    wheels = list(Path("dist").glob("ocpp_reports-*.whl"))
-    if not wheels:
-        pytest.skip("Wheel verification runs after building distribution")
-    with zipfile.ZipFile(wheels[-1]) as whl:
-        names = whl.namelist()
+def test_installed_distribution_contains_all_favicon_assets():
+    from importlib.metadata import distribution
+
+    installed = {str(path) for path in distribution("ocpp-reports").files or []}
     for path in PATHS:
-        assert any(name.endswith("assets/" + path.rsplit("/", 1)[-1])
-                   for name in names)
+        name = "ocpp_reports/assets/" + path.rsplit("/", 1)[-1]
+        assert name in installed
