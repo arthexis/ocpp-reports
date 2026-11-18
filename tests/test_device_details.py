@@ -547,7 +547,7 @@ def test_desktop_charger_session_soc_is_recorded_not_inferred(tmp_path):
             (json.dumps(payload),))
     page = TestClient(create_app(path, allowed_source_ids=("a",))).get("/chargers/a/same")
     assert page.status_code == 200
-    assert '<th class="session-soc"' in page.text
+    assert '<th class="numeric session-soc"' in page.text
     assert 'SoC inicial</th>' in page.text
     assert 'SoC último</th>' in page.text
     assert '18%</td>' in page.text and '82%</td>' in page.text
