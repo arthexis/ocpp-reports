@@ -177,6 +177,94 @@ def transaction_page(
 
 
 
+def connector_charge_counts(database, connectors: list[dict], *,
+                            allowed_source_ids: tuple[str, ...] | None = None
+                            ) -> dict[tuple[str, str, int], int]:
+    """Count distinct historical transactions per visible physical connector.
+
+    Current local projections take precedence over replicated projections for
+    the same (source, charger, transaction) identity. Count all recorded starts,
+    including active and zero-energy sessions, never individual OCPP events.
+    Connector 0 is a station rollup and must not count separately.
+    The full result stays scoped to visible connector identities and sources.
+    """
+    from pathlib import Path
+
+    identities = {
+        (row["source_id"], row["charger_id"], row["connector_id"])
+        for row in connectors
+        if isinstance(row.get("source_id"), str)
+        and isinstance(row.get("charger_id"), str)
+        and type(row.get("connector_id")) is int
+        and (allowed_source_ids is None or row["source_id"] in allowed_source_ids)
+    }
+    if not identities:
+        return {}
+    sources = sorted({key[0] for key in identities})
+    chargers = sorted({key[1] for key in identities})
+    source_marks = ",".join("?" for _ in sources)
+    charger_marks = ",".join("?" for _ in chargers)
+
+    with sqlite3.connect(f"file:{Path(database).resolve()}?mode=ro", uri=True) as db:
+        db.execute("PRAGMA query_only=ON")
+        tables = {row[0] for row in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        branches, parameters = [], []
+        if "current_transactions" in tables:
+            branches.append(
+                "SELECT t.source_id,t.charger_id,t.transaction_id AS tx_id,"
+                " json_extract(t.payload,'$.connector_id') AS connector_id"
+                " FROM current_transactions t WHERE t.source_id IN (" + source_marks + ")"
+                " AND t.charger_id IN (" + charger_marks + ")"
+                " AND json_type(t.payload,'$.connector_id')='integer'"
+            )
+            parameters.extend([*sources, *chargers])
+        if "collector_latest" in tables:
+            shadow = ""
+            if "current_transactions" in tables:
+                shadow = (
+                    " AND NOT EXISTS (SELECT 1 FROM current_transactions l"
+                    " WHERE l.source_id=t.source_id"
+                    " AND l.charger_id=json_extract(t.payload,'$.charger_id')"
+                    " AND l.transaction_id=json_extract(t.payload,'$.id'))"
+                )
+            branches.append(
+                "SELECT t.source_id,json_extract(t.payload,'$.charger_id') AS charger_id,"
+                " json_extract(t.payload,'$.id') AS tx_id,"
+                " json_extract(t.payload,'$.connector_id') AS connector_id"
+                " FROM collector_latest t WHERE t.kind='transaction'"
+                " AND t.source_id IN (" + source_marks + ")"
+                " AND json_extract(t.payload,'$.charger_id') IN (" + charger_marks + ")"
+                " AND json_type(t.payload,'$.connector_id')='integer'"
+                " AND json_type(t.payload,'$.id')='integer'" + shadow
+            )
+            parameters.extend([*sources, *chargers])
+        counts: dict[tuple[str, str, int], int] = {}
+        if branches:
+            rows = db.execute(
+                "WITH projected AS (" + " UNION ALL ".join(branches) + "),"
+                " unique_charges AS (SELECT source_id,charger_id,tx_id,"
+                " MIN(connector_id) AS connector_id FROM projected"
+                " WHERE connector_id>0 GROUP BY source_id,charger_id,tx_id)"
+                " SELECT source_id,charger_id,connector_id,COUNT(*)"
+                " FROM unique_charges GROUP BY source_id,charger_id,connector_id",
+                parameters,
+            )
+            counts = {(source, charger, connector): count
+                      for source, charger, connector, count in rows}
+
+    station_totals: dict[tuple[str, str], int] = {}
+    for (source, charger, connector), count in counts.items():
+        if connector > 0:
+            key = (source, charger)
+            station_totals[key] = station_totals.get(key, 0) + count
+    return {
+        key: (station_totals.get(key[:2], 0) if key[2] == 0
+              else counts.get(key, 0))
+        for key in identities
+    }
+
+
 def latest_completed_charges(database, connectors: list[dict], *,
                              allowed_source_ids: tuple[str, ...] | None = None) -> dict[tuple[str, str, int], str]:
     """Last actual StopTransaction timestamp for visible source/charger/connector.

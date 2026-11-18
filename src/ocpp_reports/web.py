@@ -18,7 +18,7 @@ from .warehouse.active_sessions import is_active_session
 from .warehouse.event_groups import (event_groups_page, event_group_details,
                                      latest_heartbeat_at, latest_charger_receipt_at)
 from .warehouse.charger_energy import charger_energy_30_days
-from .warehouse.transaction_pagination import latest_completed_charges
+from .warehouse.transaction_pagination import latest_completed_charges, connector_charge_counts
 from .dashboard_login import dashboard_account_directory
 import sqlite3
 
@@ -544,10 +544,15 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             latest_completed_charges(warehouse, connector_rows, allowed_source_ids=allowed_source_ids)
             if warehouse.is_file() and connector_rows else {}
         )
+        charge_counts = (
+            connector_charge_counts(warehouse, connector_rows, allowed_source_ids=allowed_source_ids)
+            if warehouse.is_file() and connector_rows else {}
+        )
         for connector in connector_rows:
-            connector["last_charge_at"] = latest_charge_at.get((
-                connector.get("source_id"), connector.get("charger_id"),
-                connector.get("connector_id")))
+            key = (connector.get("source_id"), connector.get("charger_id"),
+                   connector.get("connector_id"))
+            connector["last_charge_at"] = latest_charge_at.get(key)
+            connector["charge_count"] = charge_counts.get(key, 0)
         is_admin = not hasattr(request.state, "principal") or request.state.principal.role.value == "admin"
         if not is_admin:
             data["events"] = []
