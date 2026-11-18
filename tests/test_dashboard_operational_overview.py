@@ -55,7 +55,7 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
 
 
 
-def test_empty_connector_table_spans_eight_columns(monkeypatch, tmp_path):
+def test_empty_connector_table_spans_ten_columns(monkeypatch, tmp_path):
     def empty_connectors(*args, **kwargs):
         data = _snapshot()
         data["connectors"] = []
@@ -64,7 +64,7 @@ def test_empty_connector_table_spans_eight_columns(monkeypatch, tmp_path):
     monkeypatch.setattr(web, "snapshot", empty_connectors)
     client = TestClient(web.create_app(tmp_path / "unused"))
     html = client.get("/").text
-    assert 'colspan="9">Sin conectores registrados' in html
+    assert 'colspan="10">Sin conectores registrados' in html
     assert '<th>Snapshot recibido</th>' not in html
 
 
