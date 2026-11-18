@@ -5,10 +5,10 @@ from datetime import datetime, timezone
 from time import perf_counter
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 
 from .warehouse_queries import snapshot
@@ -402,7 +402,16 @@ def project_dashboard_connectors(data: dict, *, now: datetime, connector_view: s
 
 
 def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | None = None,
-               title: str = "OCPP Reports", timezones: tuple[str, ...] = ("UTC",)) -> FastAPI:
+               title: str = "OCPP Reports", timezones: tuple[str, ...] = ("UTC",),
+               brand_image_url: str | None = None) -> FastAPI:
+    if brand_image_url is not None:
+        parsed = urlsplit(brand_image_url)
+        if not (brand_image_url.startswith("/assets/") and not brand_image_url.startswith("//")
+                and not parsed.query and not parsed.fragment and not parsed.netloc
+                and parsed.path == brand_image_url) and not (
+                parsed.scheme == "https" and bool(parsed.netloc) and not parsed.username
+                and not parsed.password):
+            raise ValueError("Brand image must be a local /assets/ path or an HTTPS URL")
     if allowed_source_ids is not None and (not allowed_source_ids or
             any(not isinstance(source, str) or not source.strip() for source in allowed_source_ids)):
         raise ValueError("Source allowlist must contain nonempty source IDs")
@@ -410,6 +419,10 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     app = FastAPI(title="OCPP Reports", docs_url=None, redoc_url=None, openapi_url=None)
     warehouse = Path(database)
     templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+    @app.get("/assets/gelectriic.svg", include_in_schema=False)
+    def gelectriic_brand_asset():
+        return FileResponse(Path(__file__).parent / "assets" / "gelectriic.svg", media_type="image/svg+xml")
     templates.env.filters["minute_utc"] = minute_utc
     templates.env.filters["display_date"] = display_date
     templates.env.filters["session_duration"] = session_duration
@@ -543,7 +556,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                                            "connector_view": connector_view,
                                            "event_groups": event_groups,
                                            "event_page": event_page, "event_has_next": event_has_next,
-                                           "title": title, "source_id": source_id or "",
+                                           "title": title, "brand_image_url": brand_image_url, "source_id": source_id or "",
                                            "charger_id": charger_id or "", "filter": filter,
                                            "status_filter": status, "location_filter": location,
                                            "date_from": date_from, "date_to": date_to,
