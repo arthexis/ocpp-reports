@@ -174,3 +174,72 @@ def transaction_page(
     return {"transactions": [{**json.loads(r["payload"]), "source_id": r["source_id"]}
                               for r in rows], "counts": counts, "page": page,
             "pages": pages, "total": total}
+
+
+
+def latest_completed_charges(database, connectors: list[dict], *,
+                             allowed_source_ids: tuple[str, ...] | None = None) -> dict[tuple[str, str, int], str]:
+    """Last actual StopTransaction timestamp for visible source/charger/connector.
+
+    Read from the current local/replicated transaction projections, not from
+    the ten displayed transaction rows, connector freshness or snapshot times.
+    Never combine equal charger IDs from different sources or expose other
+    tenants' transactions. No writes, no additional retained state.
+    """
+    from pathlib import Path
+
+    identities = {
+        (row["source_id"], row["charger_id"], row["connector_id"])
+        for row in connectors
+        if isinstance(row.get("source_id"), str)
+        and isinstance(row.get("charger_id"), str)
+        and type(row.get("connector_id")) is int
+        and (allowed_source_ids is None or row["source_id"] in allowed_source_ids)
+    }
+    if not identities:
+        return {}
+    sources = sorted({key[0] for key in identities})
+    placeholders = ",".join("?" for _ in sources)
+    with sqlite3.connect(f"file:{Path(database).resolve()}?mode=ro", uri=True) as db:
+        db.execute("PRAGMA query_only=ON")
+        tables = {row[0] for row in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        branches, params = [], []
+        if "current_transactions" in tables:
+            branches.append(
+                "SELECT source_id,charger_id,payload FROM current_transactions "
+                "WHERE source_id IN (" + placeholders + ")")
+            params.extend(sources)
+        if "collector_latest" in tables:
+            branches.append(
+                "SELECT source_id,json_extract(payload,'$.charger_id') AS charger_id,payload "
+                "FROM collector_latest WHERE kind='transaction' "
+                "AND source_id IN (" + placeholders + ")")
+            params.extend(sources)
+        if not branches:
+            return {}
+        rows = db.execute(
+            "SELECT source_id,charger_id,json_extract(payload,'$.connector_id') AS connector_id,"
+            "MAX(json_extract(payload,'$.stopped_at')) AS stopped_at "
+            "FROM (" + " UNION ALL ".join(branches) + ") "
+            "WHERE json_type(payload,'$.connector_id')='integer' "
+            "AND json_type(payload,'$.stopped_at')='text' "
+            "AND json_extract(payload,'$.stopped_at')!='' "
+            "GROUP BY source_id,charger_id,connector_id",
+            params,
+        ).fetchall()
+    return {
+        (source, charger, connector): timestamp
+        for source, charger, connector, timestamp in rows
+        if (source, charger, connector) in identities
+        and isinstance(timestamp, str) and _parse_completed_at(timestamp) is not None
+    }
+
+
+def _parse_completed_at(value: str) -> datetime | None:
+    from datetime import timezone
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parsed.astimezone(timezone.utc) if parsed.tzinfo else None
+    except (ValueError, OverflowError):
+        return None
