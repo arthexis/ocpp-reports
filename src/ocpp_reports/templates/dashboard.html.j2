@@ -348,12 +348,12 @@ header{align-items:start;gap:.65rem}
 <section class="users-panel" id="dashboard-users" aria-labelledby="dashboard-users-heading">
 <div class="panel-heading"><h2 id="dashboard-users-heading">Usuarios con acceso</h2></div>
 <div class="scroll" tabindex="0" role="region" aria-label="Usuarios autorizados para este dashboard">
-<table><thead><tr><th>Usuario</th><th>Permisos</th><th>Último acceso</th><th>Cuenta</th></tr></thead>
+<table><thead><tr><th>Usuario</th><th>Dashboard</th><th>Permisos</th><th>Último acceso</th><th>Cuenta</th></tr></thead>
 <tbody>{% for account in dashboard_accounts %}
-<tr><td>{{ account.user_id }}</td><td>{{ account.role }}</td>
+<tr><td>{{ account.user_id }}</td><td>{{ account.tenant_id }}</td><td>{{ account.role }}</td>
 <td>{{ account.last_login_at|display_date(timezone) if account.last_login_at else 'Sin registro' }}</td>
 <td>{{ 'Activa' if account.active else 'Deshabilitada' }}</td></tr>
-{% else %}<tr><td class="empty" colspan="4">Sin usuarios registrados</td></tr>{% endfor %}</tbody>
+{% else %}<tr><td class="empty" colspan="5">Sin usuarios registrados</td></tr>{% endfor %}</tbody>
 </table></div></section>
 {% endif %}
 {% endif %}</div></main>
