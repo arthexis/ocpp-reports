@@ -657,7 +657,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                              if row.get("location")), None) or source_id)
         return templates.TemplateResponse(
             request, "device_detail.html.j2",
-            {"title": title, "source_id": source_id, "charger_id": charger_id,
+            {"title": title, "brand_image_url": brand_image_url, "source_id": source_id, "charger_id": charger_id,
              "selected_connector_id": connector_id, "connectors": connectors,
              "data": data, "location": location, "source": source,
              "source_freshness": freshness, "heartbeat_at": heartbeat_at,
@@ -840,7 +840,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         }
         return templates.TemplateResponse(
             request, "transaction_detail.html.j2",
-            {"title": title, "transaction": transaction, "timezone": selected_zone,
+            {"title": title, "brand_image_url": brand_image_url, "transaction": transaction, "timezone": selected_zone,
              "timezones": zones, "refresh_active": active,
              "timeline": timeline, "timeline_charts": timeline_charts(timeline["points"]),
              "timeline_soc_end": timeline_soc_end, "timeline_has_power": timeline_has_power,

@@ -114,3 +114,28 @@ def test_dashboard_transaction_ids_are_detail_links(monkeypatch, tmp_path):
     assert page.status_code == 200
     assert '/transactions/a/cp/9?tz=UTC' in page.text
     assert "Ver detalles de transacción 9" in page.text
+
+
+def test_transaction_detail_header_inherits_instance_logo_and_text_fallback(tmp_path):
+    path = _warehouse(tmp_path)
+    _store(path, "local", "a", {
+        "id": 14, "charger_id": "cp", "connector_id": 1,
+        "state": "closed", "active": False,
+        "started_at": "2026-11-10T12:00:00Z",
+        "stopped_at": "2026-11-10T12:45:00Z", "energy_wh": 15000,
+    })
+    branded = TestClient(web.create_app(
+        path, title="Admin Dashboard", allowed_source_ids=("a",),
+        brand_image_url="/assets/brand-light.png")).get("/transactions/a/cp/14")
+    assert branded.status_code == 200
+    assert '<img class="brand-logo" src="/assets/brand-light.png" alt="Admin Dashboard"' in branded.text
+    assert '<h1 hidden>Admin Dashboard</h1>' in branded.text
+    assert 'onerror="this.hidden=true;this.nextElementSibling.hidden=false"' in branded.text
+    assert '.site-header [hidden]{display:none!important}' in branded.text
+    assert 'max-height:56px' in branded.text
+    assert '<title>Transacción #14 · Admin Dashboard</title>' in branded.text
+    plain = TestClient(web.create_app(path, title="Other Dashboard",
+                                      allowed_source_ids=("a",))).get("/transactions/a/cp/14")
+    assert plain.status_code == 200
+    assert '<h1>Other Dashboard</h1>' in plain.text
+    assert 'class="brand-logo"' not in plain.text

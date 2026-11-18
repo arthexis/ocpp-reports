@@ -607,3 +607,24 @@ def test_last_completed_charge_uses_all_scoped_transactions_not_visible_page(tmp
     assert 'class="connector-last-charge" data-label="Última carga">—' in connectors_html
     assert ".connectors-panel .connector-last-charge{display:none}" in page.text
     assert "@media(min-width:1101px)" in page.text
+
+
+def test_charger_and_connector_detail_headers_inherit_instance_branding(tmp_path):
+    path = tmp_path / "brand-detail.sqlite"
+    seed(path)
+    logo = "/assets/brand-light.png"
+    client = TestClient(create_app(path, title="Customer Dashboard",
+                                   allowed_source_ids=("a",), brand_image_url=logo))
+    plain = TestClient(create_app(path, title="Other Dashboard", allowed_source_ids=("a",)))
+    for route in ("/chargers/a/same", "/connectors/a/same/1"):
+        branded = client.get(route)
+        assert branded.status_code == 200
+        assert '<img class="brand-logo" src="/assets/brand-light.png" alt="Customer Dashboard"' in branded.text
+        assert '<h1 hidden>Customer Dashboard</h1>' in branded.text
+        assert 'onerror="this.hidden=true;this.nextElementSibling.hidden=false"' in branded.text
+        assert 'max-height:56px' in branded.text
+        assert "· Customer Dashboard</title>" in branded.text  # preserve contextual document title
+        unbranded = plain.get(route)
+        assert unbranded.status_code == 200
+        assert '<h1>Other Dashboard</h1>' in unbranded.text
+        assert 'class="brand-logo"' not in unbranded.text
