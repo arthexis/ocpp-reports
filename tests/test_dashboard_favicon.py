@@ -1,12 +1,11 @@
 """Shared Gelectriic favicon contract; assets must be binary, packaged and tenant-neutral."""
 from importlib import resources
 from pathlib import Path
-import io
+import struct
 import zipfile
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
 
 from ocpp_reports.dashboard_login import route_permission
 from ocpp_reports.web import create_app
@@ -31,17 +30,17 @@ def test_favicon_routes_and_permissions(tmp_path, path):
         "assets", path.rsplit("/", 1)[-1]).read_bytes()
     assert response.content == asset
     assert len(asset) > 100
-    with Image.open(io.BytesIO(response.content)) as im:
-        if path.endswith(".ico"):
-            assert im.format == "ICO"
-            assert (16, 16) in im.info["sizes"]
-            assert (32, 32) in im.info["sizes"]
-        else:
-            size = int(path.split("favicon-")[1].split(".")[0])
-            assert im.format == "PNG"
-            assert im.size == (size, size)
-            assert im.mode == "RGBA"
-
+    if path.endswith(".ico"):
+        assert response.content[:4] == b"\\x00\\x00\\x01\\x00"
+        count = struct.unpack_from("<H", response.content, 4)[0]
+        sizes = {tuple((256 if n == 0 else n) for n in response.content[6 + i*16:8 + i*16])
+                 for i in range(count)}
+        assert (16, 16) in sizes and (32, 32) in sizes
+    else:
+        assert response.content[:8] == bytes.fromhex("89504e470d0a1a0a")
+        size = int(path.split("favicon-")[1].split(".")[0])
+        assert struct.unpack_from(">II", response.content, 16) == (size, size)
+        assert response.content[25] == 6  # PNG true-color RGBA
 
 def test_templates_share_icons_and_do_not_replace_branding():
     root = resources.files("ocpp_reports").joinpath("templates")
