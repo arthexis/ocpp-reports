@@ -74,11 +74,17 @@ def dashboard_account_directory(path, *, tenant: str) -> list[dict]:
         return []
     with sqlite3.connect(f"file:{Path(path).resolve()}?mode=ro", uri=True) as db:
         db.execute("PRAGMA query_only=ON")
-        rows = db.execute(
-            "SELECT user_id,role,active,last_login_at FROM dashboard_users "
-            "WHERE tenant_id=? ORDER BY user_id LIMIT 200", (tenant,)).fetchall()
-    return [{"user_id": user, "role": role, "active": bool(active),
-             "last_login_at": last_login} for user, role, active, last_login in rows]
+        if tenant == "administration":
+            # Only the authenticated central administrator may see other tenants.
+            rows = db.execute(
+                "SELECT user_id,tenant_id,role,active,last_login_at FROM dashboard_users "
+                "ORDER BY tenant_id,user_id LIMIT 200").fetchall()
+        else:
+            rows = db.execute(
+                "SELECT user_id,tenant_id,role,active,last_login_at FROM dashboard_users "
+                "WHERE tenant_id=? ORDER BY user_id LIMIT 200", (tenant,)).fetchall()
+    return [{"user_id": user, "tenant_id": scope, "role": role, "active": bool(active),
+             "last_login_at": last_login} for user, scope, role, active, last_login in rows]
 
 
 def prune_expired_sessions(path, *, now=None):
