@@ -41,3 +41,17 @@ def test_exact_png_is_packaged_and_route_authorized():
     assert hashlib.sha256(raw).hexdigest() == '0d98df804e5f18ee50b6f4d45b7456dad1aac949d528191c47cf774cbc6973a8'
     assert raw[:8] == bytes.fromhex('89504e470d0a1a0a')
     assert route_permission('/assets/brand.png', 'GET') is not None
+
+def test_white_wordmark_variant_is_exact_and_preserves_original():
+    from pathlib import Path
+    import hashlib
+    from ocpp_reports.dashboard_login import route_permission
+    assets = Path(__file__).resolve().parents[1] / "src/ocpp_reports/assets"
+    original = (assets / "brand.png").read_bytes()
+    variant = (assets / "brand-light.png").read_bytes()
+    assert hashlib.sha256(original).hexdigest() == "0d98df804e5f18ee50b6f4d45b7456dad1aac949d528191c47cf774cbc6973a8"
+    assert hashlib.sha256(variant).hexdigest() == "7fe9ce7218a5b3e3fb35d20715c14b47100ca5801932abed29ba31a169e6f28a"
+    assert route_permission("/assets/brand-light.png", "GET") is not None
+    # Byte-exact asset fingerprints also detect unintended recoloring of the icon or II.
+    assert len(original) == 20546
+    assert len(variant) == 12757
