@@ -280,7 +280,7 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
     let offset = 0, exhausted = false, loading = false;
     const table = document.createElement("table");
     const head = document.createElement("thead"); const headRow = document.createElement("tr");
-    for (const label of ["ID", "Fecha", "Información"]) {
+    for (const label of ["ID", "ID respuesta", "Fecha", "Dirección", "Información"]) {
       const th = document.createElement("th"); th.textContent = label; headRow.append(th);
     }
     head.append(headRow); table.append(head);
@@ -304,7 +304,10 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
         const page = await response.json();
         for (const event of page.events) {
           const tr = document.createElement("tr");
-          for (const value of [event.id, event.display_at, event.information]) {
+          const direction = event.direction === "in" ? "Cargador → servidor"
+            : event.direction === "out" ? "Servidor → cargador"
+            : event.response_inferred ? "Entrada probable (histórico)" : "Sin dato";
+          for (const value of [event.id, event.response_id, event.display_at, direction, event.information]) {
             const td = document.createElement("td"); td.textContent = value == null ? "—" : String(value);
             tr.append(td);
           }
