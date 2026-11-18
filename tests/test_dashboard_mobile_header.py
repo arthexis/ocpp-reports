@@ -118,7 +118,7 @@ def test_filter_caption_below_field_and_hidden_on_small_screens(dashboard_source
 
 def test_filter_and_profile_share_a_top_edge_and_fixed_height(dashboard_source):
     source = dashboard_source
-    assert '.header-filters{margin-left:auto;align-items:flex-start;gap:.5rem}' in source
+    assert '.header-filters{margin-left:auto;align-self:flex-start;align-items:flex-start;gap:.5rem}' in source
     assert '.header-filters .unified-filter{width:min(390px,38vw);min-width:245px;height:44px;min-height:44px}' in source
     assert '.profile-menu{position:relative;align-self:flex-start}' in source
     assert '.profile-menu summary{list-style:none;display:grid;place-items:center;cursor:pointer;border:1px solid #718096;border-radius:8px;height:44px;min-height:44px' in source
