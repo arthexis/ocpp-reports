@@ -434,12 +434,15 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         **{f"/assets/favicon-{size}.png": (f"favicon-{size}.png", "image/png")
            for size in (16, 32, 180, 192, 512)},
     }
-    for asset_path, (asset_name, media_type) in _favicon_assets.items():
-        def favicon_asset(name=asset_name, mime=media_type):
+    def _favicon_endpoint(name: str, mime: str):
+        def favicon_asset():
             return FileResponse(Path(__file__).parent / "assets" / name,
                                 media_type=mime)
-        app.add_api_route(asset_path, favicon_asset, methods=["GET"],
-                          include_in_schema=False)
+        return favicon_asset
+
+    for asset_path, (asset_name, media_type) in _favicon_assets.items():
+        app.add_api_route(asset_path, _favicon_endpoint(asset_name, media_type),
+                          methods=["GET"], include_in_schema=False)
 
     templates.env.filters["minute_utc"] = minute_utc
     templates.env.filters["display_date"] = display_date
