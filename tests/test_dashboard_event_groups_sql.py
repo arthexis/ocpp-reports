@@ -351,3 +351,94 @@ def test_scoped_collector_only_database_keeps_event_id_and_html(tmp_path):
     response = TestClient(create_app(db, allowed_source_ids=("a",))).get(
         "/chargers/a/cp-1")
     assert response.status_code == 200 and 'id="energy-chart"' in response.text
+
+
+def test_directed_response_ids_are_compact_and_status_episodes_span_heartbeats(tmp_path):
+    """Only the request is displayed; replies remain traceable by storage ID."""
+    from datetime import datetime, timedelta, timezone
+    db = tmp_path / "directed.sqlite"
+    with sqlite3.connect(db) as connection:
+        ensure_collector_schema(connection)
+        events = [
+            ("StatusNotification", "in", "Available", 1),
+            ("StatusNotification", "out", None, None),
+            ("Heartbeat", "in", None, None),
+            ("Heartbeat", "out", None, None),
+            ("StatusNotification", "in", "Available", 1),
+            ("StatusNotification", "out", None, None),
+            ("StatusNotification", "in", "Charging", 2),
+            ("StatusNotification", "out", None, None),
+            ("Heartbeat", "in", None, None),
+            ("Heartbeat", "out", None, None),
+            ("StatusNotification", "in", "Available", 1),
+            ("StatusNotification", "out", None, None),
+            ("StatusNotification", "in", "Charging", 1),
+            ("StatusNotification", "out", None, None),
+            ("StatusNotification", "in", "Available", 1),
+            ("StatusNotification", "out", None, None),
+            ("Reset", "out", None, None),  # server-initiated, no response yet
+        ]
+        start = datetime(2026, 11, 16, 12, tzinfo=timezone.utc)
+        for event_id, (action, direction, status, connector) in enumerate(events, 1):
+            # Pair replies within one second; requests may be minutes apart.
+            seconds = (event_id - 1) // 2 * 180 + (event_id - 1) % 2 * 0.01
+            payload = dict(id=event_id, charger_id="charger-a",
+                           action=action, kind="status" if action == "StatusNotification" else "ocpp",
+                           direction=direction, status=status, connector_id=connector,
+                           at=(start + timedelta(seconds=seconds)).isoformat())
+            connection.execute(
+                "INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                ("a", "event", str(event_id), event_id, json.dumps(payload)))
+        # Foreign source reuses IDs and must not affect any group or response.
+        connection.execute(
+            "INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+            ("b", "event", "16", 16, json.dumps({
+                "id": 16, "charger_id": "charger-a", "kind": "ocpp",
+                "direction": "in", "action": "BootNotification",
+                "at": start.isoformat()})))
+    opts = dict(source_id="a", charger_id="charger-a", allowed_source_ids=("a",))
+    result = event_groups_page(db, **opts)
+    groups = result["groups"]
+    assert [g["first_event_id"] for g in groups] == [17, 15, 13, 11, 9, 7]
+    assert [g["event_count"] for g in groups] == [1, 1, 1, 3, 2, 1]
+    assert all(g["source_id"] == "a" for g in groups)
+    available = event_group_details(
+        db, group_source="a", first_event_id=11, **opts)
+    assert [e["id"] for e in available["events"]] == [11, 5, 1]
+    assert [e["response_id"] for e in available["events"]] == [12, 6, 2]
+    assert all(e["direction"] == "in" for e in available["events"])
+    heartbeat = event_group_details(
+        db, group_source="a", first_event_id=9, **opts)
+    assert [e["id"] for e in heartbeat["events"]] == [9, 3]
+    assert [e["response_id"] for e in heartbeat["events"]] == [10, 4]
+    try:
+        event_group_details(db, group_source="a", first_event_id=12, **opts)
+    except LookupError:
+        pass
+    else:
+        raise AssertionError("Response ID must not select a group")
+    assert "private" not in json.dumps(available)
+    assert event_groups_page(db, source_id="b", charger_id="charger-a",
+                             allowed_source_ids=("a",))["groups"] == []
+
+
+def test_legacy_events_with_no_direction_are_not_silently_hidden(tmp_path):
+    db = tmp_path / "legacy-no-direction.sqlite"
+    with sqlite3.connect(db) as connection:
+        ensure_collector_schema(connection)
+        for event_id, status in ((1, "Available"), (2, None)):
+            payload = {"id": event_id, "charger_id": "cp",
+                       "kind": "status", "action": "StatusNotification",
+                       "at": "2026-11-16T12:00:00Z",
+                       "status": status,
+                       "connector_id": 1 if status else None}
+            connection.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                               ("a", "event", str(event_id), event_id, json.dumps(payload)))
+    group = event_groups_page(db, source_id="a", charger_id="cp",
+                              allowed_source_ids=("a",))["groups"][0]
+    assert group["event_count"] == 2
+    details = event_group_details(db, group_source="a",
+                                  first_event_id=2, source_id="a",
+                                  charger_id="cp", allowed_source_ids=("a",))
+    assert len(details["events"]) == 2
+    assert all("response_id" not in e for e in details["events"])
