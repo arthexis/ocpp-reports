@@ -255,6 +255,92 @@ def _scoped_event_stream(db: sqlite3.Connection, source_id: str, charger_id: str
         following = prepared(next(rows, None))
 
 
+
+def _scoped_visible_events(db: sqlite3.Connection, source_id: str, charger_id: str):
+    """Yield OCPP initiators with their adjacent reply ID; retain unpaired evidence.
+
+    Direction is authoritative only when exported explicitly. No attempt is
+    made to suppress legacy records without direction. The association also
+    requires exact source, charger, action, consecutive IDs and <=2s; event
+    IDs are storage IDs, not a wire-level correlation identifier.
+    """
+    stream = iter(_scoped_event_stream(db, source_id, charger_id))
+    newer = next(stream, None)
+    while newer is not None:
+        older = next(stream, None)
+        paired = False
+        if older is not None:
+            recent, previous = newer[0], older[0]
+            first, second = recent["payload"], previous["payload"]
+            time_delta = None
+            if recent["event_time"] is not None and previous["event_time"] is not None:
+                time_delta = (recent["event_time"] - previous["event_time"]) * 86400
+            paired = (
+                first.get("direction") in ("in", "out")
+                and second.get("direction") in ("in", "out")
+                and first["direction"] != second["direction"]
+                and first.get("action") == second.get("action")
+                and first.get("kind") == second.get("kind")
+                and recent["source_id"] == previous["source_id"]
+                and first.get("charger_id") == second.get("charger_id")
+                and recent["event_id"] == previous["event_id"] + 1
+                and time_delta is not None and 0 <= time_delta <= 2
+            )
+        if paired:
+            yield older[0], older[1], newer[0]["event_id"]
+            newer = next(stream, None)
+        else:
+            yield newer[0], newer[1], None
+            newer = older
+
+
+def _scoped_group_records(db: sqlite3.Connection, source_id: str,
+                          charger_id: str, zone: str):
+    """Group directed routine statuses by state episode and local day.
+
+    Heartbeats are summarized per local day. An intervening heartbeat or an
+    observation from another connector does not fragment the same status
+    episode. A changed status, a different day or fault starts another group.
+    Unattributed legacy records retain their original adjacent-only rules.
+    """
+    timezone = ZoneInfo(zone)
+    legacy_run, previous_legacy_key = 0, None
+    status_episodes = {}
+    heartbeat_days = {}
+    for row, legacy_key, response_id in _scoped_visible_events(db, source_id, charger_id):
+        payload = row["payload"]
+        direction = payload.get("direction")
+        if direction not in ("in", "out"):
+            if legacy_key is None or legacy_key != previous_legacy_key:
+                legacy_run += 1
+            key = ("legacy", legacy_run)
+            previous_legacy_key = legacy_key
+        else:
+            previous_legacy_key = None
+            day = _day(payload.get("at"), timezone)
+            action = payload.get("action")
+            if direction == "in" and action == "Heartbeat" and day:
+                key = heartbeat_days.setdefault(day, ("heartbeat", row["event_id"]))
+            elif (direction == "in" and action == "StatusNotification"
+                  and type(payload.get("connector_id")) is int
+                  and payload.get("status") is not None):
+                connector = payload["connector_id"]
+                status = payload["status"]
+                routine = status in (
+                    "Available", "Preparing", "Charging", "SuspendedEV",
+                    "SuspendedEVSE", "Finishing", "Reserved"
+                ) and payload.get("error_code") in (None, "") and payload.get("info") in (None, "")
+                previous = status_episodes.get(connector)
+                if routine and day is not None and previous and previous[:2] == (status, day):
+                    key = previous[2]
+                else:
+                    key = ("status", row["event_id"])
+                status_episodes[connector] = (status, day, key)
+            else:
+                key = ("single", row["event_id"])
+        yield row, key, response_id
+
+
 def _sql_value(value):
     """Normalize JSON scalars to sqlite json_extract representations."""
     if isinstance(value, bool):
@@ -298,25 +384,15 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
     ZoneInfo(zone)
     if allowed_source_ids is not None and source_id not in allowed_source_ids:
         return {"groups": [], "page": page, "has_next": False}
-    selected = []
-    previous_key, group = None, None
-    completed, has_next = 0, False
-    first, last = (page - 1) * page_size, page * page_size
+    groups, by_key = [], {}
     with sqlite3.connect(f"file:{Path(database).resolve()}?mode=ro", uri=True) as db:
         db.execute("PRAGMA query_only=ON")
         db.execute("BEGIN")
         location = _scoped_location(db, source_id, charger_id)
-        for row, key in _scoped_event_stream(db, source_id, charger_id):
+        for row, key, _ in _scoped_group_records(db, source_id, charger_id, zone):
             payload = row["payload"]
-            if key is None or key != previous_key:
-                if group is not None:
-                    completed += 1
-                    if first < completed <= last:
-                        selected.append(group)
-                    if completed > last:
-                        has_next = True
-                        group = None
-                        break
+            group = by_key.get(key)
+            if group is None:
                 group = {
                     "source_id": row["source_id"], "charger_id": payload.get("charger_id"),
                     "location": location, "action": payload.get("action"),
@@ -325,6 +401,8 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
                     "status_for_info": None, "connector_for_info": None,
                     "error_for_info": None, "tx_for_info": None,
                 }
+                by_key[key] = group
+                groups.append(group)
             group["event_count"] += 1
             for field, field_name in (
                 ("status", "status_for_info"),
@@ -333,12 +411,7 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
                 ("transaction_id", "tx_for_info"),
             ):
                 group[field_name] = _sql_max(group[field_name], payload.get(field))
-            previous_key = key
-        if group is not None:
-            completed += 1
-            if first < completed <= last:
-                selected.append(group)
-            has_next = has_next or completed > last
+    selected = groups[(page - 1) * page_size:page * page_size]
     for row in selected:
         row["information"] = event_information({
             "action": row["action"], "kind": row.pop("kind"),
@@ -347,7 +420,7 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
             "error_code": row.pop("error_for_info"),
             "transaction_id": row.pop("tx_for_info"),
         })
-    return {"groups": selected, "page": page, "has_next": has_next}
+    return {"groups": selected, "page": page, "has_next": len(groups) > page * page_size}
 
 
 def _scoped_group_details(database, *, source_id: str, charger_id: str,
@@ -356,36 +429,36 @@ def _scoped_group_details(database, *, source_id: str, charger_id: str,
     ZoneInfo(zone)
     if allowed_source_ids is not None and source_id not in allowed_source_ids:
         raise PermissionError("Source is not available in this dashboard")
-    found, selected, previous_key, events, seen = False, False, None, [], 0
+    first_by_group, selected_key, events, seen = {}, None, [], 0
     with sqlite3.connect(f"file:{Path(database).resolve()}?mode=ro", uri=True) as db:
         db.execute("PRAGMA query_only=ON")
         db.execute("BEGIN")
         location = _scoped_location(db, source_id, charger_id)
-        for row, key in _scoped_event_stream(db, source_id, charger_id):
-            if key is None or key != previous_key:
-                if selected:
-                    break
-                selected = row["event_id"] == first_event_id
-                if selected:
-                    found = True
-            if selected:
-                if seen >= offset and len(events) <= limit:
-                    payload = row["payload"]
-                    events.append({
-                        "source_id": row["source_id"], "location": location,
-                        "id": payload.get("id"), "charger_id": payload.get("charger_id"),
-                        "action": payload.get("action"), "at": payload.get("at"),
-                        "information": event_information(payload),
-                    })
-                seen += 1
-                if len(events) > limit:
-                    break
-            previous_key = key
-    if not found and offset == 0:
+        for row, key, response_id in _scoped_group_records(db, source_id, charger_id, zone):
+            if key not in first_by_group:
+                first_by_group[key] = row["event_id"]
+                if row["event_id"] == first_event_id:
+                    selected_key = key
+            if selected_key is None or key != selected_key:
+                continue
+            if seen >= offset and len(events) <= limit:
+                payload = row["payload"]
+                event = {
+                    "source_id": row["source_id"], "location": location,
+                    "id": payload.get("id"), "charger_id": payload.get("charger_id"),
+                    "action": payload.get("action"), "at": payload.get("at"),
+                    "information": event_information(payload),
+                }
+                if payload.get("direction") in ("in", "out"):
+                    event["direction"] = payload["direction"]
+                    event["response_id"] = response_id
+                events.append(event)
+            seen += 1
+            if len(events) > limit:
+                break
+    if selected_key is None and offset == 0:
         raise LookupError("Event group not found")
     return {"events": events[:limit], "has_next": len(events) > limit}
-
-
 
 
 
