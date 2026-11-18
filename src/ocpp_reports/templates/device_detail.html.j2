@@ -302,7 +302,8 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
         for (const event of page.events) {
           const tr = document.createElement("tr");
           const direction = event.direction === "in" ? "Cargador → servidor"
-            : event.direction === "out" ? "Servidor → cargador" : "Sin dato";
+            : event.direction === "out" ? "Servidor → cargador"
+            : event.response_inferred ? "Entrada probable (histórico)" : "Sin dato";
           for (const value of [event.id, event.response_id, event.display_at, direction, event.information]) {
             const td = document.createElement("td"); td.textContent = value == null ? "—" : String(value);
             tr.append(td);
