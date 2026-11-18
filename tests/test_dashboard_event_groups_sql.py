@@ -442,3 +442,45 @@ def test_legacy_events_with_no_direction_are_not_silently_hidden(tmp_path):
                                   charger_id="cp", allowed_source_ids=("a",))
     assert len(details["events"]) == 2
     assert all("response_id" not in e for e in details["events"])
+
+
+def test_realistic_legacy_status_and_heartbeat_reply_pairs_are_marked_inferred(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    db = tmp_path / "legacy-paired.sqlite"
+    with sqlite3.connect(db) as connection:
+        ensure_collector_schema(connection)
+        base = datetime(2026, 11, 16, 12, tzinfo=timezone.utc)
+        events = [
+            ("StatusNotification", "Available", 1, True),
+            ("StatusNotification", None, None, True),
+            ("Heartbeat", None, None, False),
+            ("Heartbeat", None, None, False),
+            ("StatusNotification", "Available", 1, True),
+            ("StatusNotification", None, None, True),
+            ("Heartbeat", None, None, False),
+            ("Heartbeat", None, None, False),
+            ("StatusNotification", "Charging", 1, True),
+            ("StatusNotification", None, None, True),
+            ("StatusNotification", "Available", 1, True),
+            ("StatusNotification", None, None, True),
+        ]
+        for n, (action, status, connector, has_derived) in enumerate(events, 1):
+            timestamp = base + timedelta(minutes=(n-1)//2, milliseconds=10 * ((n-1)%2))
+            item = dict(id=n, action=action, charger_id="cp",
+                        kind="status" if action == "StatusNotification" else "ocpp",
+                        at=timestamp.isoformat())
+            if has_derived:
+                item.update(status=status, derived_status=status)
+                if connector is not None:
+                    item["connector_id"] = connector
+            connection.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                               ("a", "event", str(n), n, json.dumps(item)))
+    opts = dict(source_id="a", charger_id="cp", allowed_source_ids=("a",))
+    groups = event_groups_page(db, **opts)["groups"]
+    assert [g["first_event_id"] for g in groups] == [11, 9, 7, 5]
+    assert [g["event_count"] for g in groups] == [1, 1, 2, 2]
+    details = event_group_details(db, group_source="a", first_event_id=5, **opts)
+    assert [e["id"] for e in details["events"]] == [5, 1]
+    assert [e["response_id"] for e in details["events"]] == [6, 2]
+    assert all(e["response_inferred"] is True for e in details["events"])
+    assert all("direction" not in e for e in details["events"])
