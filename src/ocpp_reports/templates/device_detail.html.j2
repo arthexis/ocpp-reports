@@ -106,6 +106,7 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;
   .events-table .event-count{width:17%}
   .events-table .event-expand-row td{padding:.35rem .18rem}
 }
+@media(max-width:900px){.sessions-table .session-soc{display:none}}
 .pages{display:flex;gap:.7rem;align-items:center;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
 .pages a,.pages span{padding:.35rem .65rem;border:1px solid var(--line);border-radius:7px}
 button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:pointer;padding:.55rem .8rem;min-height:44px;font:inherit}
@@ -182,13 +183,15 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 </section>
 <section id="transactions" aria-labelledby="transactions-title"><h2 id="transactions-title">Sesiones de carga</h2>
 <div class="scroll" role="region" tabindex="0" aria-label="Sesiones de este {{ 'conector' if selected_connector_id is not none else 'cargador' }}">
-<table class="sessions-table"><thead><tr>{% if selected_connector_id is none %}<th>Conector</th>{% endif %}<th>ID</th><th>Estado</th><th class="session-start">Inicio</th><th>Fin</th><th class="session-duration">Duración</th><th>Energía de sesión</th></tr></thead><tbody>
+<table class="sessions-table"><thead><tr>{% if selected_connector_id is none %}<th>Conector</th>{% endif %}<th>ID</th><th>Estado</th><th class="session-start">Inicio</th><th>Fin</th><th class="session-duration">Duración</th><th class="session-soc" title="Primera lectura SoC reportada">SoC inicial</th><th class="session-soc" title="Última lectura SoC reportada, no necesariamente al cierre">SoC último</th><th>Energía de sesión</th></tr></thead><tbody>
 {% for t in data.transactions %}<tr>{% if selected_connector_id is none %}<td><a href="/connectors/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ t.connector_id }}?tz={{ timezone|urlencode }}">{{ t.connector_id if t.connector_id is not none else '—' }}</a></td>{% endif %}
 <td><a href="/transactions/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ t.id }}?tz={{ timezone|urlencode }}">{{ t.id }}</a></td>
 <td>{{ t.state or 'Desconocido' }}</td><td class="session-start">{{ t.started_at|display_date(timezone) }}</td><td>{{ t.stopped_at|display_date(timezone) if t.stopped_at else 'Activa / sin cierre' }}</td>
 <td class="session-duration">{{ t.started_at|session_duration(t.stopped_at) }}</td>
+<td class="numeric session-soc">{{ (t.soc_start|string ~ '%') if t.soc_start is defined and t.soc_start is not none else '—' }}</td>
+<td class="numeric session-soc">{{ (t.soc_end|string ~ '%') if t.soc_end is defined and t.soc_end is not none else '—' }}</td>
 <td class="numeric">{{ '%.2f'|format(t.energy_wh / 1000) ~ ' kWh' if t.energy_wh is not none else 'En curso / pendiente' if t.active else '—' }}</td></tr>
-{% else %}<tr><td class="empty" colspan="{{ 7 if selected_connector_id is none else 6 }}">Sin sesiones</td></tr>{% endfor %}
+{% else %}<tr><td class="empty" colspan="{{ 9 if selected_connector_id is none else 8 }}">Sin sesiones</td></tr>{% endfor %}
 </tbody></table></div>
 <nav class="pages" aria-label="Páginas de sesiones">
 <span class="note muted">{{ ((tx_page - 1) * 20 + 1) if tx_total else 0 }}–{{ [tx_page * 20, tx_total]|min }} de {{ tx_total }}</span>
