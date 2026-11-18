@@ -530,3 +530,30 @@ def test_device_event_pagination_is_charger_scoped_across_multiple_pages(tmp_pat
     assert client.get("/api/v1/charger-event-group", params={
         "source_id": "b", "charger_id": "same", "first_event_id": 26
     }).status_code == 404
+
+
+def test_desktop_charger_session_soc_is_recorded_not_inferred(tmp_path):
+    path = tmp_path / "soc.sqlite"
+    seed(path)
+    with sqlite3.connect(path) as db:
+        row = db.execute(
+            "SELECT payload FROM current_transactions "
+            "WHERE source_id='a' AND charger_id='same' AND transaction_id=11").fetchone()
+        payload = json.loads(row[0])
+        payload.update(soc_start=18, soc_end=82)
+        db.execute(
+            "UPDATE current_transactions SET payload=? "
+            "WHERE source_id='a' AND charger_id='same' AND transaction_id=11",
+            (json.dumps(payload),))
+    page = TestClient(create_app(path, allowed_source_ids=("a",))).get("/chargers/a/same")
+    assert page.status_code == 200
+    assert '<th class="session-soc"' in page.text
+    assert 'SoC inicial</th>' in page.text
+    assert 'SoC último</th>' in page.text
+    assert '18%</td>' in page.text and '82%</td>' in page.text
+    assert '<td class="numeric session-soc">—</td>' in page.text
+    assert "@media(max-width:900px){.sessions-table .session-soc{display:none}}" in page.text
+    # The same session-scoped fields render without cross-tenant leakage.
+    connector = TestClient(create_app(path, allowed_source_ids=("a",))).get(
+        "/connectors/a/same/1")
+    assert connector.status_code == 200 and "18%</td>" in connector.text

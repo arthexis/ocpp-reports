@@ -5,6 +5,8 @@ import hmac
 import secrets
 import sqlite3
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import parse_qs
 from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -15,10 +17,20 @@ HTML = """<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewp
 COOKIE = "reports_session"
 
 def initialize(path):
-    with sqlite3.connect(path) as db:
-        db.executescript("""CREATE TABLE IF NOT EXISTS dashboard_users(user_id TEXT PRIMARY KEY,password_hash TEXT NOT NULL,role TEXT NOT NULL,tenant_id TEXT NOT NULL,active INTEGER DEFAULT 1);
-        CREATE TABLE IF NOT EXISTS dashboard_sessions(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires INTEGER NOT NULL);
-        CREATE TABLE IF NOT EXISTS dashboard_login_attempts(identity TEXT PRIMARY KEY, failures INTEGER NOT NULL, window_start INTEGER NOT NULL, locked_until INTEGER NOT NULL DEFAULT 0);""")
+    """Idempotent additive account migration, serialized across dashboard services."""
+    with sqlite3.connect(path, timeout=30) as db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute("""CREATE TABLE IF NOT EXISTS dashboard_users(
+            user_id TEXT PRIMARY KEY,password_hash TEXT NOT NULL,role TEXT NOT NULL,
+            tenant_id TEXT NOT NULL,active INTEGER DEFAULT 1,last_login_at TEXT)""")
+        db.execute("""CREATE TABLE IF NOT EXISTS dashboard_sessions(
+            token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires INTEGER NOT NULL)""")
+        db.execute("""CREATE TABLE IF NOT EXISTS dashboard_login_attempts(
+            identity TEXT PRIMARY KEY,failures INTEGER NOT NULL,window_start INTEGER NOT NULL,
+            locked_until INTEGER NOT NULL DEFAULT 0)""")
+        columns = {column[1] for column in db.execute("PRAGMA table_info(dashboard_users)")}
+        if "last_login_at" not in columns:
+            db.execute("ALTER TABLE dashboard_users ADD COLUMN last_login_at TEXT")
 
 def provision(path, username, password, role, tenant):
     if len(password) < 12 or not username or not tenant: raise ValueError("Invalid account")
@@ -26,7 +38,8 @@ def provision(path, username, password, role, tenant):
     digest = hashlib.scrypt(password.encode(),salt=salt,n=16384,r=8,p=1)
     initialize(path)
     with sqlite3.connect(path) as db:
-        db.execute("INSERT INTO dashboard_users VALUES(?,?,?,?,1)",(username,salt.hex()+":"+digest.hex(),Role(role).value,tenant))
+        db.execute("INSERT INTO dashboard_users(user_id,password_hash,role,tenant_id,active) VALUES(?,?,?,?,1)",
+                   (username,salt.hex()+":"+digest.hex(),Role(role).value,tenant))
 
 def manage_user(path, username, *, role=None, active=None, password=None):
     """Manage a provisioned account and revoke existing sessions on any change."""
@@ -53,6 +66,25 @@ def manage_user(path, username, *, role=None, active=None, password=None):
         if result.rowcount != 1:
             raise ValueError("Unknown user")
         db.execute("DELETE FROM dashboard_sessions WHERE user_id=?", (username,))
+
+
+def dashboard_account_directory(path, *, tenant: str) -> list[dict]:
+    """Tenant-limited, read-only directory. Never return credentials or tokens."""
+    if not tenant:
+        return []
+    with sqlite3.connect(f"file:{Path(path).resolve()}?mode=ro", uri=True) as db:
+        db.execute("PRAGMA query_only=ON")
+        if tenant == "administration":
+            # Only the authenticated central administrator may see other tenants.
+            rows = db.execute(
+                "SELECT user_id,tenant_id,role,active,last_login_at FROM dashboard_users "
+                "ORDER BY tenant_id,user_id LIMIT 200").fetchall()
+        else:
+            rows = db.execute(
+                "SELECT user_id,tenant_id,role,active,last_login_at FROM dashboard_users "
+                "WHERE tenant_id=? ORDER BY user_id LIMIT 200", (tenant,)).fetchall()
+    return [{"user_id": user, "tenant_id": scope, "role": role, "active": bool(active),
+             "last_login_at": last_login} for user, scope, role, active, last_login in rows]
 
 
 def prune_expired_sessions(path, *, now=None):
@@ -97,6 +129,8 @@ def route_permission(path, method):
 
 def attach_login(app, *, path, tenant):
     initialize(path)
+    app.state.dashboard_login_db = path
+    app.state.dashboard_login_tenant = tenant
     @app.middleware("http")
     async def protect(request, next_handler):
         route = request.url.path
@@ -211,7 +245,11 @@ def attach_login(app, *, path, tenant):
             db.execute("DELETE FROM dashboard_login_attempts WHERE identity=?", (identity,))
             db.execute("DELETE FROM dashboard_sessions WHERE expires<=?", (now,))
             token=secrets.token_urlsafe(32)
-            db.execute("INSERT INTO dashboard_sessions VALUES(?,?,?)",(hashlib.sha256(token.encode()).hexdigest(),username,int(time.time())+43200))
+            db.execute("INSERT INTO dashboard_sessions VALUES(?,?,?)",
+                       (hashlib.sha256(token.encode()).hexdigest(),username,now+43200))
+            db.execute("UPDATE dashboard_users SET last_login_at=? "
+                       "WHERE user_id=? AND tenant_id=?",
+                       (datetime.fromtimestamp(now, timezone.utc).isoformat(), username, tenant))
         response=RedirectResponse("/",status_code=303)
         response.set_cookie(COOKIE,token,secure=True,httponly=True,samesite="lax",max_age=43200)
         response.headers["Cache-Control"]="no-store"
