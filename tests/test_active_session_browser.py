@@ -562,7 +562,7 @@ def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
                 assert page.locator("#transaction-history-help").count() == 0
                 assert page.locator(".connectors-panel th").all_inner_texts() == [
                     "Ubicación", "Cargador", "Conector", "Estado",
-                    "Conectado", "Potencia", "Energía", "Recibido"]
+                    "Conectado", "Potencia", "Energía", "Última carga", "Recibido"]
                 if 521 <= width <= 1100:
                     search = page.locator("#dashboard-search").bounding_box()
                     profile = page.locator(".profile-menu summary").bounding_box()
@@ -572,7 +572,7 @@ def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
                     assert abs(search["y"] + search["height"]
                                - profile["y"] - profile["height"]) <= 12
                     assert profile["width"] >= 44 and profile["height"] >= 44
-                    hidden_connectors = (2, 7, 8) if width >= 760 else (2, 6, 7, 8)
+                    hidden_connectors = (2, 7, 8, 9) if width >= 760 else (2, 6, 7, 8, 9)
                     for index in hidden_connectors:
                         cell = page.locator(".connectors-panel thead th").nth(index - 1)
                         assert not cell.is_visible(), (width, index)
@@ -590,6 +590,10 @@ def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
                 elif width == 1200:
                     assert page.locator(".connectors-panel thead th").nth(1).is_visible()
                     assert page.locator(".connectors-panel thead th").nth(5).is_visible()
+                    assert page.locator(".connectors-panel thead th").nth(7).is_visible()
+                    for column in (6, 7):
+                        assert page.locator(".connectors-panel thead th").nth(column - 1).evaluate(
+                            "(cell) => getComputedStyle(cell).textAlign") == "right"
                     assert page.locator(".transactions-panel thead th").nth(4).is_visible()
                 else:
                     assert page.locator(".connectors-panel td[data-label='Cargador']").first.is_visible()
