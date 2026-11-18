@@ -623,7 +623,7 @@ def test_charger_and_connector_detail_headers_inherit_instance_branding(tmp_path
         assert '<h1 hidden>Customer Dashboard</h1>' in branded.text
         assert 'onerror="this.hidden=true;this.nextElementSibling.hidden=false"' in branded.text
         assert 'max-height:56px' in branded.text
-        assert "Customer Dashboard</title>" not in branded.text  # contextual page title still present
+        assert "· Customer Dashboard</title>" in branded.text  # preserve contextual document title
         unbranded = plain.get(route)
         assert unbranded.status_code == 200
         assert '<h1>Other Dashboard</h1>' in unbranded.text
