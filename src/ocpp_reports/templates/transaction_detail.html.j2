@@ -10,6 +10,8 @@ body{margin:0;background:var(--bg);color:var(--ink);line-height:1.45}
 a{color:var(--accent)}a:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 .site-header{background:var(--nav);color:white;padding:1.2rem max(1.25rem,calc((100vw - 1280px)/2));display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
 .site-header h1{margin:0;font-size:1.55rem;letter-spacing:-.03em}
+.site-header .brand-logo{display:block;max-height:56px;max-width:min(240px,65vw);width:auto;height:auto;object-fit:contain}
+.site-header [hidden]{display:none!important}
 .site-header .muted{color:#d0dbe6;margin:.2rem 0 0}
 .back-link{color:white;border:1px solid #718096;border-radius:8px;min-height:44px;display:inline-flex;align-items:center;padding:.5rem .75rem;text-decoration:none;font-weight:600}
 .back-link:hover,.back-link:focus-visible{background:#ffffff18;text-decoration:underline}
@@ -71,7 +73,7 @@ main{max-width:1320px}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a>
 <header class="site-header">
-  <div class="brand"><h1>{{ title }}</h1><div class="muted">Panel de sesiones · Solo lectura{% if refresh_active %} · Consulta cada 15 s{% endif %}</div></div>
+  <div class="brand">{% if brand_image_url %}<img class="brand-logo" src="{{ brand_image_url }}" alt="{{ title }}" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ title }}</h1>{% else %}<h1>{{ title }}</h1>{% endif %}<div class="muted">Panel de sesiones · Solo lectura{% if refresh_active %} · Consulta cada 15 s{% endif %}</div></div>
   <a class="back-link" href="{{ back_href|default('/?tz=' ~ (timezone|urlencode) ~ '#transactions') }}">← Volver al dashboard</a>
 </header>
 <main id="content" data-transaction-detail="true" data-active="{{ 'true' if refresh_active else 'false' }}">
