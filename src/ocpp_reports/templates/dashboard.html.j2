@@ -29,7 +29,7 @@ table{border-collapse:collapse;width:100%;font-size:.87rem}th,td{text-align:left
 .operations{margin-bottom:.8rem}.operations h2{margin-bottom:.3rem}.operations .note{margin:.2rem 0 .7rem}
 .operations-cards{gap:.65rem}.operational-card{display:flex;flex-direction:column;gap:.25rem;min-width:0;padding:.85rem 1rem;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);text-decoration:none}
 .operational-card strong{font-size:1.65rem;line-height:1.1;font-variant-numeric:tabular-nums}.operational-card span{font-size:.82rem;color:var(--muted)}
-.operational-card--available{border-left:4px solid #19975b}.operational-card--charging{border-left:4px solid #dba520}.operational-card--fault{border-left:4px solid #b94d4d}.operational-card--uncertain{border-left:4px solid #8994a3}.operational-card:hover,.operational-card:focus-visible{border-color:var(--accent);text-decoration:underline}
+.operational-card--available{border-left:4px solid #19975b}.operational-card--charging{border-left:4px solid #1976e9}.operational-card--fault{border-left:4px solid #b94d4d}.operational-card--uncertain{border-left:4px solid #dba520}.operational-card:hover,.operational-card:focus-visible{border-color:var(--accent);text-decoration:underline}
 .filter-panel h2{margin-bottom:.6rem}.filter-panel{padding:.85rem 1.25rem}
 .dashboard-grid .connectors-panel{grid-column:1/-1}.charger-identity{overflow-wrap:anywhere}
 @media(max-width:520px){
@@ -138,6 +138,8 @@ header{align-items:start;gap:.65rem}
 
 /* Readability: contain wide desktop data without clipping the viewport. */
 .connectors-panel .scroll{width:100%;max-width:100%;min-width:0;overflow-x:auto;overscroll-behavior-x:contain}
+.connectors-panel .connector-last-charge{display:none}
+@media(min-width:1101px){.connectors-panel th.connector-last-charge,.connectors-panel td.connector-last-charge{display:table-cell}}
 @media(min-width:521px){.connectors-panel table{min-width:1140px}}
 .counts-legend{font-size:.75rem;color:var(--muted);margin:-.3rem 0 .55rem}
 .status--historic{background:#e9edf2;color:#4c5969}
@@ -231,7 +233,8 @@ header{align-items:start;gap:.65rem}
   .connectors-panel th:nth-child(2),.connectors-panel td:nth-child(2),
   .connectors-panel th:nth-child(6),.connectors-panel td:nth-child(6),
   .connectors-panel th:nth-child(7),.connectors-panel td:nth-child(7),
-  .connectors-panel th:nth-child(8),.connectors-panel td:nth-child(8){display:none}
+  .connectors-panel th:nth-child(8),.connectors-panel td:nth-child(8),
+  .connectors-panel th:nth-child(9),.connectors-panel td:nth-child(9){display:none}
   .connectors-panel th:nth-child(1){width:35%}
   .connectors-panel th:nth-child(3){width:15%}
   .connectors-panel th:nth-child(4){width:30%}
@@ -298,7 +301,7 @@ header{align-items:start;gap:.65rem}
 <button type="button" data-connector-view="station" aria-pressed="{{ 'true' if connector_view == 'station' else 'false' }}" class="{{ 'selected' if connector_view == 'station' else '' }}">Estación</button>
 <span aria-hidden="true">|</span>
 <button type="button" data-connector-view="combined" aria-pressed="{{ 'true' if connector_view == 'combined' else 'false' }}" class="{{ 'selected' if connector_view == 'combined' else '' }}">Combinado</button>
-</div></div><p class="connector-scroll-hint" id="connector-scroll-hint" hidden>→ Más columnas</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores" aria-describedby="connector-scroll-hint"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado</th><th>Conectado</th><th>Potencia</th><th>Energía</th><th>Recibido</th></tr></thead><tbody>
+</div></div><p class="connector-scroll-hint" id="connector-scroll-hint" hidden>→ Más columnas</p><div class="scroll" tabindex="0" role="region" aria-label="Tabla de conectores" aria-describedby="connector-scroll-hint"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>Estado</th><th>Conectado</th><th class="numeric">Potencia</th><th class="numeric">Energía</th><th class="connector-last-charge">Última carga</th><th>Recibido</th></tr></thead><tbody>
 {% for c in connector_rows %}{% set session_href = ("/transactions/" ~ (c.source_id|urlencode) ~ "/" ~ (c.charger_id|urlencode) ~ "/" ~ (c.active_transaction_id|string) ~ "?tz=" ~ (timezone|urlencode) ~ "&return_to=" ~ (("/?" ~ (request.url.query if request is defined else '') ~ "#transactions")|urlencode)) if c.active_transaction_id is not none else none %}
 <tr><td data-label="Ubicación">{{ c.location }}</td><td data-label="Cargador" class="charger-identity">
 <a class="charger-session-link" href="/chargers/{{ c.source_id|urlencode }}/{{ c.charger_id|urlencode }}?tz={{ timezone|urlencode }}" aria-label="Ver cargador {{ c.charger_id }}">{{ c.charger_id }}</a>
@@ -307,8 +310,8 @@ header{align-items:start;gap:.65rem}
 {% if session_href and c.stale %}<span class="session-unconfirmed">Sesión sin confirmar</span>{% elif not session_href and state == "charging" and c.connector_id != 0 %}<span class="current-session-pending">Transacción aún no disponible</span>{% endif %}</span></td>
 <td data-label="Conectado"><span class="status {{ 'status--historic' if not c.connection_fresh else ('status--ok' if c.connected else 'status--off') }}" title="Conexión observada en el último estado del CSMS; no es una prueba de red en tiempo real">{{ "Sí" if c.connected is sameas true else "No" if c.connected is sameas false else "Sin datos" }}</span></td>
 <td data-label="Potencia" class="numeric"><span class="connector-power">{% if c.power_fresh and c.power_w is not none %}{{ "%.2f"|format(c.power_w / 1000) }} kW <span class="note muted" title="Power.Active.Import: medición reciente">medida</span>{% elif c.rated_power_w is defined and c.rated_power_w is not none %}{{ "%.2f"|format(c.rated_power_w / 1000) }} kW <span class="note muted" title="{{ 'Capacidad nominal del cargador, compartida; no es potencia medida' if c.connector_id == 0 or c.rating_scope == 'charger' else 'Capacidad nominal específica del conector; no es potencia medida' }}">nominal</span>{% else %}—{% endif %}</span></td>
-<td data-label="Medidor" class="numeric">{% set displayed_energy_wh = c.aggregate_energy_wh if c.connector_id == 0 and c.aggregate_energy_wh is defined else c.energy_wh %}{{ "%.2f"|format(displayed_energy_wh / 1000) ~ " kWh" if displayed_energy_wh is not none else "—" }}</td><td data-label="Recibido">{{ c.status_observed_at|display_date(timezone) if not c.status_time_unknown else "Desconocido" }}</td></tr>
-{% else %}<tr><td class="empty" colspan="8">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
+<td data-label="Medidor" class="numeric">{% set displayed_energy_wh = c.aggregate_energy_wh if c.connector_id == 0 and c.aggregate_energy_wh is defined else c.energy_wh %}{{ "%.2f"|format(displayed_energy_wh / 1000) ~ " kWh" if displayed_energy_wh is not none else "—" }}</td><td class="connector-last-charge" data-label="Última carga">{{ c.last_charge_at|display_date(timezone) if c.last_charge_at else "—" }}</td><td data-label="Recibido">{{ c.status_observed_at|display_date(timezone) if not c.status_time_unknown else "Desconocido" }}</td></tr>
+{% else %}<tr><td class="empty" colspan="9">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
 </section>
 <section class="transactions-panel" id="transactions"><div class="transactions-heading"><div class="panel-heading"><h2>Sesiones de carga</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Transacciones recientes" aria-controls="help-transactions" aria-expanded="false" aria-describedby="help-transactions">ⓘ</button></span><span class="panel-help-text" id="help-transactions" role="tooltip">SoC: primera y última medición reportada; no se estiman valores ni se presupone una medición al cierre.</span></div>
 <div class="transaction-filters" role="group" aria-label="Filtrar transacciones por estado y energía final">
@@ -324,7 +327,7 @@ header{align-items:start;gap:.65rem}
 {% for t in data.transactions %}<tr><td>{{ t.location }}</td><td>{{ t.charger_id }}</td><td><a href="/transactions/{{ t.source_id|urlencode }}/{{ t.charger_id|urlencode }}/{{ t.id }}?tz={{ timezone|urlencode }}&return_to={{ ('/?' ~ (request.url.query if request is defined else '') ~ '#transactions')|urlencode }}" aria-label="Ver detalles de transacción {{ t.id }}">{{ t.id }}</a></td><td><span class="status {{ 'status--active' if (t.state or '')|lower in ['open', 'active', 'charging'] else 'status--ok' if (t.state or '')|lower in ['closed', 'stopped', 'completed'] else '' }}">{{ t.state or "Desconocido" }}</span></td><td>{{ t.started_at|display_date(timezone) }}</td><td>{{ t.stopped_at|display_date(timezone) if t.stopped_at else "Activa / sin cierre" }}</td><td>{{ t.started_at|session_duration(t.stopped_at) }}</td>
 <td class="numeric">{{ (t.soc_start|string ~ '%') if t.soc_start is defined and t.soc_start is not none else '—' }}</td>
 <td class="numeric">{{ (t.soc_end|string ~ '%') if t.soc_end is defined and t.soc_end is not none else '—' }}</td>
-<td class="numeric">{% if t.energy_wh is defined and t.energy_wh is not none %}{{ "%.2f"|format(t.energy_wh / 1000) }} kWh (final){% elif t.live_energy_wh is defined and t.live_energy_wh is not none and t.active %}{{ "%.2f"|format(t.live_energy_wh / 1000) }} kWh <span class="{{ 'stale' if t.live_energy_stale else 'muted' }}">(estimada{% if t.live_energy_stale %}, antigua{% else %}, en vivo{% endif %})</span><div class="note muted">Medición: {{ t.live_energy_observed_at|display_date(timezone) if t.live_energy_observed_at else "Sin fecha" }}</div>{% elif t.active %}Final pendiente · estimación no disponible{% else %}—{% endif %}</td></tr>
+<td class="numeric">{% if t.energy_wh is defined and t.energy_wh is not none %}{{ "%.2f"|format(t.energy_wh / 1000) }} kWh{% elif t.live_energy_wh is defined and t.live_energy_wh is not none and t.active %}{{ "%.2f"|format(t.live_energy_wh / 1000) }} kWh <span class="{{ 'stale' if t.live_energy_stale else 'muted' }}">(estimada{% if t.live_energy_stale %}, antigua{% else %}, en vivo{% endif %})</span><div class="note muted">Medición: {{ t.live_energy_observed_at|display_date(timezone) if t.live_energy_observed_at else "Sin fecha" }}</div>{% elif t.active %}Final pendiente · estimación no disponible{% else %}—{% endif %}</td></tr>
 {% else %}<tr><td class="empty" colspan="10">Sin transacciones</td></tr>{% endfor %}</tbody></table></div><nav class="transaction-pagination" aria-label="Páginas de transacciones">
 <span class="muted note">Mostrando {{ ((tx_page - 1) * 10 + 1) if tx_total else 0 }}–{{ [tx_page * 10, tx_total]|min }} de {{ tx_total }} transacciones recientes</span>
 <div class="transaction-pages">
@@ -341,19 +344,19 @@ header{align-items:start;gap:.65rem}
 </div></nav>
 </section>
 {% if is_admin | default(true) %}
-<section class="sync-panel" id="synchronization"><div class="panel-heading"><h2>Sincronización</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Sincronización" aria-controls="help-synchronization" aria-expanded="false" aria-describedby="help-synchronization">ⓘ</button></span><span class="panel-help-text" id="help-synchronization" role="tooltip">Ingestión local y recepción de réplica son distintas. La recarga de la página no confirma datos nuevos del cargador.</span></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
+<section class="sync-panel" id="synchronization"><div class="panel-heading"><h2>Sincronización</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Sincronización" aria-controls="help-synchronization" aria-expanded="false" aria-describedby="help-synchronization">ⓘ</button></span><span class="panel-help-text" id="help-synchronization" role="tooltip">Ingestión local y recepción de réplica son distintas. Cadencia predeterminada: ingesta local (follow) cada 5 segundos y consulta del Forwarder en reposo cada 2 segundos. Son intervalos de consulta, no un tiempo garantizado de extremo a extremo; la red, las colas y la configuración pueden variar. La recarga de la página no confirma datos nuevos del cargador.</span></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
 {% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at|display_date(timezone) if s.last_ingested_at else "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at|display_date(timezone) if s.last_replication_received_at else "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
 {% if login_enabled and is_admin %}
 <section class="users-panel" id="dashboard-users" aria-labelledby="dashboard-users-heading">
 <div class="panel-heading"><h2 id="dashboard-users-heading">Usuarios con acceso</h2></div>
 <div class="scroll" tabindex="0" role="region" aria-label="Usuarios autorizados para este dashboard">
-<table><thead><tr><th>Usuario</th><th>Dashboard</th><th>Permisos</th><th>Último acceso</th><th>Cuenta</th></tr></thead>
+<table><thead><tr><th>Usuario</th>{% if is_central_admin %}<th>Dashboard</th>{% endif %}<th>Permisos</th><th>Último acceso</th><th>Cuenta</th></tr></thead>
 <tbody>{% for account in dashboard_accounts %}
-<tr><td>{{ account.user_id }}</td><td>{{ account.tenant_id }}</td><td>{{ account.role }}</td>
+<tr><td>{{ account.user_id }}</td>{% if is_central_admin %}<td>{{ account.tenant_id }}</td>{% endif %}<td>{{ account.role }}</td>
 <td>{{ account.last_login_at|display_date(timezone) if account.last_login_at else 'Sin registro' }}</td>
 <td>{{ 'Activa' if account.active else 'Deshabilitada' }}</td></tr>
-{% else %}<tr><td class="empty" colspan="5">Sin usuarios registrados</td></tr>{% endfor %}</tbody>
+{% else %}<tr><td class="empty" colspan="{{ 5 if is_central_admin else 4 }}">Sin usuarios registrados</td></tr>{% endfor %}</tbody>
 </table></div></section>
 {% endif %}
 {% endif %}</div></main>

@@ -24,6 +24,19 @@ def _day(value: object, zone: ZoneInfo) -> str | None:
         return None
 
 
+def _minute(value: object, zone: ZoneInfo) -> str | None:
+    """Minute bucket with UTC offset, so repeated DST wall minutes remain distinct."""
+    if not isinstance(value, str):
+        return None
+    try:
+        moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if moment.tzinfo is None:
+            return None
+        return moment.astimezone(zone).replace(second=0, microsecond=0).isoformat()
+    except (ValueError, OverflowError):
+        return None
+
+
 def _query(db: sqlite3.Connection, *, source_id: str | None, charger_id: str | None,
            allowed_source_ids: tuple[str, ...] | None, term: str, status: str,
            location: str, date_from: str, date_to: str, zone: str) -> tuple[str, list]:
@@ -320,17 +333,17 @@ def _scoped_visible_events(db: sqlite3.Connection, source_id: str, charger_id: s
 
 def _scoped_group_records(db: sqlite3.Connection, source_id: str,
                           charger_id: str, zone: str):
-    """Group directed routine statuses by state episode and local day.
+    """Group StatusNotification *exchanges* by local minute, Heartbeats by day.
 
-    Heartbeats are summarized per local day. An intervening heartbeat or an
-    observation from another connector does not fragment the same status
-    episode. A changed status, a different day or fault starts another group.
-    Unattributed legacy records retain their original adjacent-only rules.
+    One expanded group shows every connector, status, error and response ID
+    separately; it never deduplicates state transitions. Historical records
+    without a defensible direction association keep their legacy grouping.
+    UTC offsets in the minute bucket disambiguate daylight-saving folds.
     """
     timezone = ZoneInfo(zone)
     legacy_run, previous_legacy_key = 0, None
-    status_episodes = {}
     heartbeat_days = {}
+    status_minutes = {}
     for row, legacy_key, response_id, inferred in _scoped_visible_events(db, source_id, charger_id):
         payload = row["payload"]
         direction = payload.get("direction")
@@ -347,25 +360,13 @@ def _scoped_group_records(db: sqlite3.Connection, source_id: str,
             action = payload.get("action")
             if direction == "in" and action == "Heartbeat" and day:
                 key = heartbeat_days.setdefault(day, ("heartbeat", row["event_id"]))
-            elif (direction == "in" and action == "StatusNotification"
-                  and type(payload.get("connector_id")) is int
-                  and payload.get("status") is not None):
-                connector = payload["connector_id"]
-                status = payload["status"]
-                routine = status in (
-                    "Available", "Preparing", "Charging", "SuspendedEV",
-                    "SuspendedEVSE", "Finishing", "Reserved"
-                ) and payload.get("error_code") in (None, "") and payload.get("info") in (None, "")
-                previous = status_episodes.get(connector)
-                if routine and day is not None and previous and previous[:2] == (status, day):
-                    key = previous[2]
-                else:
-                    key = ("status", row["event_id"])
-                status_episodes[connector] = (status, day, key)
+            elif direction == "in" and action == "StatusNotification":
+                minute = _minute(payload.get("at"), timezone)
+                key = (status_minutes.setdefault(minute, ("status-minute", row["event_id"]))
+                       if minute is not None else ("single", row["event_id"]))
             else:
                 key = ("single", row["event_id"])
         yield row, key, response_id, inferred
-
 
 def _sql_value(value):
     """Normalize JSON scalars to sqlite json_extract representations."""
@@ -424,6 +425,7 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
                     "location": location, "action": payload.get("action"),
                     "at": payload.get("at"), "first_event_id": row["event_id"],
                     "event_count": 0, "kind": payload.get("kind"),
+                    "_status_minute": key[0] == "status-minute",
                     "status_for_info": None, "connector_for_info": None,
                     "error_for_info": None, "tx_for_info": None,
                 }
@@ -439,6 +441,11 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
                 group[field_name] = _sql_max(group[field_name], payload.get(field))
     selected = groups[(page - 1) * page_size:page * page_size]
     for row in selected:
+        if row.pop("_status_minute", False) and row["event_count"] > 1:
+            row["information"] = f'{row["event_count"]} notificaciones; ver estados individuales'
+            for field in ("kind", "status_for_info", "connector_for_info", "error_for_info", "tx_for_info"):
+                row.pop(field, None)
+            continue
         row["information"] = event_information({
             "action": row["action"], "kind": row.pop("kind"),
             "status": row.pop("status_for_info"),

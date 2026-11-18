@@ -21,7 +21,7 @@ section h2{font-size:1.05rem;margin:0 0 1rem}.note{font-size:.82rem}.muted{color
 .connector h3{margin:0 0 .6rem;font-size:1rem}.connector dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.4rem .65rem;font-size:.85rem;margin:0}
 dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}.scroll{overflow:auto;max-width:100%}
 table{width:100%;border-collapse:collapse;font-size:.87rem}th,td{padding:.72rem .65rem;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
-th{background:#f6f8fb;color:#34455a;font-weight:650}td.numeric{text-align:right;font-variant-numeric:tabular-nums}
+th{background:#f6f8fb;color:#34455a;font-weight:650}.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .empty{text-align:center;color:var(--muted);padding:1.5rem}
 .status{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .5rem;border-radius:999px;font-size:.84rem;font-weight:650;background:#edf1f5}
 .status::before{content:"";width:.5rem;height:.5rem;border-radius:50%;background:#8795a7}
@@ -174,7 +174,7 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 <article class="connector"><h3>{% if selected_connector_id is none %}<a href="/connectors/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ c.connector_id }}?tz={{ timezone|urlencode }}">{{ 'Estación (C0)' if c.connector_id == 0 else 'Conector ' ~ c.connector_id }}</a>{% else %}Conector {{ c.connector_id }}{% endif %}</h3>
 <dl>
 <dt>Estado informado</dt><dd>{% set state = (c.status or '')|lower %}<span class="status {{ 'status--off' if state in ['faulted','unavailable'] else 'status--active' if state == 'charging' and not c.stale else 'status--ok' if state in ['available','finishing'] and not c.stale else 'status--warn' if state in ['preparing','suspendedev','suspendedevse'] else '' }}">{{ c.status or 'Desconocido' }}</span></dd>
-<dt>Potencia</dt><dd>{% if c.power_fresh and c.power_w is not none %}{{ '%.2f'|format(c.power_w / 1000) }} kW <span class="note muted">medida</span>{% elif c.rated_power_w is defined and c.rated_power_w is not none %}{{ '%.2f'|format(c.rated_power_w / 1000) }} kW <span class="note muted">nominal (no medida)</span>{% else %}No disponible{% endif %}</dd>
+<dt>Potencia</dt><dd>{% if c.power_fresh and c.power_w is not none %}{{ '%.2f'|format(c.power_w / 1000) }} kW <span class="note muted">medida</span>{% elif c.rated_power_w is defined and c.rated_power_w is not none %}{{ '%.2f'|format(c.rated_power_w / 1000) }} kW <span class="note muted">nominal</span>{% else %}No disponible{% endif %}</dd>
 <dt>Medidor acumulado</dt><dd>{{ '%.2f'|format(c.energy_wh / 1000) ~ ' kWh' if c.energy_wh is not none else '—' }}</dd>
 <dt>Medición de energía</dt><dd>{{ c.energy_observed_at|display_date(timezone) if c.energy_observed_at else 'Sin fecha' }}</dd>
 {% if c.active_transaction_id is not none %}<dt>Sesión actual</dt><dd><a href="/transactions/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ c.active_transaction_id }}?tz={{ timezone|urlencode }}">#{{ c.active_transaction_id }}</a></dd>{% endif %}
@@ -183,7 +183,7 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 </section>
 <section id="transactions" aria-labelledby="transactions-title"><h2 id="transactions-title">Sesiones de carga</h2>
 <div class="scroll" role="region" tabindex="0" aria-label="Sesiones de este {{ 'conector' if selected_connector_id is not none else 'cargador' }}">
-<table class="sessions-table"><thead><tr>{% if selected_connector_id is none %}<th>Conector</th>{% endif %}<th>ID</th><th>Estado</th><th class="session-start">Inicio</th><th>Fin</th><th class="session-duration">Duración</th><th class="session-soc" title="Primera lectura SoC reportada">SoC inicial</th><th class="session-soc" title="Última lectura SoC reportada, no necesariamente al cierre">SoC último</th><th>Energía de sesión</th></tr></thead><tbody>
+<table class="sessions-table"><thead><tr>{% if selected_connector_id is none %}<th>Conector</th>{% endif %}<th>ID</th><th>Estado</th><th class="session-start">Inicio</th><th>Fin</th><th class="session-duration">Duración</th><th class="numeric session-soc" title="Primera lectura SoC reportada">SoC inicial</th><th class="numeric session-soc" title="Última lectura SoC reportada, no necesariamente al cierre">SoC último</th><th class="numeric">Energía de sesión</th></tr></thead><tbody>
 {% for t in data.transactions %}<tr>{% if selected_connector_id is none %}<td><a href="/connectors/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ t.connector_id }}?tz={{ timezone|urlencode }}">{{ t.connector_id if t.connector_id is not none else '—' }}</a></td>{% endif %}
 <td><a href="/transactions/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ t.id }}?tz={{ timezone|urlencode }}">{{ t.id }}</a></td>
 <td>{{ t.state or 'Desconocido' }}</td><td class="session-start">{{ t.started_at|display_date(timezone) }}</td><td>{{ t.stopped_at|display_date(timezone) if t.stopped_at else 'Activa / sin cierre' }}</td>

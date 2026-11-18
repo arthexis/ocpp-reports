@@ -40,7 +40,7 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
                     "operational-card--fault", "operational-card--uncertain"]
     card_positions = [html.index('class="operational-card ' + name + '"') for name in card_classes]
     assert card_positions == sorted(card_positions)
-    for name, border in zip(card_classes, ("#19975b", "#dba520", "#b94d4d", "#8994a3")):
+    for name, border in zip(card_classes, ("#19975b", "#1976e9", "#b94d4d", "#dba520")):
         assert "." + name + "{border-left:4px solid " + border + "}" in html
     assert 'href="#connectors"' in html
     assert 'data-label="Snapshot recibido"' not in html
@@ -64,7 +64,7 @@ def test_empty_connector_table_spans_eight_columns(monkeypatch, tmp_path):
     monkeypatch.setattr(web, "snapshot", empty_connectors)
     client = TestClient(web.create_app(tmp_path / "unused"))
     html = client.get("/").text
-    assert 'colspan="8">Sin conectores registrados' in html
+    assert 'colspan="9">Sin conectores registrados' in html
     assert '<th>Snapshot recibido</th>' not in html
 
 

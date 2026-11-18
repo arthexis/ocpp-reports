@@ -68,7 +68,7 @@ def test_tablet_header_and_tables_preserve_mobile_and_desktop_semantics(dashboar
     assert "header .header-filters .unified-filter{width:100%;min-width:0}" in tablet
     assert "header .profile-menu summary{min-width:44px;min-height:44px}" in tablet
     assert ".connectors-panel table{min-width:0;width:100%;table-layout:fixed}" in tablet
-    for column in (2, 6, 7, 8):
+    for column in (2, 6, 7, 8, 9):
         assert f".connectors-panel th:nth-child({column})" in tablet
         assert f".connectors-panel td:nth-child({column})" in tablet
     for column in (2, 5, 8, 9):
@@ -79,7 +79,7 @@ def test_tablet_header_and_tables_preserve_mobile_and_desktop_semantics(dashboar
     assert ".connectors-panel th:nth-child(6),.connectors-panel td:nth-child(6){display:table-cell}" in wide_tablet
     assert ".connectors-panel th:nth-child(6){width:21%}" in wide_tablet
     assert "<th>Estado</th>" in source
-    assert "<th>Energía</th>" in source
+    assert '<th class="numeric">Energía</th>' in source
     assert '<td data-label="Estado">' in source
     assert '<td data-label="Medidor"' in source
     assert "<h2>Sesiones de carga</h2>" in source

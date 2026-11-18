@@ -69,6 +69,8 @@ def test_account_directory_migration_and_authenticated_admin_only(tmp_path):
         assert 'id="dashboard-users"' in html
         assert "admin-a" in html and "operator-a" in html
         assert "private-b" not in html
+        assert "<th>Dashboard</th>" not in html
+        assert "<td>tenant-a</td>" not in html
         assert "very-secure-admin-password" not in html
         assert "last_login_at" not in html
         users = dashboard_account_directory(auth, tenant="tenant-a")
@@ -94,4 +96,6 @@ def test_account_directory_migration_and_authenticated_admin_only(tmp_path):
         assert "private-b" in page and "tenant-b" in page
         assert "operator-a" in page and "tenant-a" in page
         assert "central-admin" in page and "administration" in page
+        assert "<th>Dashboard</th>" in page
+        assert "<td>tenant-b</td>" in page
         assert "very-secure-central-password" not in page
