@@ -99,6 +99,10 @@ _ROUTE_PERMISSIONS = {
     ("/", "GET"): Permission.DASHBOARD_VIEW,
     ("/assets/brand.png", "GET"): Permission.DASHBOARD_VIEW,
     ("/assets/brand-light.png", "GET"): Permission.DASHBOARD_VIEW,
+    **{(path, "GET"): Permission.DASHBOARD_VIEW for path in (
+        "/favicon.ico", "/assets/favicon-16.png", "/assets/favicon-32.png",
+        "/assets/favicon-180.png", "/assets/favicon-192.png",
+        "/assets/favicon-512.png")},
     ("/api/snapshot", "GET"): Permission.DASHBOARD_VIEW,
     ("/api/event-group", "GET"): Permission.EVENTS_VIEW,
     ("/api/v1/event-group", "GET"): Permission.EVENTS_VIEW,
