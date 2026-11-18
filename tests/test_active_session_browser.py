@@ -818,3 +818,54 @@ def test_charger_event_action_expands_in_same_table_row_offline(tmp_path):
                 context.close()
         finally:
             browser.close()
+
+def test_offline_chromium_search_profile_alignment_and_caption(tmp_path):
+    """Actual browser geometry in authenticated, offline-only synthetic dashboard."""
+    import hashlib
+    import time
+    from ocpp_reports.dashboard_login import attach_login, provision, COOKIE
+
+    playwright = pytest.importorskip("playwright.sync_api")
+    warehouse = tmp_path / "synthetic-header.sqlite"
+    _seed(warehouse)
+    db = tmp_path / "header-auth.sqlite"
+    provision(db, "synthetic-operator", "offline-only-strong-password", "operator", "synthetic")
+    app = create_app(warehouse, allowed_source_ids=("a",))
+    attach_login(app, path=db, tenant="synthetic")
+    token = "synthetic-browser-test-token"
+    with sqlite3.connect(db) as connection:
+        connection.execute(
+            "INSERT INTO dashboard_sessions(token_hash,user_id,expires) VALUES (?,?,?)",
+            (hashlib.sha256(token.encode()).hexdigest(), "synthetic-operator", int(time.time())+300))
+    client = TestClient(app)
+    client.cookies.set(COOKIE, token)
+    assert client.get("/").status_code == 200
+
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            for width in (390, 620, 850, 1280):
+                context = browser.new_context(viewport={"width":width,"height":850}, locale="es-MX")
+                page = context.new_page()
+                page.route("**/*", _offline_route(client, {"GET":0}))
+                page.goto("http://reports.test/", wait_until="load")
+                field = page.locator("#dashboard-search")
+                profile = page.locator(".profile-menu > summary")
+                caption = page.locator(".filter-caption")
+                assert field.count() == 1 and profile.count() == 1
+                bounds = field.bounding_box()
+                other = profile.bounding_box()
+                assert bounds is not None and other is not None
+                assert abs(bounds["y"] - other["y"]) <= 1, (width,bounds,other)
+                assert abs(bounds["height"] - 44) <= 1, (width,bounds)
+                assert abs(other["height"] - 44) <= 1, (width,other)
+                assert page.locator('label[for="dashboard-search"]').count() == 1
+                if width <= 700:
+                    assert not caption.is_visible(), width
+                else:
+                    assert caption.is_visible(), width
+                    assert caption.bounding_box()["y"] >= bounds["y"]+bounds["height"], width
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
+                context.close()
+        finally:
+            browser.close()

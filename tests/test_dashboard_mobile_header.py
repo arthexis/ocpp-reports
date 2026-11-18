@@ -6,12 +6,13 @@ def test_mobile_header_preserves_search_and_timezone_controls(empty_dashboard_ht
     compact = css.split("/* Narrow phones:", 1)[1].split("\n}", 1)[0]
     assert "@media(max-width:520px)" in compact
     assert "header{padding:.5rem .9rem;gap:.3rem}" in compact
-    assert ".header-filters label{gap:0;font-size:0;line-height:0}" in compact
-    assert "min-height:40px" in compact
+    assert ".header-filters label{gap:0}" in compact
+    assert "min-height:44px" in compact
     assert 'id="dashboard-search"' in html
     assert 'name="filter"' in html
     assert 'placeholder="Origen, cargador, ubicación o estado"' in html
-    assert '<label for="dashboard-search">Filtrar <input' in html
+    assert '<label for="dashboard-search"><input' in html
+    assert '<span class="filter-caption">Filtrar</span></label>' in html
     assert 'id="timezone-choice"' in html
     assert 'id="dashboard-filters"' in html
 
@@ -24,6 +25,7 @@ def test_mobile_filter_profile_share_row_and_connector_cards_use_two_columns(das
     assert "header .brand{flex:0 0 100%;width:100%}" in mobile
     assert ".header-filters{flex:1 1 0;width:auto;min-width:0;flex-wrap:nowrap}" in mobile
     assert ".profile-menu summary{min-width:44px;min-height:44px}" in mobile
+    assert ".profile-menu{flex:0 0 auto;margin-left:.15rem}" in mobile
     assert ".connectors-panel tbody tr{display:grid;grid-template-columns:minmax(0,.76fr) minmax(0,1.24fr)" in mobile
     assert ".connectors-panel td{display:flex;flex-direction:column;" in mobile
     assert ".connectors-panel td.empty{grid-column:1/-1;grid-row:auto}" in mobile
@@ -101,3 +103,24 @@ def test_transaction_detail_removes_only_redundant_explanations():
     assert "Vista parcial: se aplicó el límite" in source
     assert "medición antigua / no verificada" in source
     assert 'id="transaction-session-data"' in source
+
+
+def test_filter_caption_below_field_and_hidden_on_small_screens(dashboard_source):
+    source = dashboard_source
+    label = source.split('<label for="dashboard-search">', 1)[1].split('</label>', 1)[0]
+    assert label.index('id="dashboard-search"') < label.index('class="filter-caption"')
+    assert '.header-filters label{display:flex;flex-direction:column;align-items:stretch' in source
+    assert '@media(max-width:700px){.header-filters{flex-wrap:wrap}' in source
+    assert '.header-filters .filter-caption{display:none}' in source
+    # Label continues to wrap the input and supply its accessible name.
+    assert 'class="filter-caption">Filtrar</span>' in label
+
+
+def test_filter_and_profile_share_a_top_edge_and_fixed_height(dashboard_source):
+    source = dashboard_source
+    assert '.header-filters{margin-left:auto;align-self:flex-start;align-items:flex-start;gap:.5rem}' in source
+    assert '.header-filters .unified-filter{width:min(390px,38vw);min-width:245px;height:44px;min-height:44px}' in source
+    assert '.profile-menu{position:relative;align-self:flex-start}' in source
+    assert '.profile-menu summary{list-style:none;display:grid;place-items:center;cursor:pointer;border:1px solid #718096;border-radius:8px;height:44px;min-height:44px' in source
+    assert 'flex-wrap:nowrap;align-items:flex-start}' in source
+    assert 'header .profile-menu{flex:0 0 auto;align-self:flex-start;margin-left:.25rem}' in source
