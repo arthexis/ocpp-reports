@@ -399,13 +399,13 @@ def test_directed_response_ids_are_compact_and_status_episodes_span_heartbeats(t
     opts = dict(source_id="a", charger_id="charger-a", allowed_source_ids=("a",))
     result = event_groups_page(db, **opts)
     groups = result["groups"]
-    assert [g["first_event_id"] for g in groups] == [17, 15, 13, 11, 9, 7]
-    assert [g["event_count"] for g in groups] == [1, 1, 1, 3, 2, 1]
+    assert [g["first_event_id"] for g in groups] == [17, 15, 13, 11, 9, 7, 5, 1]
+    assert [g["event_count"] for g in groups] == [1, 1, 1, 1, 2, 1, 1, 1]
     assert all(g["source_id"] == "a" for g in groups)
     available = event_group_details(
         db, group_source="a", first_event_id=11, **opts)
-    assert [e["id"] for e in available["events"]] == [11, 5, 1]
-    assert [e["response_id"] for e in available["events"]] == [12, 6, 2]
+    assert [e["id"] for e in available["events"]] == [11]
+    assert [e["response_id"] for e in available["events"]] == [12]
     assert all(e["direction"] == "in" for e in available["events"])
     heartbeat = event_group_details(
         db, group_source="a", first_event_id=9, **opts)
@@ -477,10 +477,64 @@ def test_realistic_legacy_status_and_heartbeat_reply_pairs_are_marked_inferred(t
                                ("a", "event", str(n), n, json.dumps(item)))
     opts = dict(source_id="a", charger_id="cp", allowed_source_ids=("a",))
     groups = event_groups_page(db, **opts)["groups"]
-    assert [g["first_event_id"] for g in groups] == [11, 9, 7, 5]
-    assert [g["event_count"] for g in groups] == [1, 1, 2, 2]
+    assert [g["first_event_id"] for g in groups] == [11, 9, 7, 5, 1]
+    assert [g["event_count"] for g in groups] == [1, 1, 2, 1, 1]
     details = event_group_details(db, group_source="a", first_event_id=5, **opts)
-    assert [e["id"] for e in details["events"]] == [5, 1]
-    assert [e["response_id"] for e in details["events"]] == [6, 2]
+    assert [e["id"] for e in details["events"]] == [5]
+    assert [e["response_id"] for e in details["events"]] == [6]
     assert all(e["response_inferred"] is True for e in details["events"])
     assert all("direction" not in e for e in details["events"])
+
+
+
+def test_minute_groups_combine_connectors_states_and_faults_without_losing_responses(tmp_path):
+    """Four StatusNotifications at 15:47 become one expandable group."""
+    from datetime import datetime, timedelta, timezone
+    path = tmp_path / "minute-status.sqlite"
+    with sqlite3.connect(path) as db:
+        ensure_collector_schema(db)
+        start = datetime(2026, 11, 16, 21, 47, tzinfo=timezone.utc)
+        for i, (connector, state, error) in enumerate((
+                (0, "Available", None), (2, "Available", None),
+                (1, "Available", None), (1, "Faulted", "ReaderFailure"))):
+            for response in (False, True):
+                event_id = 95559 + 2 * i + int(response)
+                at = start + timedelta(seconds=i * 7, milliseconds=8 if response else 0)
+                payload = {"id": event_id, "charger_id": "real-cp",
+                           "action": "StatusNotification", "kind": "status",
+                           "direction": "out" if response else "in",
+                           "at": at.isoformat(),
+                           "status": None if response else state,
+                           "connector_id": None if response else connector,
+                           "error_code": None if response else error}
+                db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                           ("a", "event", str(event_id), event_id, json.dumps(payload)))
+        db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                   ("a", "event", "95567", 95567, json.dumps({
+                       "id": 95567, "charger_id": "real-cp",
+                       "action": "Heartbeat", "kind": "ocpp", "direction": "in",
+                       "at": "2026-11-16T21:48:00Z"})))
+        # Another charger and another source share minute, never leak into group.
+        for source, cp, event_id in (("a", "other-cp", 95568), ("b", "real-cp", 95569)):
+            db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                       (source, "event", str(event_id), event_id, json.dumps({
+                           "id": event_id, "charger_id": cp,
+                           "action": "StatusNotification", "kind": "status",
+                           "direction": "in", "status": "Charging",
+                           "connector_id": 1, "at": "2026-11-16T21:47:30Z"})))
+    kwargs = dict(source_id="a", charger_id="real-cp",
+                  allowed_source_ids=("a",), zone="America/Monterrey")
+    page = event_groups_page(path, **kwargs)
+    assert [g["action"] for g in page["groups"]] == ["Heartbeat", "StatusNotification"]
+    group = page["groups"][1]
+    assert group["first_event_id"] == 95565
+    assert group["event_count"] == 4
+    assert "notificaciones" in group["information"]
+    events = event_group_details(path, group_source="a",
+                                 first_event_id=95565, **kwargs)["events"]
+    assert [e["id"] for e in events] == [95565, 95563, 95561, 95559]
+    assert [e["response_id"] for e in events] == [95566, 95564, 95562, 95560]
+    assert [e["information"] for e in events] == [
+        "C1 · Faulted · ReaderFailure", "C1 · Available",
+        "C2 · Available", "C0 · Available"]
+    assert all(e["direction"] == "in" for e in events)
