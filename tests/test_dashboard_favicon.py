@@ -31,7 +31,7 @@ def test_favicon_routes_and_permissions(tmp_path, path):
     assert response.content == asset
     assert len(asset) > 100
     if path.endswith(".ico"):
-        assert response.content[:4] == b"\\x00\\x00\\x01\\x00"
+        assert response.content[:4] == bytes.fromhex("00000100")
         count = struct.unpack_from("<H", response.content, 4)[0]
         sizes = {tuple((256 if n == 0 else n) for n in response.content[6 + i*16:8 + i*16])
                  for i in range(count)}
