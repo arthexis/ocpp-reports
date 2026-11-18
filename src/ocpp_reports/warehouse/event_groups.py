@@ -347,23 +347,28 @@ def _scoped_group_records(db: sqlite3.Connection, source_id: str,
     for row, legacy_key, response_id, inferred in _scoped_visible_events(db, source_id, charger_id):
         payload = row["payload"]
         direction = payload.get("direction")
-        if direction not in ("in", "out") and not inferred:
+        day = _day(payload.get("at"), timezone)
+        action = payload.get("action")
+        if action == "Heartbeat" and payload.get("kind") == "ocpp" and day:
+            # Daily presentation grouping does not establish OCPP direction.
+            # Even an unpaired historic response remains visible in the same
+            # day's group, without inventing a request/response association.
+            previous_legacy_key = None
+            key = heartbeat_days.setdefault(day, ("heartbeat", row["event_id"]))
+        elif direction not in ("in", "out") and not inferred:
             if legacy_key is None or legacy_key != previous_legacy_key:
                 legacy_run += 1
             key = ("legacy", legacy_run)
             previous_legacy_key = legacy_key
         else:
             previous_legacy_key = None
-            if inferred:
-                direction = "in"
-            day = _day(payload.get("at"), timezone)
-            action = payload.get("action")
-            if direction == "in" and action == "Heartbeat" and day:
-                key = heartbeat_days.setdefault(day, ("heartbeat", row["event_id"]))
-            elif direction == "in" and action == "StatusNotification":
-                minute = _minute(payload.get("at"), timezone)
-                key = (status_minutes.setdefault(minute, ("status-minute", row["event_id"]))
-                       if minute is not None else ("single", row["event_id"]))
+            if direction == "in" or inferred:
+                if action == "StatusNotification":
+                    minute = _minute(payload.get("at"), timezone)
+                    key = (status_minutes.setdefault(minute, ("status-minute", row["event_id"]))
+                           if minute is not None else ("single", row["event_id"]))
+                else:
+                    key = ("single", row["event_id"])
             else:
                 key = ("single", row["event_id"])
         yield row, key, response_id, inferred

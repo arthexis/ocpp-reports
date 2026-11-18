@@ -507,7 +507,7 @@ def test_device_event_pagination_is_charger_scoped_across_multiple_pages(tmp_pat
             db.execute("INSERT INTO events VALUES (?,?,?)", (
                 "a", event_id, json.dumps({
                     "id": event_id, "charger_id": "same",
-                    "action": "Heartbeat" if event_id % 2 else "BootNotification",
+                    "action": "Heartbeat" if event_id % 3 == 0 else "BootNotification",
                     "kind": "ocpp", "at": f"2026-11-17T10:{event_id:02d}:00Z",
                     "rfid": "should-never-appear",
                 })))

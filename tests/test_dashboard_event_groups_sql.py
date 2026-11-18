@@ -71,19 +71,25 @@ def test_window_groups_and_lazy_details_preserve_boundaries(tmp_path):
                                  allowed_source_ids=("a", "b"), offset=50)
     assert len(second["events"]) == 19 and not second["has_next"]
     assert len({r["id"] for r in detail["events"] + second["events"]}) == 69
-    # Exact scoped streaming path must preserve SQL window semantics.
-    for page_number in (1, 2, 3):
-        options = dict(source_id="a", charger_id="cp-1",
-                       allowed_source_ids=("a", "b"), page=page_number)
-        fast = event_groups_page(db, **options)
-        legacy = event_groups_page(db, term="cp-1", **options)
-        assert fast == legacy
+    # The charger detail intentionally groups all same-day Heartbeats,
+    # even across interleaved actions. Global filtered SQL retains its
+    # historical contiguous-only semantics.
+    options = dict(source_id="a", charger_id="cp-1",
+                   allowed_source_ids=("a", "b"))
+    daily = event_groups_page(db, **options)
+    assert [g["event_count"] for g in daily["groups"]] == [131, 61, 1, 1]
+    assert [g["first_event_id"] for g in daily["groups"]] == [194, 125, 64, 3]
+    assert not daily["has_next"]
+    assert event_groups_page(db, page=2, **options)["groups"] == []
+    legacy = event_groups_page(db, term="cp-1", **options)
+    assert [g["event_count"] for g in legacy["groups"]] == [69, 61, 1, 60, 1, 2]
     precise = dict(group_source="a", first_event_id=194,
                    source_id="a", charger_id="cp-1",
                    allowed_source_ids=("a", "b"))
-    for at in (0, 50, 80):
-        assert event_group_details(db, offset=at, **precise) == event_group_details(
-            db, offset=at, term="cp-1", **precise)
+    pages = [event_group_details(db, offset=offset, **precise)["events"]
+             for offset in (0, 50, 100)]
+    assert [len(page) for page in pages] == [50, 50, 31]
+    assert len({row["id"] for page in pages for row in page}) == 131
     # Non-leading identifiers must not open a different group.
     try:
         event_group_details(db, first_event_id=193, **{k: v for k, v in precise.items()
@@ -107,7 +113,7 @@ def test_source_security_and_filter_scope(tmp_path):
     html = client.get("/chargers/a/cp-1")
     assert html.status_code == 200
     assert 'class="events-table"' in html.text
-    assert '<td class="event-count">69</td>' in html.text
+    assert '<td class="event-count">131</td>' in html.text
     assert 'data-first-id="194"' in html.text
     assert "Ver eventos de" in html.text
     assert "Ver eventos del grupo" not in html.text
