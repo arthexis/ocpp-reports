@@ -77,3 +77,21 @@ def test_account_directory_migration_and_authenticated_admin_only(tmp_path):
         assert "Sin registro" not in html  # both tenant-a users signed in
     assert 'id="dashboard-users"' not in TestClient(
         create_app(warehouse, allowed_source_ids=("a",))).get("/").text
+
+    provision(auth, "central-admin", "very-secure-central-password",
+              "admin", "administration")
+    central_app = create_app(warehouse)
+    attach_login(central_app, path=auth, tenant="administration")
+    with TestClient(central_app, base_url="https://reports.example.test") as client:
+        response = client.post(
+            "/login",
+            data={"username": "central-admin", "password": "very-secure-central-password"},
+            headers={"origin": "https://reports.example.test"},
+            follow_redirects=False)
+        assert response.status_code == 303
+        page = client.get("/").text
+        assert 'id="dashboard-users"' in page
+        assert "private-b" in page and "tenant-b" in page
+        assert "operator-a" in page and "tenant-a" in page
+        assert "central-admin" in page and "administration" in page
+        assert "very-secure-central-password" not in page
