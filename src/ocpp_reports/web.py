@@ -420,9 +420,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     warehouse = Path(database)
     templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
-    @app.get("/assets/gelectriic.png", include_in_schema=False)
-    def gelectriic_brand_asset():
-        return FileResponse(Path(__file__).parent / "assets" / "gelectriic.png", media_type="image/png")
+    @app.get("/assets/brand.png", include_in_schema=False)
+    def dashboard_brand_asset():
+        return FileResponse(Path(__file__).parent / "assets" / "brand.png", media_type="image/png")
 
     templates.env.filters["minute_utc"] = minute_utc
     templates.env.filters["display_date"] = display_date
