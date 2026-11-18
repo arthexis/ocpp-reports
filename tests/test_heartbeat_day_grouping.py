@@ -60,9 +60,11 @@ def test_heartbeat_day_group_includes_unpaired_and_legacy_events(tmp_path):
     assert next(e for e in events if e["id"] == 7)["response_id"] == 8
     inferred = next(e for e in events if e["id"] == 1)
     assert inferred["response_id"] == 2 and inferred["response_inferred"]
-    for event_id in (10, 9, 4, 3):
+    for event_id in (10, 4, 3):
         assert "response_id" not in next(e for e in events if e["id"] == event_id)
-    assert next(e for e in events if e["id"] == 9)["direction"] == "out"
+    # Explicit but unmatched direction retains a null response ID.
+    unmatched = next(e for e in events if e["id"] == 9)
+    assert unmatched["direction"] == "out" and unmatched["response_id"] is None
     assert all(e["source_id"] == "source-a" for e in events)
     # A filtered/legacy SQL query remains a separate global contract.
     assert event_groups_page(db_path, source_id="source-b", charger_id="charger-a",
