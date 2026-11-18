@@ -425,6 +425,7 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
                     "location": location, "action": payload.get("action"),
                     "at": payload.get("at"), "first_event_id": row["event_id"],
                     "event_count": 0, "kind": payload.get("kind"),
+                    "_status_minute": key[0] == "status-minute",
                     "status_for_info": None, "connector_for_info": None,
                     "error_for_info": None, "tx_for_info": None,
                 }
@@ -440,7 +441,7 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
                 group[field_name] = _sql_max(group[field_name], payload.get(field))
     selected = groups[(page - 1) * page_size:page * page_size]
     for row in selected:
-        if row["action"] == "StatusNotification" and row["event_count"] > 1:
+        if row.pop("_status_minute", False) and row["event_count"] > 1:
             row["information"] = f'{row["event_count"]} notificaciones; ver estados individuales'
             for field in ("kind", "status_for_info", "connector_for_info", "error_for_info", "tx_for_info"):
                 row.pop(field, None)
