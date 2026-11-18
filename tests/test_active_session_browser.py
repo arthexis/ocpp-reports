@@ -329,9 +329,11 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                 assert value_size >= label_size + 3.5, (width, label_size, value_size)
                 assert short.evaluate(
                     "(el) => parseFloat(getComputedStyle(el).gap)") <= 3
-                assert cells.nth(7).get_attribute("data-label") == "Última carga"
+                assert cells.nth(7).get_attribute("data-label") == "Cargas"
                 assert cells.nth(7).is_hidden()
-                assert cells.nth(8).get_attribute("data-label") == "Recibido"
+                assert cells.nth(8).get_attribute("data-label") == "Última carga"
+                assert cells.nth(8).is_hidden()
+                assert cells.nth(9).get_attribute("data-label") == "Recibido"
                 power = card.locator('td[data-label="Potencia"] .connector-power')
                 assert power.count() == 1
                 assert " ".join(power.inner_text().split()) == "60.00 kW nominal"
@@ -564,7 +566,7 @@ def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
                 assert page.locator("#transaction-history-help").count() == 0
                 assert page.locator(".connectors-panel th").all_inner_texts() == [
                     "Ubicación", "Cargador", "Conector", "Estado",
-                    "Conectado", "Potencia", "Energía", "Última carga", "Recibido"]
+                    "Conectado", "Potencia", "Energía", "Cargas", "Última carga", "Recibido"]
                 if 521 <= width <= 1100:
                     search = page.locator("#dashboard-search").bounding_box()
                     profile = page.locator(".profile-menu summary").bounding_box()
@@ -574,7 +576,7 @@ def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
                     assert abs(search["y"] + search["height"]
                                - profile["y"] - profile["height"]) <= 12
                     assert profile["width"] >= 44 and profile["height"] >= 44
-                    hidden_connectors = (2, 7, 8, 9) if width >= 760 else (2, 6, 7, 8, 9)
+                    hidden_connectors = (2, 7, 8, 9, 10) if width >= 760 else (2, 6, 7, 8, 9, 10)
                     for index in hidden_connectors:
                         cell = page.locator(".connectors-panel thead th").nth(index - 1)
                         assert not cell.is_visible(), (width, index)
@@ -593,6 +595,7 @@ def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
                     assert page.locator(".connectors-panel thead th").nth(1).is_visible()
                     assert page.locator(".connectors-panel thead th").nth(5).is_visible()
                     assert page.locator(".connectors-panel thead th").nth(7).is_visible()
+                    assert page.locator(".connectors-panel thead th").nth(8).is_visible()
                     for column in (6, 7):
                         assert page.locator(".connectors-panel thead th").nth(column - 1).evaluate(
                             "(cell) => getComputedStyle(cell).textAlign") == "right"
