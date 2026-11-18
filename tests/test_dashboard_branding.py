@@ -1,7 +1,6 @@
 """Instance-scoped optional header branding."""
 from pathlib import Path
 import pytest
-from jinja2 import Environment
 from ocpp_reports.web import create_app
 from ocpp_reports.dashboard_login import route_permission
 
@@ -34,3 +33,9 @@ def test_embedded_gelectriic_asset_has_transparent_png():
     assert 'data:image/png;base64,' in source
     assert 'viewBox="0 0 58 57"' in source
     assert route_permission('/assets/gelectriic.svg', 'GET') is not None
+
+
+def test_default_branding_is_customer_hostname_only():
+    scope = (Path(__file__).resolve().parents[1] / 'ansible/templates/ocpp-reports-dashboard-scope.conf.j2').read_text()
+    assert "item.hostname == 'customer.gelectriic.com'" in scope
+    assert 'item.brand_image_url | default(' in scope
