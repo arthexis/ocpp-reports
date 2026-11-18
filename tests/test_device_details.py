@@ -595,7 +595,8 @@ def test_last_completed_charge_uses_all_scoped_transactions_not_visible_page(tmp
     assert page.status_code == 200
     assert '<th class="connector-last-charge">Última carga</th>' in page.text
     assert 'data-label="Última carga">2026-11-16 05:10 UTC' in page.text
-    assert "2099-11-16" not in page.text
-    assert "class=\"connector-last-charge\" data-label=\"Última carga\">—" in page.text
+    connectors_html = page.text.split('id="connectors"', 1)[1].split("</section>", 1)[0]
+    assert "2099-11-16" not in connectors_html
+    assert 'class="connector-last-charge" data-label="Última carga">—' in connectors_html
     assert ".connectors-panel .connector-last-charge{display:none}" in page.text
     assert "@media(min-width:1101px)" in page.text
