@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 
 from .warehouse_queries import snapshot
@@ -419,6 +419,10 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     app = FastAPI(title="OCPP Reports", docs_url=None, redoc_url=None, openapi_url=None)
     warehouse = Path(database)
     templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+    @app.get("/assets/gelectriic.png", include_in_schema=False)
+    def gelectriic_brand_asset():
+        return FileResponse(Path(__file__).parent / "assets" / "gelectriic.png", media_type="image/png")
 
     templates.env.filters["minute_utc"] = minute_utc
     templates.env.filters["display_date"] = display_date
