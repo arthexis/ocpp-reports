@@ -557,3 +557,45 @@ def test_desktop_charger_session_soc_is_recorded_not_inferred(tmp_path):
     connector = TestClient(create_app(path, allowed_source_ids=("a",))).get(
         "/connectors/a/same/1")
     assert connector.status_code == 200 and "18%</td>" in connector.text
+
+
+
+def test_last_completed_charge_uses_all_scoped_transactions_not_visible_page(tmp_path):
+    from ocpp_reports.warehouse.transaction_pagination import latest_completed_charges
+
+    path = tmp_path / "last-charge.sqlite"
+    seed(path)
+    with sqlite3.connect(path) as db:
+        def add(source, record_key, charge, connector, stopped_at):
+            record = dict(id=int(record_key.split(":")[-1]),
+                          charger_id=charge, connector_id=connector,
+                          started_at="2026-11-14T00:00:00Z",
+                          stopped_at=stopped_at,
+                          active=stopped_at is None,
+                          state="stopped" if stopped_at else "open",
+                          energy_wh=1200 if stopped_at else None)
+            db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                       (source, "transaction", record_key, 200,
+                        json.dumps(record)))
+        add("a", "same:501", "same", 1, "2026-11-16T05:10:00Z")
+        add("a", "same:502", "same", 1, None)  # Newer active session is not final.
+        add("a", "different:503", "different", 1, "2099-11-16T05:10:00Z")
+        add("b", "same:504", "same", 1, "2099-11-16T05:10:00Z")
+    visible = [
+        dict(source_id="a", charger_id="same", connector_id=i)
+        for i in (0, 1, 2)
+    ]
+    seen = latest_completed_charges(path, visible, allowed_source_ids=("a",))
+    assert seen[("a", "same", 1)] == "2026-11-16T05:10:00Z"
+    assert seen[("a", "same", 2)] == "2026-11-10T01:30:00Z"
+    assert ("a", "same", 0) not in seen
+    assert all(key[0] == "a" for key in seen)
+    page = TestClient(create_app(path, allowed_source_ids=("a",))).get(
+        "/?connector_view=combined&tz=UTC")
+    assert page.status_code == 200
+    assert '<th class="connector-last-charge">Última carga</th>' in page.text
+    assert 'data-label="Última carga">2026-11-16 05:10 UTC' in page.text
+    assert "2099-11-16" not in page.text
+    assert "class=\"connector-last-charge\" data-label=\"Última carga\">—" in page.text
+    assert ".connectors-panel .connector-last-charge{display:none}" in page.text
+    assert "@media(min-width:1101px)" in page.text
