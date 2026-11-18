@@ -97,6 +97,7 @@ def prune_expired_sessions(path, *, now=None):
 # Every registered dashboard route must be classified before authentication is enabled.
 _ROUTE_PERMISSIONS = {
     ("/", "GET"): Permission.DASHBOARD_VIEW,
+    ("/assets/gelectriic.png", "GET"): Permission.DASHBOARD_VIEW,
     ("/api/snapshot", "GET"): Permission.DASHBOARD_VIEW,
     ("/api/event-group", "GET"): Permission.EVENTS_VIEW,
     ("/api/v1/event-group", "GET"): Permission.EVENTS_VIEW,
