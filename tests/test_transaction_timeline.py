@@ -398,3 +398,47 @@ def test_soc_without_energy_has_table_but_never_fabricates_energy_curve(tmp_path
     assert '<article class="timeline-plot">' not in page.text
     assert '<th>SoC (%)</th>' in page.text
     assert '45.0</td>' in page.text
+
+
+def test_verified_soc_series_without_energy_draws_real_temporal_curve(tmp_path):
+    path = _db(tmp_path)
+    _bound(path)
+    _sample(path, 5, energy_wh=None, power_w=None,
+            soc=45, soc_provenance="ocpp-meter-values")
+    _sample(path, 10, energy_wh=None, power_w=None,
+            soc=63, soc_provenance="ocpp-meter-values")
+    record = {k: v for k, v in _tx(meter_start_wh=None).items()
+              if k != "source_id"}
+    with sqlite3.connect(path) as db:
+        db.execute("INSERT INTO current_transactions VALUES (?,?,?,?)",
+                   ("a", "cp", 7, json.dumps(record)))
+    series = transaction_timeline(path, _tx(meter_start_wh=None))
+    assert all(point["energy_kwh"] is None for point in series["points"])
+    charts = timeline_charts(series["points"])
+    assert [chart["field"] for chart in charts] == ["soc"]
+    assert [dot["value"] for dot in charts[0]["dots"]] == [45, 63]
+    assert len(charts[0]["segments"]) == 1
+    page = TestClient(web.create_app(path, allowed_source_ids=("a",))).get(
+        "/transactions/a/cp/7")
+    assert page.status_code == 200
+    assert "<h3>Estado de carga medido (%)</h3>" in page.text
+    assert "45.0%</title>" in page.text
+    assert "63.0%</title>" in page.text
+    assert "<h3>Energía de sesión medida" not in page.text
+
+
+def test_soc_curve_ignores_unverified_or_disconnected_samples(tmp_path):
+    path = _db(tmp_path)
+    _bound(path)
+    _sample(path, 5, energy_wh=None, power_w=None,
+            soc=30, soc_provenance="ocpp-meter-values")
+    _sample(path, 6, energy_wh=None, power_w=None, soc=90)
+    _sample(path, 7, energy_wh=None, power_w=None,
+            soc=50, soc_provenance="ocpp-meter-values")
+    series = transaction_timeline(path, _tx(meter_start_wh=None))
+    charts = timeline_charts(series["points"])
+    assert [dot["value"] for dot in charts[0]["dots"]] == [30, 50]
+    assert charts[0]["segments"] == []
+    # A projection alone cannot produce historical samples or a plot.
+    assert timeline_charts([{"at": "2026-01-01T12:00:00+00:00",
+                             "energy_kwh": None, "soc": 30}]) == []

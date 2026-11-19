@@ -116,7 +116,7 @@ main{max-width:1320px}
 <line class="axis" x1="30" y1="155" x2="580" y2="155"/>
 <line class="axis" x1="30" y1="20" x2="30" y2="155"/>
 {% for segment in chart.segments %}<line class="timeline-segment" x1="{{ segment.a.x }}" y1="{{ segment.a.y }}" x2="{{ segment.b.x }}" y2="{{ segment.b.y }}"/>{% endfor %}
-{% for dot in chart.dots %}<circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="4"><title>{{ '%.3f'|format(dot.value) }} kWh · {{ ('%.1f'|format(dot.soc)) ~ '%' if dot.soc is not none else '—' }}</title></circle>{% endfor %}
+{% for dot in chart.dots %}<circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="4"><title>{% if chart.field == 'soc' %}{{ '%.1f'|format(dot.value) }}%{% else %}{{ '%.3f'|format(dot.value) }} kWh · {{ ('%.1f'|format(dot.soc)) ~ '%' if dot.soc is not none else '—' }}{% endif %}</title></circle>{% endfor %}
 <text x="33" y="15" font-size="12" fill="currentColor">{{ '%.2f'|format(chart.max) }} {{ chart.unit }}</text>
 <text x="33" y="174" font-size="12" fill="currentColor">{{ '%.2f'|format(chart.min) }} {{ chart.unit }}</text>
 </svg>

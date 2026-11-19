@@ -179,34 +179,48 @@ def transaction_timeline(database: str | Path, transaction: dict, *, scan_limit:
 
 
 def timeline_charts(points: list[dict]) -> list[dict]:
-    """Only plot measured session energy; pair SoC from the same verified sample.
+    """Draw measured energy, or verified SoC if energy cannot be calculated.
 
-    Independent channels remain available in the evidence table. In particular,
-    never interpolate or carry forward SoC for an energy observation.
+    A projected/latest SoC is not a time series. The caller supplies only
+    provenance-validated immutable meter observations. Never synthesize
+    endpoints, interpolate missing samples or connect evidence gaps.
     """
-    present = [
-        (point.get("_source_order", i), datetime.fromisoformat(point["at"]).timestamp(),
-         point["energy_kwh"], point.get("soc"))
-        for i, point in enumerate(points) if point.get("energy_kwh") is not None
+    energy = [(i, point) for i, point in enumerate(points)
+              if point.get("energy_kwh") is not None]
+    if energy:
+        field, label, unit, present = (
+            "energy_kwh", "Energía de sesión medida", "kWh", energy)
+    else:
+        soc = [(i, point) for i, point in enumerate(points)
+               if point.get("soc") is not None]
+        # One verified reading may be shown in the evidence table, but does
+        # not establish a temporal curve.
+        if len(soc) < 2:
+            return []
+        field, label, unit, present = (
+            "soc", "Estado de carga medido", "%", soc)
+
+    series = [
+        (point.get("_source_order", i),
+         datetime.fromisoformat(point["at"]).timestamp(),
+         point[field], point.get("soc"))
+        for i, point in present
     ]
-    if not present:
-        return []
-    low_t, high_t = present[0][1], present[-1][1]
-    low_y = min(item[2] for item in present)
-    high_y = max(item[2] for item in present)
+    low_t, high_t = series[0][1], series[-1][1]
+    low_y = min(item[2] for item in series)
+    high_y = max(item[2] for item in series)
     dots = []
     segments = []
     previous = None
-    for index, stamp, value, soc in present:
+    for index, stamp, value, soc in series:
         dot = {"x": round(30 + (stamp - low_t) * 540 / (high_t - low_t), 2)
                      if high_t > low_t else 300,
                "y": round(155 - (value - low_y) * 125 / (high_y - low_y), 2)
                      if high_y > low_y else 92,
                "value": value, "soc": soc}
         dots.append(dot)
-        # Preserve evidence gaps, source order, and existing reset/limit guards.
         if previous and index == previous[0] + 1 and stamp > previous[1]:
             segments.append({"a": previous[2], "b": dot})
         previous = (index, stamp, dot)
-    return [{"field": "energy_kwh", "label": "Energía de sesión medida", "unit": "kWh",
+    return [{"field": field, "label": label, "unit": unit,
              "dots": dots, "segments": segments, "min": low_y, "max": high_y}]
