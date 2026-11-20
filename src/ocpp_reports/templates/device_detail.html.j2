@@ -119,7 +119,7 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}th{background:#263647;color:#d7e5f5}.status{background:#354657;color:#e1e9f3}}
 </style></head><body>
 <a class="back-link" style="position:absolute;left:1rem;top:-5rem" href="#content">Ir al contenido</a>
-<header><div>{% if brand_image_url %}<img class="brand-logo" src="{{ brand_image_url }}" alt="{{ title }}" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ title }}</h1>{% else %}<h1>{{ title }}</h1>{% endif %}<div class="note">Solo lectura · {{ timezone }}</div></div>
+<header><div>{% if brand_image_url %}<img class="brand-logo" src="{{ brand_image_url }}" alt="{{ title }}" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ title }}</h1>{% else %}<h1>{{ title }}</h1>{% endif %}<div class="note">Solo lectura · Estado y sesiones: refresco cada 5 s · {{ timezone }}</div></div>
 <div class="header-actions"><a class="back-link" href="/?tz={{ timezone|urlencode }}#connectors">← Dashboard</a>
 {% if selected_connector_id is none %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/report.csv?tz={{ timezone|urlencode }}" download>Descargar CSV</a>{% else %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}?tz={{ timezone|urlencode }}">Cargador completo</a>{% endif %}</div></header>
 <main id="content">
@@ -345,4 +345,40 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 })();
 </script>
 {% endif %}
+
+<script>
+(() => {
+  // Update only live charger data: keep expanded event groups, chart controls,
+  // scroll positions, pagination selection, and the document itself intact.
+  let refreshing = false;
+  const refreshCharger = async () => {
+    if (refreshing || document.hidden) return;
+    refreshing = true;
+    try {
+      const response = await fetch(window.location.pathname + window.location.search, {
+        credentials: "same-origin", cache: "no-store",
+        headers: {"Accept": "text/html"}
+      });
+      if (!response.ok) return;
+      const next = new DOMParser().parseFromString(await response.text(), "text/html");
+      for (const selector of [
+        ".stats", ".connector-list",
+        "#transactions .sessions-table tbody", "#transactions .pages"
+      ]) {
+        const current = document.querySelector(selector);
+        const updated = next.querySelector(selector);
+        if (current && updated && !current.contains(document.activeElement)) {
+          current.innerHTML = updated.innerHTML;
+        }
+      }
+    } catch (_) {
+      // Keep the current values and controls on intermittent network failures.
+    } finally {
+      refreshing = false;
+    }
+  };
+  const refreshTimer = window.setInterval(refreshCharger, 5000);
+  window.addEventListener("pagehide", () => window.clearInterval(refreshTimer));
+})();
+</script>
 </body></html>
