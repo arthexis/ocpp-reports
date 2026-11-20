@@ -31,6 +31,10 @@ export OCPP_REPORTS_CLI_LINK="/usr/local/bin/ocpp-reports-ci"
 test -f "$OCPP_REPORTS_INSTALL_ROOT/role"
 test "$(cat "$OCPP_REPORTS_INSTALL_ROOT/role")" = "${role}"
 test -x "$OCPP_REPORTS_CLI_LINK"
+# The isolated local VCS wheel build must not write setuptools artifacts
+# (especially root-owned artifacts) into the operator's checkout.
+test ! -d build
+test -z "$(find src -type d -name '*.egg-info' -print -quit)"
 test -L "$OCPP_REPORTS_INSTALL_ROOT/current"
 test "$(readlink "$OCPP_REPORTS_CLI_LINK")" = "$OCPP_REPORTS_INSTALL_ROOT/current/venv/bin/ocpp-reports"
 test "$(readlink "$OCPP_REPORTS_INSTALL_ROOT/current")" = "$OCPP_REPORTS_INSTALL_ROOT/releases/$(git rev-parse HEAD)-pkg"
