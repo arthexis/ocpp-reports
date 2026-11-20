@@ -37,6 +37,13 @@ def test_explicit_opt_out_reconciles_ingest_without_affecting_omitted_setting():
     assert "daemon_reload: true" in disabled
 
 
+def test_local_ingest_deployment_default_matches_fast_follow_and_allows_override():
+    playbook = (ROOT / "ansible/playbook.yml").read_text()
+    service = (ROOT / "ansible/templates/ocpp-reports-ingest.service.j2").read_text()
+    assert "reports_local_ingest_interval: \"{{ lookup('env', 'OCPP_REPORTS_LOCAL_INGEST_INTERVAL') | default('5', true) }}\"" in playbook
+    assert "--interval {{ reports_local_ingest_interval }}" in service
+
+
 def test_real_systemd_lifecycle_runner_is_wired_to_pr_ci():
     workflow = (ROOT / ".github/workflows/ci.yml").read_text()
     runner = (ROOT / "scripts/test_local_ingest_systemd.py").read_text()
