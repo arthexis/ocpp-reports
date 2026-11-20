@@ -301,9 +301,9 @@ def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--legacy-db",type=Path,required=True)
     p.add_argument("--warehouse",type=Path,required=True)
-    p.add_argument("--source-id",required=True,help="Existing gway-005 or gway-002 source ID")
+    p.add_argument("--source-id",required=True,help="Existing Reports node source ID")
     p.add_argument("--archive-tag", choices=tuple(LEGACY_BASES), default="primary",
-                   help="Stable original archive namespace; failover-2025 for 2025 gway-005 backup")
+                   help="Stable original archive namespace (primary or historical failover)")
     p.add_argument("--apply",action="store_true",help="Write to Reports-owned warehouse")
     p.add_argument("--backup",type=Path,help="NEW, protected warehouse snapshot path (required for writes)")
     a=p.parse_args(argv)
