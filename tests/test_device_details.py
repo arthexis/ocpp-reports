@@ -55,6 +55,11 @@ def test_charger_and_connector_pages_are_distinct_and_tenant_safe(tmp_path):
     assert "4</strong>" in charger.text  # source a, two connectors x two sessions
     assert "never-expose" not in charger.text
     assert "data-first-id=" in charger.text
+    assert "Estado y sesiones: refresco cada 5 s" in charger.text
+    assert 'window.setInterval(refreshCharger, 5000)' in charger.text
+    assert 'current.contains(document.activeElement)' in charger.text
+    assert 'window.location.pathname + window.location.search' in charger.text
+    assert 'id="live-event-groups"' in charger.text
 
     connector = client.get("/connectors/a/same/1?tz=UTC")
     assert connector.status_code == 200
@@ -64,6 +69,7 @@ def test_charger_and_connector_pages_are_distinct_and_tenant_safe(tmp_path):
     assert ">11</a>" in connector.text and ">12</a>" in connector.text
     assert ">21</a>" not in connector.text and ">22</a>" not in connector.text
     assert "/chargers/a/same" in connector.text
+    assert 'window.setInterval(refreshCharger, 5000)' in connector.text
 
     for url in ("/chargers/b/same", "/connectors/b/same/1",
                 "/chargers/a/other-does-not-exist", "/connectors/a/same/9"):
