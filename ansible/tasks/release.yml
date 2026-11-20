@@ -195,63 +195,96 @@
     virtualenv: "{{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}"
   become: true
   when: not reports_existing_release.stat.exists
-- name: Build Reports application wheel
-  ansible.builtin.command:
-    argv:
-      - "{{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}/bin/python"
-      - -m
-      - pip
-      - wheel
-      - --no-deps
-      - --no-build-isolation
-      - --wheel-dir
-      - "{{ reports_release }}"
-      # pip clones the pinned local Git revision into its disposable build
-      # directory. setuptools can generate egg-info/build artifacts there,
-      # never as root-owned files in the operator's working checkout.
-      - "git+file://{{ playbook_dir }}/..@{{ reports_commit }}"
+# Building from a pinned local Git revision makes pip use a disposable clone.
+# Build as the checkout operator to honor Git ownership checks; never allow
+# root-owned build/egg-info files to appear in the working tree. Promote only
+# the finished wheel into the protected immutable release.
+- name: Create temporary operator-owned Reports wheel directory
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: ocpp-reports-wheel-
   become: true
+  become_user: "{{ reports_operator }}"
+  register: reports_wheel_temp
   when: not reports_existing_release.stat.exists
-# Reject source churn during wheel creation; the revision-labelled release
-# must not silently contain a mix of checkout contents.
-- name: Verify pinned Reports checkout remained unchanged during wheel build
-  ansible.builtin.command:
-    argv:
-      - git
-      - -C
-      - "{{ playbook_dir }}/.."
-      - status
-      - --porcelain
-      - --untracked-files=all
-      - --
-      - pyproject.toml
-      - README.md
-      - src
-  register: reports_checkout_postbuild_status
-  changed_when: false
-  failed_when: reports_checkout_postbuild_status.rc != 0 or (reports_checkout_postbuild_status.stdout | trim | length > 0)
+
+- name: Build and validate pinned Reports wheel
   when: not reports_existing_release.stat.exists
-- name: Verify pinned Reports revision after wheel build
-  ansible.builtin.command:
-    argv: [git, -C, "{{ playbook_dir }}/..", rev-parse, HEAD]
-  register: reports_postbuild_revision
-  changed_when: false
-  failed_when: reports_postbuild_revision.rc != 0 or (reports_postbuild_revision.stdout | trim) != reports_commit
-  when: not reports_existing_release.stat.exists
-- name: Find built Reports wheel
-  ansible.builtin.find:
-    paths: "{{ reports_release }}"
-    patterns: "ocpp_reports-*.whl"
-    file_type: file
-  register: reports_wheels
-  when: not reports_existing_release.stat.exists
-- name: Require exactly one Reports wheel
-  ansible.builtin.assert:
-    that: reports_wheels.matched | int == 1
-  when: not reports_existing_release.stat.exists
+  block:
+    - name: Build Reports application wheel
+      ansible.builtin.command:
+        argv:
+          - "{{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}/bin/python"
+          - -m
+          - pip
+          - wheel
+          - --no-deps
+          - --no-build-isolation
+          - --wheel-dir
+          - "{{ reports_wheel_temp.path }}"
+          - "git+file://{{ playbook_dir }}/..@{{ reports_commit }}"
+      become: true
+      become_user: "{{ reports_operator }}"
+
+    # The local pinned Git clone makes a deterministic source archive, without
+    # staging each src/ file through Ansible or mutating the checkout.
+    - name: Verify pinned Reports checkout remained unchanged during wheel build
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ playbook_dir }}/.."
+          - status
+          - --porcelain
+          - --untracked-files=all
+          - --
+          - pyproject.toml
+          - README.md
+          - src
+      register: reports_checkout_postbuild_status
+      changed_when: false
+      failed_when: reports_checkout_postbuild_status.rc != 0 or (reports_checkout_postbuild_status.stdout | trim | length > 0)
+
+    - name: Verify pinned Reports revision after wheel build
+      ansible.builtin.command:
+        argv: [git, -C, "{{ playbook_dir }}/..", rev-parse, HEAD]
+      register: reports_postbuild_revision
+      changed_when: false
+      failed_when: reports_postbuild_revision.rc != 0 or (reports_postbuild_revision.stdout | trim) != reports_commit
+
+    - name: Find built Reports wheel
+      ansible.builtin.find:
+        paths: "{{ reports_wheel_temp.path }}"
+        patterns: "ocpp_reports-*.whl"
+        file_type: file
+      register: reports_wheels
+      become: true
+      become_user: "{{ reports_operator }}"
+
+    - name: Require exactly one Reports wheel
+      ansible.builtin.assert:
+        that: reports_wheels.matched | int == 1
+
+    - name: Promote single Reports wheel to immutable release
+      ansible.builtin.copy:
+        src: "{{ reports_wheels.files[0].path }}"
+        dest: "{{ reports_release }}/{{ reports_wheels.files[0].path | basename }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: '0644'
+      become: true
+  always:
+    - name: Clean temporary Reports wheel directory
+      ansible.builtin.file:
+        path: "{{ reports_wheel_temp.path }}"
+        state: absent
+      become: true
+      become_user: "{{ reports_operator }}"
+
 - name: Install Reports wheel without dependency downloads
   ansible.builtin.pip:
-    name: "{{ reports_wheels.files[0].path }}"
+    name: "{{ reports_release }}/{{ reports_wheels.files[0].path | basename }}"
     virtualenv: "{{ reports_release }}/venv"
     extra_args: "--no-index --no-deps"
   become: true
