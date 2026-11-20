@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from .warehouse_queries import snapshot
@@ -19,8 +19,11 @@ from .warehouse.event_groups import (event_groups_page, event_group_details,
                                      latest_heartbeat_at, latest_charger_receipt_at)
 from .warehouse.charger_energy import charger_energy_30_days
 from .warehouse.transaction_pagination import latest_completed_charges, connector_charge_counts
+from .warehouse.charger_csv import CSV_PROFILES, charger_transactions, render_charger_csv
 from .dashboard_login import dashboard_account_directory
 import sqlite3
+import json
+import re
 
 
 def minute_utc(value: str | None) -> str:
@@ -403,7 +406,9 @@ def project_dashboard_connectors(data: dict, *, now: datetime, connector_view: s
 
 def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | None = None,
                title: str = "OCPP Reports", timezones: tuple[str, ...] = ("UTC",),
-               brand_image_url: str | None = None) -> FastAPI:
+               brand_image_url: str | None = None, csv_profile: str = "vendor") -> FastAPI:
+    if csv_profile not in CSV_PROFILES:
+        raise ValueError("Unsupported charger CSV profile")
     if brand_image_url is not None:
         parsed = urlsplit(brand_image_url)
         if not (brand_image_url.startswith("/assets/") and not brand_image_url.startswith("//")
@@ -690,6 +695,37 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
              "event_page": event_page, "event_has_next": event_has_next,
              "is_admin": is_admin},
             headers={"Cache-Control": "no-store"})
+
+    @app.get("/chargers/{source_id}/{charger_id}/report.csv")
+    def charger_csv_download(source_id: str, charger_id: str, tz: str | None = None):
+        # Route-derived, immutable dashboard scope; the caller cannot select
+        # another CSV profile or bypass an instance's source allowlist.
+        if allowed_source_ids is not None and source_id not in allowed_source_ids:
+            raise HTTPException(404, "Device not found")
+        selected_zone = tz or zones[0]
+        if selected_zone not in zones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
+        try:
+            found = charger_transactions(warehouse, source_id=source_id,
+                                         charger_id=charger_id)
+            if found is None:
+                raise HTTPException(404, "Device not found")
+            transactions, location = found
+            content = render_charger_csv(
+                transactions, location=location, timezone=selected_zone,
+                profile=csv_profile)
+        except (OSError, ValueError, sqlite3.Error, json.JSONDecodeError) as exc:
+            raise HTTPException(503, "Charger report unavailable") from exc
+        safe_source = re.sub(r"[^A-Za-z0-9._-]", "_", source_id)[:64]
+        safe_charger = re.sub(r"[^A-Za-z0-9._-]", "_", charger_id)[:80]
+        filename = f"charger-{safe_source or 'source'}-{safe_charger or 'station'}.csv"
+        return Response(
+            content=content, media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+            })
 
     @app.get("/chargers/{source_id}/{charger_id}", response_class=HTMLResponse)
     def charger_page(request: Request, source_id: str, charger_id: str,

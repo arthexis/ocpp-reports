@@ -364,3 +364,11 @@ con campos complementarios mantienen clave única por ID del reporte.
 
 Los cuatro botones de energía siguen teniendo anchuras iguales. Su padding
 lateral se establece explícitamente en cero; el padding vertical no cambia.
+
+## Descargar CSV por cargador y elegir formato por dashboard
+
+La vista de cargador (`/chargers/{source_id}/{charger_id}`) incluye **Descargar CSV** junto a **Dashboard**. El enlace descarga las **todas las sesiones registradas** para la identidad exacta `(source_id, charger_id)`, no solo las 20 sesiones de la página actual. La exportación es de solo lectura, deduplica por identidad con prioridad local frente a réplicas Collector, mantiene las sesiones abiertas y de energía cero y deja vacíos los datos que no se midieron. El nombre de archivo contiene origen y cargador. La zona horaria corresponde a la selección válida del dashboard.
+
+Cada instancia en `/etc/ocpp-reports/dashboards.json` puede definir `"csv_profile": "vendor"` (por defecto para Porsche, Audi y cualquier instancia existente) o `"csv_profile": "vendor-csv"` (variante histórica ISO). Ambas usan los diez encabezados acordados: `LOCACION, CONECTOR, FECHA INICIO, FECHA FINAL, WH INICIO, WH FINAL, WH USADOS, % INICIAL, % FINAL, RAZON FINAL`. `vendor` usa fechas locales con espacio y campos `battery_start_pct/battery_stop_pct`; `vendor-csv` usa fechas ISO con offset y `soc_start/soc_end`. No se infieren porcentajes ausentes ni se reemplazan por cero.
+
+Ejemplo: una instancia Porsche puede tener `"csv_profile": "vendor"` y otra Audi `"csv_profile": "vendor-csv"` sin afectar sus filtros `source_ids`, puertos, hostname, login o zona horaria. Si no se configura, ambas usan `vendor`. La plantilla Ansible convierte el campo a `serve --csv-profile`, verifica que sea un valor conocido y mantiene la selección del lado del servidor: los parámetros de la URL **no pueden cambiar el perfil**. El CSV conserva las mismas barreras de autenticación de la vista de conectores y no expone registros de otras fuentes.

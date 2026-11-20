@@ -128,6 +128,9 @@ def route_permission(path, method):
         segments = path.split("/")
         if len(segments) == 4 and segments[1] == "chargers" and all(segments[2:]):
             return Permission.CONNECTORS_VIEW
+        if (len(segments) == 5 and segments[1] == "chargers"
+                and segments[4] == "report.csv" and all(segments[2:4])):
+            return Permission.CONNECTORS_VIEW
         if len(segments) == 5 and segments[1] == "connectors" and all(segments[2:]):
             return Permission.CONNECTORS_VIEW
     return None

@@ -39,6 +39,7 @@
             (item.source_ids is sequence and item.source_ids is not string and
              item.source_ids | length > 0 and
              item.source_ids | select('match', '^[A-Za-z0-9][A-Za-z0-9._-]*$') | list | length == item.source_ids | length)
+          - (item.csv_profile | default('vendor')) in ['vendor', 'vendor-csv']
           - item.title is match('^[A-Za-z0-9 ._-]+$')
           - item.htpasswd is match('^/etc/ocpp-reports/[A-Za-z0-9._-]+[.]htpasswd$')
           - item.auth_mode | default('basic') in ['basic', 'integrated']

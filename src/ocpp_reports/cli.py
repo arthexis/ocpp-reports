@@ -518,6 +518,7 @@ def serve(
     title: str = typer.Option("OCPP Reports", "--title", help="Dashboard title"),
     brand_image_url: str | None = typer.Option(None, "--brand-image-url", help="Optional /assets/ image or HTTPS logo URL"),
     timezone: list[str] | None = typer.Option(None, "--timezone", help="Allowed IANA timezone; repeat to offer choices"),
+    csv_profile: str = typer.Option("vendor", "--csv-profile", help="Charger CSV profile: vendor or vendor-csv"),
     update: bool = typer.Option(False, "--update", help="Save timezone choices and restart an installed dashboard"),
     instance: str = typer.Option("dashboard", "--instance", help="Installed dashboard name (for --update)"),
     timezone_config: Path | None = typer.Option(None, "--timezone-file", help="Installed per-instance timezone configuration"),
@@ -525,7 +526,7 @@ def serve(
     """Serve dashboard, or update timezones on an existing installed instance."""
     if update:
         from .dashboard_timezones import update_timezones
-        if timezone_config is not None or database is not None or source_ids is not None or brand_image_url is not None or title != "OCPP Reports" or host != "127.0.0.1" or port != 8080:
+        if timezone_config is not None or database is not None or source_ids is not None or brand_image_url is not None or title != "OCPP Reports" or host != "127.0.0.1" or port != 8080 or csv_profile != "vendor":
             typer.echo("--update accepts only --timezone and optional --instance", err=True)
             raise typer.Exit(2)
         try:
@@ -564,7 +565,8 @@ def serve(
         typer.echo(f"Dashboard timezone configuration invalid: {exc}", err=True)
         raise typer.Exit(2) from exc
     uvicorn.run(create_app(warehouse, allowed_source_ids=tuple(source_ids) if source_ids is not None else None,
-                           title=title, timezones=zones, brand_image_url=brand_image_url), host=host, port=port)
+                           title=title, timezones=zones, brand_image_url=brand_image_url,
+                           csv_profile=csv_profile), host=host, port=port)
 
 
 @app.command("forward")
