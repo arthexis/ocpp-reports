@@ -12,6 +12,7 @@ header h1{font-size:1.45rem;margin:0}header .note{color:#d0dbe6}
 header .brand-logo{display:block;max-height:56px;max-width:min(240px,65vw);width:auto;height:auto;object-fit:contain}
 header [hidden]{display:none!important}
 .back-link{color:#fff;border:1px solid #718096;border-radius:8px;min-height:44px;display:inline-flex;align-items:center;padding:.5rem .75rem;text-decoration:none;font-weight:600}
+.header-actions{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
 main{max-width:1320px;margin:auto;padding:1.4rem 1.25rem 3rem}
 section{margin:0 0 1.25rem;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1.25rem;box-shadow:0 2px 10px #152c4608}
 section h2{font-size:1.05rem;margin:0 0 1rem}.note{font-size:.82rem}.muted{color:var(--muted)}.identity{font-size:1.5rem;margin:.1rem 0 .35rem;overflow-wrap:anywhere}
@@ -119,8 +120,8 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 </style></head><body>
 <a class="back-link" style="position:absolute;left:1rem;top:-5rem" href="#content">Ir al contenido</a>
 <header><div>{% if brand_image_url %}<img class="brand-logo" src="{{ brand_image_url }}" alt="{{ title }}" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ title }}</h1>{% else %}<h1>{{ title }}</h1>{% endif %}<div class="note">Solo lectura · {{ timezone }}</div></div>
-<div><a class="back-link" href="/?tz={{ timezone|urlencode }}#connectors">← Dashboard</a>
-{% if selected_connector_id is not none %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}?tz={{ timezone|urlencode }}">Cargador completo</a>{% endif %}</div></header>
+<div class="header-actions"><a class="back-link" href="/?tz={{ timezone|urlencode }}#connectors">← Dashboard</a>
+{% if selected_connector_id is none %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/report.csv?tz={{ timezone|urlencode }}" download>Descargar CSV</a>{% else %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}?tz={{ timezone|urlencode }}">Cargador completo</a>{% endif %}</div></header>
 <main id="content">
 <section aria-labelledby="device-title"><h2 class="identity" id="device-title">{% if selected_connector_id is none %}Cargador {{ charger_id }}{% else %}Cargador {{ charger_id }} · Conector {{ selected_connector_id }}{% endif %}</h2>
 <p class="muted">{{ location }} · Origen {{ source_id }}</p>
