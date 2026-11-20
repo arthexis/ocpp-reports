@@ -43,7 +43,12 @@ def test_local_pinned_git_build_cannot_create_root_owned_checkout_artifacts():
         "- name: Find built Reports wheel", 1
     )[0]
     assert "git+file://" in build and "@{{ reports_commit }}" in build
-    assert "root-owned files in the operator's working checkout" in build
+    assert 'become_user: "{{ reports_operator }}"' in build
+    assert '"{{ reports_wheel_temp.path }}"' in build
+    assert "Promote single Reports wheel to immutable release" in source
+    assert "remote_src: true" in source
+    assert "Clean temporary Reports wheel directory" in source
+    assert "always:" in source
     integration = (RELEASE.parents[2] / "scripts/ci_deploy_integration.sh").read_text()
     assert "test ! -d build" in integration
     assert "'*.egg-info'" in integration
