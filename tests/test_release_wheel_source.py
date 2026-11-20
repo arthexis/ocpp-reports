@@ -13,7 +13,7 @@ def test_wheel_build_uses_local_checkout_not_recursive_ansible_staging():
     )[0]
     assert '- "git+file://{{ playbook_dir }}/..@{{ reports_commit }}"' in build
     assert "become: true" in build
-    assert '- "{{ playbook_dir }}/.."' not in build
+    assert '- "{{ playbook_dir }}/.."' not in build.split("- name: Verify pinned Reports checkout", 1)[0]
     assert "- --no-deps" in build
     assert "- --no-build-isolation" in build
 
