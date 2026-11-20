@@ -23,12 +23,12 @@ def test_four_dashboard_panel_explanations_are_in_accessible_popovers(empty_dash
     assert 'trigger.addEventListener("click"' in html
     assert 'event.key === "Escape"' in html
     assert 'event.target.closest(".panel-help")' in html
-    # Existing caveats have not disappeared; only their display is collapsed.
+    # Remaining operational explanations stay accessible in the collapsed help.
     for note in (
         "Una falla con origen atrasado también puede contarse como dato incierto.",
         "No sumar C0 nuevamente en totales.",
         "SoC: primera y última medición reportada",
-        "La recarga de la página no confirma datos nuevos del cargador.",
+        "Los intervalos describen consultas; el ritmo de los datos depende del origen, la red y la configuración.",
     ):
         assert note in html
     assert 'Conectado*</th>' not in html
