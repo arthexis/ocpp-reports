@@ -44,6 +44,6 @@ def test_local_pinned_git_build_cannot_create_root_owned_checkout_artifacts():
     )[0]
     assert "git+file://" in build and "@{{ reports_commit }}" in build
     assert "root-owned files in the operator's working checkout" in build
-    integration = (RELEASE.parents[1] / "scripts/ci_deploy_integration.sh").read_text()
+    integration = (RELEASE.parents[2] / "scripts/ci_deploy_integration.sh").read_text()
     assert "test ! -d build" in integration
     assert "'*.egg-info'" in integration
