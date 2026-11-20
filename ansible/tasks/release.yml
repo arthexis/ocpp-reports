@@ -71,23 +71,29 @@
       - "{{ reports_python_minor }}"
   changed_when: false
   when: not reports_existing_release.stat.exists
-- name: Create release-local package staging directory
-  ansible.builtin.file:
-    path: "{{ reports_release }}/source"
-    state: directory
-    mode: '0755'
-  become: true
+- name: Verify pinned Reports checkout has no local package edits
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ playbook_dir }}/.."
+      - status
+      - --porcelain
+      - --untracked-files=all
+      - --
+      - pyproject.toml
+      - README.md
+      - src
+  register: reports_checkout_package_status
+  changed_when: false
+  failed_when: reports_checkout_package_status.rc != 0 or (reports_checkout_package_status.stdout | trim | length > 0)
   when: not reports_existing_release.stat.exists
-- name: Stage pinned Reports package files
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../{{ item }}"
-    dest: "{{ reports_release }}/source/{{ item }}"
-    mode: preserve
-  loop:
-    - pyproject.toml
-    - README.md
-    - src/
-  become: true
+- name: Verify pinned Reports checkout revision
+  ansible.builtin.command:
+    argv: [git, -C, "{{ playbook_dir }}/..", rev-parse, HEAD]
+  register: reports_build_checkout_revision
+  changed_when: false
+  failed_when: reports_build_checkout_revision.rc != 0 or (reports_build_checkout_revision.stdout | trim) != reports_commit
   when: not reports_existing_release.stat.exists
 - name: Resolve effective runtime dependency set
   ansible.builtin.command:
@@ -189,34 +195,117 @@
     virtualenv: "{{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}"
   become: true
   when: not reports_existing_release.stat.exists
-- name: Build Reports application wheel
-  ansible.builtin.command:
-    argv:
-      - "{{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}/bin/python"
-      - -m
-      - pip
-      - wheel
-      - --no-deps
-      - --no-build-isolation
-      - --wheel-dir
-      - "{{ reports_release }}"
-      - "{{ reports_release }}/source"
+# Stream only the package files from the pinned local commit into an ephemeral
+# operator-owned snapshot. This avoids both Ansible's recursive per-file copy
+# and a full Git clone, while setuptools cannot write into the checkout.
+# Promote only the completed wheel into the protected immutable release.
+- name: Create temporary operator-owned Reports wheel directory
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: ocpp-reports-wheel-
   become: true
+  become_user: "{{ reports_operator }}"
+  register: reports_wheel_temp
   when: not reports_existing_release.stat.exists
-- name: Find built Reports wheel
-  ansible.builtin.find:
-    paths: "{{ reports_release }}"
-    patterns: "ocpp_reports-*.whl"
-    file_type: file
-  register: reports_wheels
+
+- name: Build and validate pinned Reports wheel
   when: not reports_existing_release.stat.exists
-- name: Require exactly one Reports wheel
-  ansible.builtin.assert:
-    that: reports_wheels.matched | int == 1
-  when: not reports_existing_release.stat.exists
+  block:
+    - name: Prepare temporary pinned Reports package snapshot
+      ansible.builtin.file:
+        path: "{{ reports_wheel_temp.path }}/source"
+        state: directory
+        mode: '0700'
+      become: true
+      become_user: "{{ reports_operator }}"
+
+    - name: Extract pinned Reports package snapshot without per-file Ansible copy
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          git -C {{ (playbook_dir ~ '/..') | quote }}
+          archive --format=tar {{ reports_commit | quote }}
+          pyproject.toml README.md src |
+          tar -xf - -C {{ (reports_wheel_temp.path ~ '/source') | quote }}
+        executable: /bin/bash
+      become: true
+      become_user: "{{ reports_operator }}"
+      changed_when: true
+
+    - name: Build Reports application wheel
+      ansible.builtin.command:
+        argv:
+          - "{{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}/bin/python"
+          - -m
+          - pip
+          - wheel
+          - --no-deps
+          - --no-build-isolation
+          - --wheel-dir
+          - "{{ reports_wheel_temp.path }}"
+          - "{{ reports_wheel_temp.path }}/source"
+      become: true
+      become_user: "{{ reports_operator }}"
+
+    # Only tracked files from the pinned SHA enter the temporary snapshot.
+    # Verify the operator checkout has not changed during wheel creation.
+    - name: Verify pinned Reports checkout remained unchanged during wheel build
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ playbook_dir }}/.."
+          - status
+          - --porcelain
+          - --untracked-files=all
+          - --
+          - pyproject.toml
+          - README.md
+          - src
+      register: reports_checkout_postbuild_status
+      changed_when: false
+      failed_when: reports_checkout_postbuild_status.rc != 0 or (reports_checkout_postbuild_status.stdout | trim | length > 0)
+
+    - name: Verify pinned Reports revision after wheel build
+      ansible.builtin.command:
+        argv: [git, -C, "{{ playbook_dir }}/..", rev-parse, HEAD]
+      register: reports_postbuild_revision
+      changed_when: false
+      failed_when: reports_postbuild_revision.rc != 0 or (reports_postbuild_revision.stdout | trim) != reports_commit
+
+    - name: Find built Reports wheel
+      ansible.builtin.find:
+        paths: "{{ reports_wheel_temp.path }}"
+        patterns: "ocpp_reports-*.whl"
+        file_type: file
+      register: reports_wheels
+      become: true
+      become_user: "{{ reports_operator }}"
+
+    - name: Require exactly one Reports wheel
+      ansible.builtin.assert:
+        that: reports_wheels.matched | int == 1
+
+    - name: Promote single Reports wheel to immutable release
+      ansible.builtin.copy:
+        src: "{{ reports_wheels.files[0].path }}"
+        dest: "{{ reports_release }}/{{ reports_wheels.files[0].path | basename }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: '0644'
+      become: true
+  always:
+    - name: Clean temporary Reports wheel directory
+      ansible.builtin.file:
+        path: "{{ reports_wheel_temp.path }}"
+        state: absent
+      become: true
+      become_user: "{{ reports_operator }}"
+
 - name: Install Reports wheel without dependency downloads
   ansible.builtin.pip:
-    name: "{{ reports_wheels.files[0].path }}"
+    name: "{{ reports_release }}/{{ reports_wheels.files[0].path | basename }}"
     virtualenv: "{{ reports_release }}/venv"
     extra_args: "--no-index --no-deps"
   become: true
