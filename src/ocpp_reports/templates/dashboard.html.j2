@@ -273,7 +273,7 @@ header{align-items:start;gap:.65rem}
 }
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand">{% if brand_image_url %}<img class="brand-logo" src="{{ brand_image_url }}" alt="{{ title }}" width="56" height="56" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ title }}</h1>{% else %}<h1>{{ title }}</h1>{% endif %}
-<div class="muted">Solo lectura · Datos actualizados cada 15 s ·
+<div class="muted">Solo lectura · Refresco de pantalla cada 5 s ·
 <details class="tz-picker"><summary id="timezone-display">{{ timezone }} ▾</summary>
 <label for="timezone-choice">Zona horaria</label>
 <select id="timezone-choice" aria-label="Zona horaria">{% for zone in timezones %}
@@ -349,7 +349,7 @@ header{align-items:start;gap:.65rem}
 </div></nav>
 </section>
 {% if is_admin | default(true) %}
-<section class="sync-panel" id="synchronization"><div class="panel-heading"><h2>Sincronización</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Sincronización" aria-controls="help-synchronization" aria-expanded="false" aria-describedby="help-synchronization">ⓘ</button></span><span class="panel-help-text" id="help-synchronization" role="tooltip">Ingestión local y recepción de réplica son distintas. Cadencia predeterminada: ingesta local (follow) cada 5 segundos y consulta del Forwarder en reposo cada 2 segundos. Son intervalos de consulta, no un tiempo garantizado de extremo a extremo; la red, las colas y la configuración pueden variar. La recarga de la página no confirma datos nuevos del cargador.</span></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
+<section class="sync-panel" id="synchronization"><div class="panel-heading"><h2>Sincronización</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Sincronización" aria-controls="help-synchronization" aria-expanded="false" aria-describedby="help-synchronization">ⓘ</button></span><span class="panel-help-text" id="help-synchronization" role="tooltip">Ingestión local y recepción de réplica son distintas. Cadencia predeterminada: ingesta local (follow) cada 5 segundos y consulta del Forwarder en reposo cada 2 segundos. Los intervalos describen consultas; el ritmo de los datos depende del origen, la red y la configuración.</span></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
 {% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at|display_date(timezone) if s.last_ingested_at else "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at|display_date(timezone) if s.last_replication_received_at else "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
 {% if login_enabled and is_admin %}
@@ -501,7 +501,7 @@ header{align-items:start;gap:.65rem}
       refreshing = false;
     }
   };
-  const refreshTimer = window.setInterval(refreshDashboard, 15000);
+  const refreshTimer = window.setInterval(refreshDashboard, 5000);
   window.addEventListener("pagehide", () => window.clearInterval(refreshTimer));
 
   let timer;

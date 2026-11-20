@@ -24,7 +24,7 @@ def test_desktop_table_scrolls_within_panel_and_mobile_is_compact(dashboard_sour
 def test_summary_count_meaning_is_visible_without_help(dashboard_source):
     source = dashboard_source
     assert 'class="counts-legend">Cifras: estaciones (conectores individuales)' in source
-    assert "Solo lectura · Datos actualizados cada 15 s" in source
+    assert "Solo lectura · Refresco de pantalla cada 5 s" in source
 
 
 def test_admin_timezone_inventory_example_is_explicit():
