@@ -206,7 +206,10 @@
       - --no-build-isolation
       - --wheel-dir
       - "{{ reports_release }}"
-      - "{{ playbook_dir }}/.."
+      # pip clones the pinned local Git revision into its disposable build
+      # directory. setuptools can generate egg-info/build artifacts there,
+      # never as root-owned files in the operator's working checkout.
+      - "git+file://{{ playbook_dir }}/..@{{ reports_commit }}"
   become: true
   when: not reports_existing_release.stat.exists
 # Reject source churn during wheel creation; the revision-labelled release
