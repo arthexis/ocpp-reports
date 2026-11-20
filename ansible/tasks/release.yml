@@ -71,23 +71,29 @@
       - "{{ reports_python_minor }}"
   changed_when: false
   when: not reports_existing_release.stat.exists
-- name: Create release-local package staging directory
-  ansible.builtin.file:
-    path: "{{ reports_release }}/source"
-    state: directory
-    mode: '0755'
-  become: true
+- name: Verify pinned Reports checkout has no local package edits
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ playbook_dir }}/.."
+      - status
+      - --porcelain
+      - --untracked-files=all
+      - --
+      - pyproject.toml
+      - README.md
+      - src
+  register: reports_checkout_package_status
+  changed_when: false
+  failed_when: reports_checkout_package_status.rc != 0 or (reports_checkout_package_status.stdout | trim | length > 0)
   when: not reports_existing_release.stat.exists
-- name: Stage pinned Reports package files
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../{{ item }}"
-    dest: "{{ reports_release }}/source/{{ item }}"
-    mode: preserve
-  loop:
-    - pyproject.toml
-    - README.md
-    - src/
-  become: true
+- name: Verify pinned Reports checkout revision
+  ansible.builtin.command:
+    argv: [git, -C, "{{ playbook_dir }}/..", rev-parse, HEAD]
+  register: reports_build_checkout_revision
+  changed_when: false
+  failed_when: reports_build_checkout_revision.rc != 0 or (reports_build_checkout_revision.stdout | trim) != reports_commit
   when: not reports_existing_release.stat.exists
 - name: Resolve effective runtime dependency set
   ansible.builtin.command:
@@ -200,8 +206,34 @@
       - --no-build-isolation
       - --wheel-dir
       - "{{ reports_release }}"
-      - "{{ reports_release }}/source"
+      - "{{ playbook_dir }}/.."
   become: true
+  when: not reports_existing_release.stat.exists
+# Reject source churn during wheel creation; the revision-labelled release
+# must not silently contain a mix of checkout contents.
+- name: Verify pinned Reports checkout remained unchanged during wheel build
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ playbook_dir }}/.."
+      - status
+      - --porcelain
+      - --untracked-files=all
+      - --
+      - pyproject.toml
+      - README.md
+      - src
+  register: reports_checkout_postbuild_status
+  changed_when: false
+  failed_when: reports_checkout_postbuild_status.rc != 0 or (reports_checkout_postbuild_status.stdout | trim | length > 0)
+  when: not reports_existing_release.stat.exists
+- name: Verify pinned Reports revision after wheel build
+  ansible.builtin.command:
+    argv: [git, -C, "{{ playbook_dir }}/..", rev-parse, HEAD]
+  register: reports_postbuild_revision
+  changed_when: false
+  failed_when: reports_postbuild_revision.rc != 0 or (reports_postbuild_revision.stdout | trim) != reports_commit
   when: not reports_existing_release.stat.exists
 - name: Find built Reports wheel
   ansible.builtin.find:
