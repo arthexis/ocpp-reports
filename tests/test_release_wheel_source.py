@@ -11,7 +11,10 @@ def test_wheel_build_uses_local_checkout_not_recursive_ansible_staging():
     build = source.split("- name: Build Reports application wheel", 1)[1].split(
         "- name: Find built Reports wheel", 1
     )[0]
-    assert '- "git+file://{{ playbook_dir }}/..@{{ reports_commit }}"' in build
+    assert '- "{{ reports_wheel_temp.path }}/source"' in build
+    assert "archive --format=tar {{ reports_commit | quote }}" in source
+    assert "pyproject.toml README.md src |" in source
+    assert "set -o pipefail;" in source
     assert "become: true" in build
     assert '- "{{ playbook_dir }}/.."' not in build.split("- name: Verify pinned Reports checkout", 1)[0]
     assert "- --no-deps" in build
@@ -42,7 +45,9 @@ def test_local_pinned_git_build_cannot_create_root_owned_checkout_artifacts():
     build = source.split("- name: Build Reports application wheel", 1)[1].split(
         "- name: Find built Reports wheel", 1
     )[0]
-    assert "git+file://" in build and "@{{ reports_commit }}" in build
+    assert "git+file://" not in build
+    assert 'become_user: "{{ reports_operator }}"' in source
+    assert "Extract pinned Reports package snapshot without per-file Ansible copy" in source
     assert 'become_user: "{{ reports_operator }}"' in build
     assert '"{{ reports_wheel_temp.path }}"' in build
     assert "Promote single Reports wheel to immutable release" in source
