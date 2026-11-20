@@ -8,7 +8,7 @@ ocpp-reports serve --database /var/lib/ocpp-reports/reports.sqlite --host 127.0.
 
 Open http://127.0.0.1:8080/ locally. The dashboard reads **only** Reports-owned SQLite, using a read-only connection. It does not import CSMS Python modules or contact chargers. It displays last-known connector state separately from source ingestion freshness, plus transactions and administrative source cursors. Recent events appear only on each charger's detail page. Filter by source or charger. A JSON read-only endpoint is available at `/api/snapshot`.
 
-Security: `serve` rejects non-loopback binds. It has no user accounts or authentication; do not expose it publicly. M4 will add nginx HTTPS, authentication, and Ansible services. The browser updates data in place every 15 seconds without reloading the page; no WebSockets. M2 does not require forwarder or collector.
+Security: `serve` rejects non-loopback binds. It has no user accounts or authentication; do not expose it publicly. M4 will add nginx HTTPS, authentication, and Ansible services. The main dashboard updates data in place every 5 seconds without reloading the page; no WebSockets. Charger and connector detail pages refresh state and session rows at the same interval while leaving expanded events and historical energy charts intact. Browser polling is distinct from the CSMS-to-warehouse ingestion cadence. M2 does not require forwarder or collector.
 
 **Field validation:** install on customer vendor dedicated host; verify warehouse is populated, dashboard shows live/stale connector state, active and stopped transactions, and survives stopped ingest with visibly old timestamps. This PR does not claim that field validation has occurred.
 
