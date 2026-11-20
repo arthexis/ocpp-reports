@@ -121,7 +121,7 @@ stopping ingestion also stops the helper. No CSMS restart is required.
 ```sh
 export OCPP_REPORTS_LOCAL_INGEST_ENABLED=true
 export OCPP_REPORTS_CSMS_DATA_DIR=/actual/path/to/csms/schemas/8
-export OCPP_REPORTS_LOCAL_INGEST_INTERVAL=30
+export OCPP_REPORTS_LOCAL_INGEST_INTERVAL=5
 ./deploy.sh --watchtower
 sudo systemctl status ocpp-reports-ingest.service
 sudo journalctl -u ocpp-reports-ingest.service -n 80 --no-pager
