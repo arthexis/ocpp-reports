@@ -303,8 +303,15 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
       url.searchParams.set("offset", String(offset));
       try {
         const response = await fetch(url, {credentials: "same-origin"});
-        if (!response.ok) throw new Error("HTTP " + response.status);
+        if (!response.ok) {
+          const error = new Error("HTTP " + response.status);
+          error.httpStatus = response.status;
+          throw error;
+        }
         const page = await response.json();
+        if (!page || !Array.isArray(page.events) || typeof page.has_next !== "boolean") {
+          throw new Error("Invalid event page");
+        }
         for (const event of page.events) {
           const tr = document.createElement("tr");
           const direction = event.direction === "in" ? "Cargador → servidor"
@@ -318,8 +325,15 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
         }
         offset += page.events.length; exhausted = !page.has_next; more.hidden = exhausted;
         status.textContent = offset + " eventos cargados";
-      } catch (_) { status.textContent = "No se pudieron cargar. Reintentar."; }
-      finally {loading = false; more.disabled = false;}
+      } catch (error) {
+        const httpStatus = error.httpStatus;
+        status.textContent = httpStatus === 403 ? "Sin permiso para consultar estos eventos."
+          : httpStatus === 404 ? "Grupo no disponible; actualiza la página."
+          : httpStatus === 422 ? "Selección de eventos inválida; actualiza la página."
+          : httpStatus === 503 ? "Historial temporalmente no disponible. Reintentar."
+          : "Error al cargar eventos. Reintentar.";
+        console.warn("Charger event detail request failed", httpStatus || error.name);
+      } finally { loading = false; more.disabled = false; }
     };
     more.addEventListener("click", load);
     details.addEventListener("toggle", () => {

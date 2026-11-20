@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from .event_information import event_information
@@ -179,7 +179,8 @@ def _query(db: sqlite3.Connection, *, source_id: str | None, charger_id: str | N
 
 
 
-def _scoped_event_stream(db: sqlite3.Connection, source_id: str, charger_id: str):
+def _scoped_event_stream(db: sqlite3.Connection, source_id: str, charger_id: str,
+                         heartbeat_window: tuple[str, str] | None = None):
     """Stream one charger's events in exact global time order, with one-row lookahead.
 
     Only the precise source/charger dashboard path uses this bounded-memory
@@ -190,10 +191,20 @@ def _scoped_event_stream(db: sqlite3.Connection, source_id: str, charger_id: str
     tables = {row[0] for row in db.execute(
         "SELECT name FROM sqlite_master WHERE type='table'")}
     pieces, args = [], []
+    # The Heartbeat detail fast path scans only a narrow UTC time window,
+    # not every OCPP event ever recorded by this charger.
+    window_sql = (
+        " AND json_extract(payload,'$.action')='Heartbeat'"
+        " AND json_extract(payload,'$.kind')='ocpp'"
+        " AND julianday(json_extract(payload,'$.at')) BETWEEN julianday(?) AND julianday(?)"
+        if heartbeat_window is not None else ""
+    )
     if "events" in tables:
         pieces.append("SELECT source_id,event_id,payload FROM events "
-                      "WHERE source_id=? AND json_extract(payload,'$.charger_id')=?")
+                      "WHERE source_id=? AND json_extract(payload,'$.charger_id')=?" + window_sql)
         args.extend((source_id, charger_id))
+        if heartbeat_window is not None:
+            args.extend(heartbeat_window)
     if "collector_latest" in tables:
         remote = (
             "SELECT r.source_id,CAST(json_extract(r.payload,'$.id') AS INTEGER) AS event_id,r.payload "
@@ -205,8 +216,12 @@ def _scoped_event_stream(db: sqlite3.Connection, source_id: str, charger_id: str
                 " AND NOT EXISTS (SELECT 1 FROM events l WHERE l.source_id=r.source_id "
                 "AND l.event_id=CAST(json_extract(r.payload,'$.id') AS INTEGER))"
             )
+        if heartbeat_window is not None:
+            remote += window_sql
         pieces.append(remote)
         args.extend((source_id, charger_id))
+        if heartbeat_window is not None:
+            args.extend(heartbeat_window)
     if not pieces:
         return
     sql = (
@@ -269,7 +284,8 @@ def _scoped_event_stream(db: sqlite3.Connection, source_id: str, charger_id: str
 
 
 
-def _scoped_visible_events(db: sqlite3.Connection, source_id: str, charger_id: str):
+def _scoped_visible_events(db: sqlite3.Connection, source_id: str, charger_id: str,
+                           heartbeat_window: tuple[str, str] | None = None):
     """Yield OCPP initiators with their adjacent reply ID; retain unpaired evidence.
 
     Direction is authoritative only when exported explicitly. No attempt is
@@ -277,7 +293,7 @@ def _scoped_visible_events(db: sqlite3.Connection, source_id: str, charger_id: s
     requires exact source, charger, action, consecutive IDs and <=2s; event
     IDs are storage IDs, not a wire-level correlation identifier.
     """
-    stream = iter(_scoped_event_stream(db, source_id, charger_id))
+    stream = iter(_scoped_event_stream(db, source_id, charger_id, heartbeat_window))
     newer = next(stream, None)
     while newer is not None:
         older = next(stream, None)
@@ -461,6 +477,80 @@ def _scoped_groups_page(database, *, source_id: str, charger_id: str,
     return {"groups": selected, "page": page, "has_next": len(groups) > page * page_size}
 
 
+def _heartbeat_group_details(db: sqlite3.Connection, *, source_id: str,
+                             charger_id: str, first_event_id: int, zone: str,
+                             offset: int, limit: int):
+    """Fast path for one charger's daily Heartbeat group.
+
+    Verify the group anchor against its stored payload and the first visible
+    initiator on that local day. Read only Heartbeats in that day (+/- 3 seconds
+    to retain request/reply associations across midnight). The full historical
+    scan remains authoritative for other actions and legacy groups.
+    """
+    tables = {row[0] for row in db.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    anchor = None
+    if "events" in tables:
+        found = db.execute(
+            "SELECT payload FROM events WHERE source_id=? AND event_id=?",
+            (source_id, first_event_id)).fetchone()
+        if found:
+            anchor = json.loads(found[0])
+    if anchor is None and "collector_latest" in tables:
+        found = db.execute(
+            "SELECT payload FROM collector_latest WHERE source_id=? AND kind='event'"
+            " AND CAST(json_extract(payload,'$.id') AS INTEGER)=?",
+            (source_id, first_event_id)).fetchone()
+        if found:
+            anchor = json.loads(found[0])
+    if not anchor or anchor.get("charger_id") != charger_id or (
+            anchor.get("action"), anchor.get("kind")) != ("Heartbeat", "ocpp"):
+        return None
+    day_text = _day(anchor.get("at"), ZoneInfo(zone))
+    if day_text is None:
+        return None
+    day = datetime.fromisoformat(day_text).date()
+    local_zone = ZoneInfo(zone)
+    start = datetime.combine(day, datetime.min.time(), tzinfo=local_zone)
+    end = datetime.combine(day + timedelta(days=1), datetime.min.time(),
+                           tzinfo=local_zone)
+    # The extra window covers reply correlation (<=2 seconds), even if a
+    # request occurred immediately before local midnight.
+    window = (
+        (start.astimezone(timezone.utc) - timedelta(seconds=3)).isoformat(),
+        (end.astimezone(timezone.utc) + timedelta(seconds=3)).isoformat(),
+    )
+    events, seen, group_first = [], 0, None
+    for row, _, response_id, inferred in _scoped_visible_events(
+            db, source_id, charger_id, heartbeat_window=window):
+        payload = row["payload"]
+        if _day(payload.get("at"), local_zone) != day_text:
+            continue
+        if group_first is None:
+            group_first = row["event_id"]
+            if group_first != first_event_id:
+                raise LookupError("Event group anchor is stale")
+        if seen >= offset and len(events) <= limit:
+            event = {
+                "source_id": row["source_id"], "charger_id": charger_id,
+                "id": payload.get("id"), "action": "Heartbeat",
+                "at": payload.get("at"), "information": event_information(payload),
+            }
+            if payload.get("direction") in ("in", "out"):
+                event["direction"] = payload["direction"]
+                event["response_id"] = response_id
+            elif inferred:
+                event["response_id"] = response_id
+                event["response_inferred"] = True
+            events.append(event)
+        seen += 1
+        if len(events) > limit:
+            break
+    if group_first is None:
+        raise LookupError("Event group not found")
+    return {"events": events[:limit], "has_next": len(events) > limit}
+
+
 def _scoped_group_details(database, *, source_id: str, charger_id: str,
                           allowed_source_ids, zone: str, first_event_id: int,
                           offset: int, limit: int):
@@ -472,6 +562,13 @@ def _scoped_group_details(database, *, source_id: str, charger_id: str,
         db.execute("PRAGMA query_only=ON")
         db.execute("BEGIN")
         location = _scoped_location(db, source_id, charger_id)
+        fast = _heartbeat_group_details(
+            db, source_id=source_id, charger_id=charger_id,
+            first_event_id=first_event_id, zone=zone, offset=offset, limit=limit)
+        if fast is not None:
+            for event in fast["events"]:
+                event["location"] = location
+            return fast
         for row, key, response_id, inferred in _scoped_group_records(db, source_id, charger_id, zone):
             if key not in first_by_group:
                 first_by_group[key] = row["event_id"]
