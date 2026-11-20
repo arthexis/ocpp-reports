@@ -11,7 +11,9 @@ def test_wheel_build_uses_local_checkout_not_recursive_ansible_staging():
     build = source.split("- name: Build Reports application wheel", 1)[1].split(
         "- name: Find built Reports wheel", 1
     )[0]
-    assert '- "{{ playbook_dir }}/.."' in build
+    assert '- "git+file://{{ playbook_dir }}/..@{{ reports_commit }}"' in build
+    assert "become: true" in build
+    assert '- "{{ playbook_dir }}/.."' not in build
     assert "- --no-deps" in build
     assert "- --no-build-isolation" in build
 
@@ -33,3 +35,15 @@ def test_release_activation_is_still_separate_from_build():
     assert "tasks/release.yml" in source
     assert "tasks/activation.yml" in source
     assert source.index("tasks/release.yml") < source.index("tasks/activation.yml")
+
+
+def test_local_pinned_git_build_cannot_create_root_owned_checkout_artifacts():
+    source = RELEASE.read_text()
+    build = source.split("- name: Build Reports application wheel", 1)[1].split(
+        "- name: Find built Reports wheel", 1
+    )[0]
+    assert "git+file://" in build and "@{{ reports_commit }}" in build
+    assert "root-owned files in the operator's working checkout" in build
+    integration = (RELEASE.parents[1] / "scripts/ci_deploy_integration.sh").read_text()
+    assert "test ! -d build" in integration
+    assert "'*.egg-info'" in integration
