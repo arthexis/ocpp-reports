@@ -13,7 +13,10 @@ def test_dashboard_polls_data_in_place_without_meta_refresh(monkeypatch, tmp_pat
     html = page.text
     assert 'http-equiv="refresh"' not in html
     assert 'id="live-event-groups"' not in html
-    assert 'window.setInterval(refreshDashboard, 15000)' in html
+    assert 'window.setInterval(refreshDashboard, 5000)' in html
+    assert 'Refresco de pantalla cada 5 s' in html
+    assert 'Datos actualizados cada 15 s' not in html
+    assert 'La recarga de la página no confirma datos nuevos del cargador.' not in html
     assert 'cache: "no-store"' in html
     assert 'window.location.pathname + window.location.search' in html
     assert 'new DOMParser().parseFromString' in html
