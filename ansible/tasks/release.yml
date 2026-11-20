@@ -195,10 +195,10 @@
     virtualenv: "{{ reports_root }}/build-venv-py{{ reports_python_minor | replace('.', '') }}"
   become: true
   when: not reports_existing_release.stat.exists
-# Building from a pinned local Git revision makes pip use a disposable clone.
-# Build as the checkout operator to honor Git ownership checks; never allow
-# root-owned build/egg-info files to appear in the working tree. Promote only
-# the finished wheel into the protected immutable release.
+# Stream only the package files from the pinned local commit into an ephemeral
+# operator-owned snapshot. This avoids both Ansible's recursive per-file copy
+# and a full Git clone, while setuptools cannot write into the checkout.
+# Promote only the completed wheel into the protected immutable release.
 - name: Create temporary operator-owned Reports wheel directory
   ansible.builtin.tempfile:
     state: directory
@@ -211,6 +211,27 @@
 - name: Build and validate pinned Reports wheel
   when: not reports_existing_release.stat.exists
   block:
+    - name: Prepare temporary pinned Reports package snapshot
+      ansible.builtin.file:
+        path: "{{ reports_wheel_temp.path }}/source"
+        state: directory
+        mode: '0700'
+      become: true
+      become_user: "{{ reports_operator }}"
+
+    - name: Extract pinned Reports package snapshot without per-file Ansible copy
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          git -C {{ (playbook_dir ~ '/..') | quote }}
+          archive --format=tar {{ reports_commit | quote }}
+          pyproject.toml README.md src |
+          tar -xf - -C {{ (reports_wheel_temp.path ~ '/source') | quote }}
+        executable: /bin/bash
+      become: true
+      become_user: "{{ reports_operator }}"
+      changed_when: true
+
     - name: Build Reports application wheel
       ansible.builtin.command:
         argv:
@@ -222,12 +243,12 @@
           - --no-build-isolation
           - --wheel-dir
           - "{{ reports_wheel_temp.path }}"
-          - "git+file://{{ playbook_dir }}/..@{{ reports_commit }}"
+          - "{{ reports_wheel_temp.path }}/source"
       become: true
       become_user: "{{ reports_operator }}"
 
-    # The local pinned Git clone makes a deterministic source archive, without
-    # staging each src/ file through Ansible or mutating the checkout.
+    # Only tracked files from the pinned SHA enter the temporary snapshot.
+    # Verify the operator checkout has not changed during wheel creation.
     - name: Verify pinned Reports checkout remained unchanged during wheel build
       ansible.builtin.command:
         argv:
