@@ -243,7 +243,8 @@ def save_site(database: Path, source_id: str, charger_id: str, fields: dict,
               *, allowed_source_ids: tuple[str, ...] | None) -> str:
     """Create or edit the assigned site, atomically. Never infer by display name."""
     _require_scope(source_id, allowed_source_ids)
-    values = {key: clean(fields.get(key), maximum=500 if key == "address" else 160,\n                         multiline=(key == "address"))
+    values = {key: clean(fields.get(key), maximum=500 if key == "address" else 160,
+                         multiline=(key == "address"))
               for key in FIELDS}
     for key in ("branch_phone", "contact_phone"):
         values[key] = phone(fields.get(key))
