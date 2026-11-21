@@ -176,3 +176,49 @@ def test_legacy_basic_without_principal_never_sees_contact(tmp_path, monkeypatch
     snap = client.get("/api/snapshot").json()
     assert "branch_phone" not in json.dumps(snap)
     assert "contact_name" not in json.dumps(snap)
+
+
+def test_customer_identity_is_shared_across_distinct_branches(tmp_path):
+    db = warehouse(tmp_path)
+    first = save_site(db, "a", "same",
+                      meta("Porsche", location_name="Porsche Norte"),
+                      allowed_source_ids=("a",))
+    customer_id = site_for_charger(db, "a", "same")["customer_id"]
+    second_fields = meta("Porsche", location_name="Porsche Sur")
+    second_fields["customer_id"] = customer_id
+    second = save_site(db, "a", "second", second_fields,
+                       allowed_source_ids=("a",))
+    assert first != second
+    assert site_for_charger(db, "a", "second")["customer_id"] == customer_id
+    assert site_for_charger(db, "a", "same")["location_name"] == "Porsche Norte"
+    second_fields["customer_name"] = "Porsche México"
+    save_site(db, "a", "second", second_fields, allowed_source_ids=("a",))
+    assert site_for_charger(db, "a", "same")["customer_name"] == "Porsche México"
+
+
+def test_contact_name_without_phone_and_branch_only_phone(tmp_path, monkeypatch):
+    db = warehouse(tmp_path)
+    admin = _logged_client(db, tmp_path, monkeypatch)
+    url = "/chargers/a/same"
+    data = {"contact_name": "Supervisora", "branch_phone": "8112345678"}
+    result = admin.post(url + "/site", data=data,
+                        headers={"origin": "https://testserver"})
+    assert result.status_code == 200
+    body = result.text
+    assert "Supervisora" in body
+    assert "Llamar a sucursal" in body
+    assert "Llamar al contacto" not in body
+    assert "Abrir mapa" not in body
+    assert "Teléfono del contacto</dt>" not in body
+
+
+def test_sensitive_customer_name_rename_is_scoped_across_branches(tmp_path):
+    db = warehouse(tmp_path)
+    save_site(db, "a", "same", meta("Original"), allowed_source_ids=None)
+    customer_id = site_for_charger(db, "a", "same")["customer_id"]
+    second = meta("Original")
+    second["customer_id"] = customer_id
+    save_site(db, "b", "same", second, allowed_source_ids=None)
+    with pytest.raises(PermissionError):
+        save_site(db, "a", "same", meta("Escaped"), allowed_source_ids=("a",))
+    assert site_for_charger(db, "b", "same")["customer_name"] == "Original"
