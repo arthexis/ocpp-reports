@@ -68,11 +68,12 @@ header{align-items:start;gap:.65rem}
 .dashboard-grid section{margin:0;min-width:0}
 .header-filters .unified-filter{width:min(390px,38vw);min-width:245px;height:44px;min-height:44px}
 .header-filters{margin-left:auto}
-.tz-picker{position:relative;display:inline-block;vertical-align:baseline}
-.tz-picker summary{cursor:pointer;text-decoration:underline;text-underline-offset:2px;list-style:none;color:#d8e8fa;white-space:nowrap}
-.tz-picker summary::-webkit-details-marker{display:none}
-.tz-picker select{position:absolute;top:100%;left:0;z-index:20;min-width:150px;max-width:min(235px,90vw);background:#fff;color:#172437;border:1px solid #a4b0bd;border-radius:6px;box-shadow:0 5px 16px #0003}
-@media(max-width:520px){.tz-picker select{left:auto;right:0}}
+/* A native select is the timezone link itself: one click opens the options. */
+.tz-picker{display:inline-flex;align-items:baseline;vertical-align:baseline;position:relative;max-width:100%}
+.tz-picker::after{content:"▾";color:#d8e8fa;pointer-events:none;margin-left:.3em}
+.tz-picker select{font:inherit;color:#d8e8fa;background:transparent;border:0;border-radius:0;padding:0;margin:0;min-width:0;max-width:100%;width:auto;field-sizing:content;appearance:none;-webkit-appearance:none;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.tz-picker select:focus-visible{outline:2px solid #d8e8fa;outline-offset:3px}
+.tz-picker select option{color:#172437;background:#fff}
 .events-panel details{padding:.5rem .2rem;border-bottom:1px solid var(--line)}
 .events-panel details summary{cursor:pointer;font-weight:600}
 .events-panel details[open] summary{padding-bottom:.5rem}
@@ -275,9 +276,8 @@ header{align-items:start;gap:.65rem}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand">{% if brand_image_url %}<img class="brand-logo" src="{{ brand_image_url }}" alt="{{ title }}" width="56" height="56" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ title }}</h1>{% else %}<h1>{{ title }}</h1>{% endif %}
 <div class="muted">Solo lectura · Refresco de pantalla cada 5 s ·
-<details class="tz-picker"><summary id="timezone-display">{{ timezone }} ▾</summary>
-<select id="timezone-choice" aria-label="Zona horaria">{% for zone in timezones %}
-<option value="{{ zone }}" {{ 'selected' if timezone == zone else '' }}>{{ zone }}</option>{% endfor %}</select></details></div></div>
+<span class="tz-picker"><select id="timezone-choice" aria-label="Zona horaria">{% for zone in timezones %}
+<option value="{{ zone }}" {{ 'selected' if timezone == zone else '' }}>{{ zone }}</option>{% endfor %}</select></span></div></div>
 <form id="dashboard-filters" class="filters header-filters" method="get" action="/" role="search" aria-label="Filtrar datos del dashboard">
 <label for="dashboard-search"><input id="dashboard-search" class="unified-filter" type="search" name="filter" value="{{ filter }}" placeholder="Origen, cargador, ubicación o estado" autocomplete="off"><span class="filter-caption">Filtrar</span></label>
 <input type="hidden" name="tz" id="timezone-value" value="{{ timezone }}">
