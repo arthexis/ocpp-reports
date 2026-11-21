@@ -64,7 +64,7 @@ def clean(value: object, *, maximum: int = 240, multiline: bool = False) -> str 
     value = value.strip()
     if not value:
         return None
-    if len(value) > maximum or any((ord(ch) < 32 and not (multiline and ch == "\\n")) or ord(ch) == 127 for ch in value):
+    if len(value) > maximum or any((ord(ch) < 32 and not (multiline and ch == "\n")) or ord(ch) == 127 for ch in value):
         raise ValueError("Invalid field length or control character")
     return value
 
