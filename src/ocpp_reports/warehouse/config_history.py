@@ -109,11 +109,17 @@ def import_history_page(database: str | Path, page: dict[str, Any], *, apply: bo
         raise ValueError("Invalid historical event order")
     if not apply:
         return len(normalized)
+    if not Path(database).is_file():
+        raise ValueError("Backfill requires an existing Reports warehouse")
     from .schema import _schema
     with sqlite3.connect(database) as db:
         _schema(db)
         db.commit()
         db.execute("BEGIN IMMEDIATE")
+        if not db.execute(
+            "SELECT 1 FROM sources WHERE source_id=?", (data["source_id"],)
+        ).fetchone():
+            raise ValueError("Backfill source is not registered in this local warehouse")
         for item in normalized:
             insert_snapshot(db, data["source_id"], item)
     return len(normalized)
