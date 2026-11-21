@@ -583,10 +583,10 @@ def test_offline_chromium_tablet_header_and_compact_tables(tmp_path):
                     shown_connectors = (1, 3, 4, 5, 6) if width >= 760 else (1, 3, 4, 5)
                     for index in shown_connectors:
                         assert page.locator(".connectors-panel thead th").nth(index - 1).is_visible()
-                    for index in (2, 5, 8, 9):
+                    for index in (2, 6, 8, 9):
                         assert not page.locator(".transactions-panel thead th").nth(index - 1).is_visible()
                         assert not page.locator(".transactions-panel tbody td").nth(index - 1).is_visible()
-                    for index in (1, 3, 4, 6, 7, 10):
+                    for index in (1, 3, 4, 5, 7, 10):
                         assert page.locator(".transactions-panel thead th").nth(index - 1).is_visible()
                     assert page.locator(".connectors-panel a.status-session-link").count() == 1
                     assert page.locator(".connectors-panel .scroll").evaluate(
@@ -756,8 +756,8 @@ def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
                 assert page.url.endswith("/chargers/a/cp?tz=UTC")
                 page.goto("http://reports.test/?tx_view=all&source_id=a&tz=UTC", wait_until="load")
                 assert page.locator(".transactions-panel tbody tr").count() > 0
-                hidden = (1, 5, 7, 8, 9)
-                shown = (2, 3, 4, 6, 10)
+                hidden = (1, 6, 8, 9)
+                shown = (2, 3, 4, 5, 7, 10)
                 for index in hidden:
                     assert page.locator(f".transactions-panel thead th:nth-child({index})").is_visible() != mobile
                 for index in shown:
