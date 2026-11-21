@@ -13,6 +13,7 @@ from ocpp_reports.site_metadata import (
 )
 from ocpp_reports.warehouse.collector_schema import ensure_collector_schema
 from ocpp_reports.web import create_app
+from ocpp_reports.warehouse.queries import snapshot
 
 
 def warehouse(tmp_path):
@@ -222,3 +223,18 @@ def test_sensitive_customer_name_rename_is_scoped_across_branches(tmp_path):
     with pytest.raises(PermissionError):
         save_site(db, "a", "same", meta("Escaped"), allowed_source_ids=("a",))
     assert site_for_charger(db, "b", "same")["customer_name"] == "Original"
+
+
+def test_shared_site_label_overlays_only_exact_charger_and_multiline_address(tmp_path):
+    db = warehouse(tmp_path)
+    values = meta("Client", "Calle Norte 10\nMonterrey", location_name="Sucursal Norte")
+    site = save_site(db, "a", "same", values, allowed_source_ids=("a",))
+    scoped = snapshot(db, allowed_source_ids=("a",))
+    assert next(row for row in scoped["connectors"] if row["charger_id"] == "same")["location"] == "Sucursal Norte"
+    assert next(row for row in scoped["connectors"] if row["charger_id"] == "second")["location"] == "a"
+    assert snapshot(db, allowed_source_ids=("b",))["connectors"][0]["location"] == "b"
+    assert "%0A" in site_for_charger(db, "a", "same")["map_url"]
+    with sqlite3.connect(db) as conn:
+        conn.execute("UPDATE report_sites SET contact_phone=? WHERE site_id=?",
+                     ("javascript:alert(1)", site))
+    assert site_for_charger(db, "a", "same")["contact_tel"] is None
