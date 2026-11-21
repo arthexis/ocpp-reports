@@ -22,6 +22,7 @@ from .warehouse.config_history import list_snapshots, one_snapshot
 from .warehouse.transaction_pagination import latest_completed_charges, connector_charge_counts
 from .warehouse.charger_csv import CSV_PROFILES, charger_transactions, render_charger_csv
 from .dashboard_login import dashboard_account_directory
+from .dashboard_auth import Permission, authorized
 import sqlite3
 import json
 import re
@@ -426,6 +427,18 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     warehouse = Path(database)
     templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
+    def _can_view_configuration(request: Request) -> bool:
+        """Require an authenticated administrator in this dashboard tenant.
+
+        Legacy Basic Auth does not assign application roles, so it cannot
+        authorize access to configuration history.
+        """
+        return authorized(
+            getattr(request.state, "principal", None),
+            Permission.CONFIGURATION_VIEW,
+            tenant_id=getattr(request.app.state, "dashboard_login_tenant", ""),
+        )
+
     @app.get("/assets/brand.png", include_in_schema=False)
     def dashboard_brand_asset():
         return FileResponse(Path(__file__).parent / "assets" / "brand.png", media_type="image/png")
@@ -680,7 +693,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             type(row.get("connector_id")) is int and row["connector_id"] > 0
             for row in connectors)
         has_config = False
-        if is_admin and connector_id is None:
+        if connector_id is None and _can_view_configuration(request):
             has_config = bool(list_snapshots(
                 warehouse, source_id, charger_id, limit=1)[0])
         location = (next((row.get("location") for row in connectors if row.get("location")), None)
@@ -739,8 +752,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         page: int = Query(1, ge=1, le=1000),
     ):
         """Administrator-only, evidence-backed GetConfiguration history."""
-        principal = getattr(request.state, "principal", None)
-        if principal is not None and principal.role.value != "admin":
+        if not _can_view_configuration(request):
             raise HTTPException(403, "Configuration history requires administrator access")
         if (not source_id.strip() or not charger_id.strip()
                 or allowed_source_ids is not None and source_id not in allowed_source_ids):
