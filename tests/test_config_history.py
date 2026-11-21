@@ -139,3 +139,23 @@ def test_configuration_route_is_admin_only_by_explicit_auth_policy():
     assert route_permission("/chargers/source-a/cp-1/configuration", "GET") == Permission.CONFIGURATION_VIEW
     assert route_permission("/chargers/source-a/cp-1/configuration", "POST") is None
     assert route_permission("/chargers/source-a/cp-1/configuration/extra", "GET") is None
+
+
+@pytest.mark.parametrize("vendor_key", [
+    "KEY1", "KEY2", "KEY3", "KEY24", "lPin", "enSoftKey",
+    "EncryptKey", "simuRFID", "SSID", "apSSID", "lUser", "vpnUser",
+    "vpnPsk", "apPwd", "rfidtagfreecharging",
+])
+def test_unredacted_vendor_credential_is_rejected_before_persistence(vendor_key):
+    with pytest.raises(ValueError, match="Unredacted sensitive"):
+        validate_snapshot(config(key=vendor_key, value="device-credential"))
+    accepted = validate_snapshot(config(key=vendor_key, value="[REDACTED]"))
+    assert accepted["configuration"][0]["value"] == "[REDACTED]"
+
+
+@pytest.mark.parametrize("ordinary_key", [
+    "HeartbeatInterval", "GetConfigurationMaxKeys",
+    "WebSocketPingInterval", "CertificateStoreMaxLength",
+])
+def test_operational_key_is_permitted(ordinary_key):
+    assert validate_snapshot(config(key=ordinary_key, value="42"))["configuration"][0]["value"] == "42"
