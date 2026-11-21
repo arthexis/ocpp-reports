@@ -68,10 +68,11 @@ header{align-items:start;gap:.65rem}
 .dashboard-grid section{margin:0;min-width:0}
 .header-filters .unified-filter{width:min(390px,38vw);min-width:245px;height:44px;min-height:44px}
 .header-filters{margin-left:auto}
-.tz-picker{position:relative;display:inline-block}
-.tz-picker summary{cursor:pointer;text-decoration:underline;text-underline-offset:2px;list-style:none;color:#d8e8fa}
+.tz-picker{position:relative;display:inline-block;vertical-align:baseline}
+.tz-picker summary{cursor:pointer;text-decoration:underline;text-underline-offset:2px;list-style:none;color:#d8e8fa;white-space:nowrap}
 .tz-picker summary::-webkit-details-marker{display:none}
-.tz-picker select{min-width:150px;max-width:235px;background:#fff;color:#172437;border:1px solid #a4b0bd;border-radius:6px}
+.tz-picker select{position:absolute;top:100%;left:0;z-index:20;min-width:150px;max-width:min(235px,90vw);background:#fff;color:#172437;border:1px solid #a4b0bd;border-radius:6px;box-shadow:0 5px 16px #0003}
+@media(max-width:520px){.tz-picker select{left:auto;right:0}}
 .events-panel details{padding:.5rem .2rem;border-bottom:1px solid var(--line)}
 .events-panel details summary{cursor:pointer;font-weight:600}
 .events-panel details[open] summary{padding-bottom:.5rem}
@@ -275,7 +276,6 @@ header{align-items:start;gap:.65rem}
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand">{% if brand_image_url %}<img class="brand-logo" src="{{ brand_image_url }}" alt="{{ title }}" width="56" height="56" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ title }}</h1>{% else %}<h1>{{ title }}</h1>{% endif %}
 <div class="muted">Solo lectura · Refresco de pantalla cada 5 s ·
 <details class="tz-picker"><summary id="timezone-display">{{ timezone }} ▾</summary>
-<label for="timezone-choice">Zona horaria</label>
 <select id="timezone-choice" aria-label="Zona horaria">{% for zone in timezones %}
 <option value="{{ zone }}" {{ 'selected' if timezone == zone else '' }}>{{ zone }}</option>{% endfor %}</select></details></div></div>
 <form id="dashboard-filters" class="filters header-filters" method="get" action="/" role="search" aria-label="Filtrar datos del dashboard">
