@@ -144,6 +144,18 @@ def validate_export(page: Any, *, require_page_consistency: bool = True) -> dict
         raise ValueError("Empty page must not advance cursor")
     if require_page_consistency and not data["events"] and cursor["more"]:
         raise ValueError("Empty page cannot claim more events")
+    snapshots = data.get("configuration_snapshots", [])
+    if not isinstance(snapshots, list):
+        raise ValueError("Invalid configuration snapshots")
+    from ..warehouse.config_history import validate_snapshot
+    events_by_id = {event["id"]: event for event in data["events"]}
+    for raw_snapshot in snapshots:
+        item = validate_snapshot(raw_snapshot)
+        event = events_by_id.get(item["source_event_id"])
+        if (event is None or event["action"] != "GetConfiguration"
+                or event.get("direction") != "in"
+                or event["charger_id"] != item["charger_id"]):
+            raise ValueError("Configuration snapshot lacks source event evidence")
     for sample in data["energy"]:
         if not isinstance(sample, dict):
             raise ValueError("Energy sample must be an object")

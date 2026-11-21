@@ -12,6 +12,13 @@ def _schema(db: sqlite3.Connection) -> None:
         source_id TEXT NOT NULL, event_id INTEGER NOT NULL,
         payload TEXT NOT NULL, PRIMARY KEY(source_id, event_id)
     );
+    CREATE TABLE IF NOT EXISTS configuration_snapshots (
+        source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
+        source_event_id INTEGER NOT NULL, at TEXT NOT NULL, payload TEXT NOT NULL,
+        PRIMARY KEY (source_id,source_event_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_config_snapshots_charger
+        ON configuration_snapshots(source_id,charger_id,source_event_id DESC);
     CREATE TABLE IF NOT EXISTS energy_samples (
         source_id TEXT NOT NULL, event_id INTEGER NOT NULL,
         sample_index INTEGER NOT NULL, payload TEXT NOT NULL,
@@ -100,6 +107,11 @@ def _schema(db: sqlite3.Connection) -> None:
                             'connector_id', NEW.connector_id,
                             'rated_power_w', NEW.rated_power_w,
                             'rating_scope', NEW.rating_scope));
+    END;
+    CREATE TRIGGER IF NOT EXISTS replicate_configuration_snapshot_insert
+    AFTER INSERT ON configuration_snapshots BEGIN
+        INSERT INTO replication_changes(source_id,kind,record_key,payload)
+        VALUES (NEW.source_id,'config_snapshot',CAST(NEW.source_event_id AS TEXT),NEW.payload);
     END;
     CREATE TRIGGER IF NOT EXISTS replicate_event_insert
     AFTER INSERT ON events BEGIN

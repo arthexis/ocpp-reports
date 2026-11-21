@@ -13,6 +13,7 @@ from pathlib import Path
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from ..warehouse.collector_schema import ensure_collector_schema
+from ..warehouse.config_history import validate_snapshot
 from ..contracts.csms_export import validate_meter_fields, _timestamp
 from ..warehouse.history_enrichment import verified_overlay, EXTRA
 
@@ -84,7 +85,7 @@ class SourceHeldError(ValueError):
 def accept_batch(database: Path, batch: Batch) -> int:
     if batch.schema_ != "ocpp-reports/replication/v1":
         raise ValueError("Unsupported replication schema")
-    if any(change.kind not in {"event", "transaction", "connector", "rating", "meter_sample", "meter_enrichment"} for change in batch.changes):
+    if any(change.kind not in {"event", "transaction", "connector", "rating", "meter_sample", "meter_enrichment", "config_snapshot"} for change in batch.changes):
         raise ValueError("Unsupported change kind")
     positions = [change.sequence for change in batch.changes]
     if positions != sorted(set(positions)) or any(n <= batch.after for n in positions):
@@ -115,6 +116,23 @@ def accept_batch(database: Path, batch: Batch) -> int:
                 continue
             if change.sequence <= cursor:
                 raise ValueError("Missing historical replication change")
+            if change.kind == "config_snapshot":
+                item = validate_snapshot(change.payload)
+                if change.record_key != str(item["source_event_id"]):
+                    raise ValueError("Conflicting configuration record key")
+                original = db.execute(
+                    "SELECT payload FROM collector_configuration_snapshots "
+                    "WHERE source_id=? AND source_event_id=?",
+                    (batch.source_id, item["source_event_id"]),
+                ).fetchone()
+                if original is not None and original[0] != _canonical(item):
+                    raise ValueError("Conflicting immutable configuration history")
+                db.execute(
+                    "INSERT OR IGNORE INTO collector_configuration_snapshots "
+                    "(source_id,charger_id,source_event_id,at,payload) VALUES (?,?,?,?,?)",
+                    (batch.source_id, item["charger_id"], item["source_event_id"],
+                     item["at"], _canonical(item)),
+                )
             if change.kind == "meter_sample":
                 event, index, charger, connector, transaction, stamp = _meter_identity(change)
                 prior = db.execute(
@@ -161,7 +179,7 @@ def accept_batch(database: Path, batch: Batch) -> int:
                            (batch.source_id, event, index, encoded))
             db.execute("INSERT INTO collector_changes VALUES (?,?,?,?,?)",
                        (batch.source_id, change.sequence, change.kind, change.record_key, encoded))
-            if change.kind not in {"meter_sample", "meter_enrichment"}:
+            if change.kind not in {"meter_sample", "meter_enrichment", "config_snapshot"}:
                 db.execute("""INSERT INTO collector_latest VALUES (?,?,?,?,?)
                     ON CONFLICT(source_id,kind,record_key) DO UPDATE SET
                     sequence=excluded.sequence,payload=excluded.payload
@@ -226,7 +244,7 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
         if query.capabilities is not None:
             result["supported_kinds"] = [
                 "event", "transaction", "connector", "rating",
-                "meter_sample", "meter_enrichment",
+                "meter_sample", "meter_enrichment", "config_snapshot",
             ]
         return result
 

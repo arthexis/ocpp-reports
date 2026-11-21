@@ -94,12 +94,12 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
         client = httpx.Client(timeout=10)
     try:
         historical_kinds = {change["kind"] for change in batch["changes"]} & {
-            "meter_sample", "meter_enrichment"}
+            "meter_sample", "meter_enrichment", "config_snapshot"}
         if historical_kinds:
             # Never advance a cursor through new evidence the remote Collector
             # cannot persist. Deploy a capable consumer before its producer.
             if not endpoint.rstrip("/").endswith("/api/replication"):
-                raise ValueError("Meter-sample replication requires an explicit collector endpoint")
+                raise ValueError("Historical replication requires an explicit collector endpoint")
             ready = client.post(endpoint.rstrip("/") + "/ready",
                                 json={"source_id": source_id,
                                       "capabilities": sorted(historical_kinds)},
@@ -108,7 +108,7 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
             info = ready.json()
             if (info.get("source_id") != source_id or info.get("ready") is not True
                     or not historical_kinds <= set(info.get("supported_kinds", []))):
-                raise ValueError("Collector does not advertise durable meter-sample support")
+                raise ValueError("Collector does not advertise durable historical-data support")
         response = client.post(endpoint, json=batch,
                                headers={"Authorization": "Bearer " + token})
         response.raise_for_status()
