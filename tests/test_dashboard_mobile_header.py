@@ -112,7 +112,7 @@ def test_transaction_detail_uses_mobile_two_column_metrics_and_responsive_data()
     css = source.split("<style>", 1)[1].split("</style>", 1)[0]
     assert ".session-details dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))" in css
     assert ".session-details dl{grid-template-columns:repeat(2,minmax(0,1fr))}" in css
-    mobile = css.split("@media(max-width:540px)", 1)[1].split("}", 1)[0]
+    mobile = css.split("@media(max-width:540px)", 1)[1].split("@media(prefers-color-scheme:dark)", 1)[0]
     assert ".overview{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}" in mobile
     assert ".overview>.detail-heading{grid-column:1/-1}" in mobile
     assert ".session-details dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}" in mobile
