@@ -47,6 +47,8 @@ def ensure_collector_schema(db: sqlite3.Connection) -> None:
             source_id TEXT NOT NULL, charger_id TEXT NOT NULL, location TEXT NOT NULL,
             PRIMARY KEY(source_id, charger_id)
         )""")
+        from ..site_metadata import ensure_tables
+        ensure_tables(db)
         db.execute("""CREATE TABLE IF NOT EXISTS collector_source_holds (
             source_id TEXT PRIMARY KEY, held_at TEXT NOT NULL
         )""")
