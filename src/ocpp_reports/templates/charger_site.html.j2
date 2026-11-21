@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Editar ubicación · {{ charger_id }} · {{ title }}</title>
+<style>
+:root{color-scheme:light;--bg:#f5f7fa;--surface:#fff;--ink:#172437;--muted:#637286;--line:#e2e8f0;--nav:#203247;--accent:#1268c7;font:16px system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.45}
+header{background:var(--nav);color:#fff;padding:1rem max(1rem,calc((100vw - 1200px)/2))}
+main{max-width:1100px;margin:auto;padding:1.25rem}section{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1.25rem;margin-bottom:1.25rem}
+h1{margin:.3rem 0;font-size:1.45rem}h2{font-size:1.08rem;margin:.2rem 0 1rem}
+a{color:var(--accent)}header a{color:#fff}.muted{color:var(--muted)}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.9rem 1.25rem}
+.fields>label{display:flex;flex-direction:column;min-width:0;gap:.3rem;font-weight:600;font-size:.87rem}
+input,select{width:100%;max-width:100%;min-height:44px;padding:.55rem;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit}
+button{border:0;background:var(--accent);color:#fff;cursor:pointer;padding:.7rem 1rem;border-radius:8px;min-height:44px;font:inherit;font-weight:650}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.hours{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}
+.day{border:1px solid var(--line);padding:.6rem;border-radius:8px;min-width:0}
+.day legend{font-weight:650}.day-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}
+.day-controls label{font-size:.82rem}.day input[type=checkbox]{min-height:0;width:auto;accent-color:var(--accent)}
+.action{display:flex;gap:.8rem;flex-wrap:wrap;align-items:center;margin-top:1rem}
+@media(max-width:700px){.fields,.hours{grid-template-columns:1fr}main{padding:.75rem}section{padding:1rem}}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5}}
+</style></head><body>
+<header><h1>Editar datos de ubicación</h1><div>Origen {{ source_id }} · Cargador {{ charger_id }}</div></header>
+<main>
+<section aria-labelledby="metadata-title"><h2 id="metadata-title">Cliente y sucursal</h2>
+<p class="muted">Esta información es administrativa y compartida por todos los cargadores asignados a la misma ubicación. Los campos pueden quedar vacíos.</p>
+<form method="post" action="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/site">
+<div class="fields">
+<label>Nombre del cliente<input name="customer_name" maxlength="160" value="{{ site.customer_name or '' }}" autocomplete="organization"></label>
+<label>Ubicación (nombre completo)<input name="location_name" maxlength="160" value="{{ site.location_name or '' }}"></label>
+<label>Dirección<input name="address" maxlength="500" value="{{ site.address or '' }}" autocomplete="street-address"></label>
+<label>Teléfono de sucursal<input name="branch_phone" type="tel" maxlength="40" value="{{ site.branch_phone or '' }}" autocomplete="tel"></label>
+<label>Nombre del contacto<input name="contact_name" maxlength="160" value="{{ site.contact_name or '' }}" autocomplete="name"></label>
+<label>Teléfono del contacto<input name="contact_phone" type="tel" maxlength="40" value="{{ site.contact_phone or '' }}"></label>
+<label>Zona horaria de atención<input name="timezone" maxlength="80" value="{{ site.timezone or 'America/Monterrey' }}"></label>
+</div>
+<h2 style="margin-top:1.4rem">Horario de atención al público</h2>
+<p class="muted">Solo indica cuándo es razonable contactar a personal de la sucursal. No limita el uso del cargador.</p>
+<div class="hours">
+{% for day, name in days %}
+<fieldset class="day"><legend>{{ name }}</legend>
+<div class="day-controls">
+<label>Desde<input type="time" name="{{ day }}_start" value="{{ hours[day ~ '_start'] }}"></label>
+<label>Hasta<input type="time" name="{{ day }}_end" value="{{ hours[day ~ '_end'] }}"></label>
+</div>
+<label><input type="checkbox" name="{{ day }}_closed" value="1" {% if hours[day ~ '_closed'] %}checked{% endif %}> Cerrado para atención</label>
+</fieldset>
+{% endfor %}
+</div>
+<div class="action"><button type="submit">Guardar datos de ubicación</button>
+<a href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}">Cancelar y volver al cargador</a></div>
+</form></section>
+{% if other_sites %}
+<section aria-labelledby="shared-site-title"><h2 id="shared-site-title">Asignar una ubicación existente</h2>
+<p class="muted">Para compartir teléfono, dirección, contacto y horario con otros cargadores, elige su ubicación existente. No se fusionan registros por tener el mismo nombre.</p>
+<form method="post" action="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/site/assign">
+<label for="site-choice">Ubicación compartida</label>
+<select id="site-choice" name="site_id" required>
+{% for item in other_sites %}
+<option value="{{ item.site_id }}" {% if site.site_id == item.site_id %}selected{% endif %}>{{ item.customer_name or 'Cliente no registrado' }} · {{ item.location_name or 'Ubicación sin nombre' }}</option>
+{% endfor %}
+</select>
+<div class="action"><button type="submit">Asignar esta ubicación</button></div>
+</form></section>
+{% endif %}
+</main></body></html>
