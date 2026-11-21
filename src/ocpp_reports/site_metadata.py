@@ -56,7 +56,7 @@ def _tables(db: sqlite3.Connection) -> set[str]:
     return {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 
 
-def clean(value: object, *, maximum: int = 240) -> str | None:
+def clean(value: object, *, maximum: int = 240, multiline: bool = False) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str):
@@ -64,7 +64,7 @@ def clean(value: object, *, maximum: int = 240) -> str | None:
     value = value.strip()
     if not value:
         return None
-    if len(value) > maximum or any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+    if len(value) > maximum or any((ord(ch) < 32 and not (multiline and ch == "\\n")) or ord(ch) == 127 for ch in value):
         raise ValueError("Invalid field length or control character")
     return value
 
@@ -243,7 +243,7 @@ def save_site(database: Path, source_id: str, charger_id: str, fields: dict,
               *, allowed_source_ids: tuple[str, ...] | None) -> str:
     """Create or edit the assigned site, atomically. Never infer by display name."""
     _require_scope(source_id, allowed_source_ids)
-    values = {key: clean(fields.get(key), maximum=500 if key == "address" else 160)
+    values = {key: clean(fields.get(key), maximum=500 if key == "address" else 160,\n                         multiline=(key == "address"))
               for key in FIELDS}
     for key in ("branch_phone", "contact_phone"):
         values[key] = phone(fields.get(key))
