@@ -817,6 +817,11 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             if not known_charger(db, source_id, charger_id):
                 raise HTTPException(404, "Charger not found")
         current = site_for_charger(warehouse, source_id, charger_id)
+        if current is None:
+            legacy = read(source_id, charger_id, 1, skip_events=True)
+            legacy_name = next((r.get("location") for r in legacy["connectors"]
+                                if r.get("location") and r["location"] != source_id), None)
+            current = {"location_name": legacy_name}
         details = hours_fields(current.get("contact_hours") if current else None)
         return templates.TemplateResponse(
             request, "charger_site.html.j2",
