@@ -91,6 +91,7 @@ def test_admin_role_can_view_configuration_but_operator_cannot():
     from ocpp_reports.dashboard_auth import _ROLE_PERMISSIONS
     assert Permission.CONFIGURATION_VIEW in _ROLE_PERMISSIONS[Role.ADMIN]
     assert Permission.CONFIGURATION_VIEW not in _ROLE_PERMISSIONS[Role.OPERATOR]
+    assert Permission.CONFIGURATION_VIEW not in _ROLE_PERMISSIONS[Role.USER]
 
 
 def test_normal_csms_ingest_carries_snapshot_with_event_identity(tmp_path):
@@ -117,21 +118,73 @@ def test_normal_csms_ingest_carries_snapshot_with_event_identity(tmp_path):
         ingest_page(db, page)
 
 
-def test_configuration_page_selects_historical_versions_and_is_source_scoped(tmp_path):
+def test_configuration_page_selects_historical_versions_and_is_source_scoped(tmp_path, monkeypatch):
     from ocpp_reports.web import create_app
+    from ocpp_reports.dashboard_login import provision
+    from test_device_details import seed
+
     database = tmp_path / "warehouse.db"
-    _prepared_warehouse(database)
-    import_history_page(database, history(config(2), config(5, "400")), apply=True)
-    browser = TestClient(create_app(database, allowed_source_ids=("source-a",), timezones=("UTC",)))
-    newest = browser.get("/chargers/source-a/cp-1/configuration")
-    assert newest.status_code == 200
-    assert "400" in newest.text and "GetConfiguration" in newest.text
-    assert newest.headers["Cache-Control"] == "no-store"
-    older = browser.get("/chargers/source-a/cp-1/configuration?event_id=2")
-    assert older.status_code == 200 and "300" in older.text
-    assert browser.get("/chargers/source-b/cp-1/configuration").status_code == 404
-    assert browser.get("/chargers/source-a/other/configuration").status_code == 404
-    assert browser.get("/chargers/source-a/cp-1/configuration?event_id=999").status_code == 404
+    seed(database)  # source a / charger same, with a real device detail page
+    page = history(
+        {**config(2), "charger_id": "same"},
+        {**config(5, "400"), "charger_id": "same"},
+    )
+    page["data"]["source_id"] = "a"
+    import_history_page(database, page, apply=True)
+
+    configuration_url = "/chargers/a/same/configuration"
+    device_url = "/chargers/a/same"
+    # Without integrated login there is no application role, even if a
+    # reverse proxy uses Basic Auth. Configuration must fail closed.
+    legacy = TestClient(create_app(database, allowed_source_ids=("a",)))
+    assert legacy.get(configuration_url).status_code == 403
+    legacy_device = legacy.get(device_url)
+    assert legacy_device.status_code == 200
+    assert "/configuration?" not in legacy_device.text
+
+    auth = tmp_path / "auth.sqlite"
+    for name, role in (("administrator", "admin"),
+                       ("operator", "operator"), ("basic", "user")):
+        provision(auth, name, "test-password-long-enough", role, "tenant-a")
+    monkeypatch.setenv("OCPP_REPORTS_AUTH_DATABASE", str(auth))
+    monkeypatch.setenv("OCPP_REPORTS_AUTH_TENANT", "tenant-a")
+    app = create_app(database, allowed_source_ids=("a",), timezones=("UTC",))
+
+    def login(browser, username):
+        response = browser.post(
+            "/login", data={"username": username, "password": "test-password-long-enough"},
+            headers={"origin": "https://reports.example.test"}, follow_redirects=False,
+        )
+        assert response.status_code == 303
+
+    with TestClient(app, base_url="https://reports.example.test") as browser:
+        assert browser.get(configuration_url).status_code == 403
+        for username in ("operator", "basic"):
+            login(browser, username)
+            assert browser.get(configuration_url).status_code == 403
+            assert browser.get(configuration_url + "?event_id=2").status_code == 403
+            device = browser.get(device_url)
+            if username == "operator":
+                assert device.status_code == 200
+                assert "/configuration?" not in device.text
+            else:
+                assert device.status_code == 403
+            browser.post("/logout", follow_redirects=False)
+
+        login(browser, "administrator")
+        device = browser.get(device_url)
+        assert device.status_code == 200
+        assert "/chargers/a/same/configuration?" in device.text
+        newest = browser.get(configuration_url)
+        assert newest.status_code == 200
+        assert "400" in newest.text and "GetConfiguration" in newest.text
+        assert newest.headers["Cache-Control"] == "no-store"
+        older = browser.get(configuration_url + "?event_id=2")
+        assert older.status_code == 200 and "300" in older.text
+        assert browser.get("/chargers/b/same/configuration").status_code == 404
+        assert browser.get("/chargers/a/other/configuration").status_code == 404
+        assert browser.get(configuration_url + "?event_id=999").status_code == 404
+        assert "/configuration?" not in browser.get("/connectors/a/same/1").text
 
 
 def test_configuration_route_is_admin_only_by_explicit_auth_policy():
