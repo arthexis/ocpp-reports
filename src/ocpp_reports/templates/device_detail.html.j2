@@ -121,6 +121,7 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 <a class="back-link" style="position:absolute;left:1rem;top:-5rem" href="#content">Ir al contenido</a>
 <header><div>{% if brand_image_url %}<img class="brand-logo" src="{{ brand_image_url }}" alt="{{ title }}" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ title }}</h1>{% else %}<h1>{{ title }}</h1>{% endif %}<div class="note">Solo lectura · Estado y sesiones: refresco cada 5 s · {{ timezone }}</div></div>
 <div class="header-actions"><a class="back-link" href="/?tz={{ timezone|urlencode }}#connectors">← Dashboard</a>
+{% if has_config %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/configuration?tz={{ timezone|urlencode }}">Configuración</a>{% endif %}
 {% if selected_connector_id is none %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/report.csv?tz={{ timezone|urlencode }}" download>Descargar CSV</a>{% else %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}?tz={{ timezone|urlencode }}">Cargador completo</a>{% endif %}</div></header>
 <main id="content">
 <section aria-labelledby="device-title"><h2 class="identity" id="device-title">{% if selected_connector_id is none %}Cargador {{ charger_id }}{% else %}Cargador {{ charger_id }} · Conector {{ selected_connector_id }}{% endif %}</h2>
