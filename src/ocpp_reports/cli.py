@@ -9,6 +9,8 @@ from .models import ReportRequest
 from .mail_cli import app as mail_app
 from .config import DEFAULT_CONFIG, load_config
 
+app = typer.Typer(help="OCPP Reports operator CLI: inspect, ingest, run and deliver reports.", no_args_is_help=True)
+
 config_history_app = typer.Typer(help="Import existing sanitized GetConfiguration history, never query chargers.")
 app.add_typer(config_history_app, name="config-history")
 
@@ -30,7 +32,6 @@ def config_history_import(
         raise typer.Exit(2) from exc
     typer.echo(json.dumps({"scanned": count, "applied": apply}, sort_keys=True))
 
-app = typer.Typer(help="OCPP Reports operator CLI: inspect, ingest, run and deliver reports.", no_args_is_help=True)
 app.add_typer(mail_app, name="mail")
 from .dashboard_accounts_cli import app as dashboard_accounts_app
 app.add_typer(dashboard_accounts_app, name="accounts")
