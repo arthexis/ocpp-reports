@@ -31,13 +31,11 @@ def ensure_tables(db: sqlite3.Connection) -> None:
         site_id TEXT PRIMARY KEY, customer_id TEXT,
         location_name TEXT, address TEXT, branch_phone TEXT,
         contact_name TEXT, contact_phone TEXT, timezone TEXT,
-        contact_hours TEXT,
-        FOREIGN KEY(customer_id) REFERENCES {CUSTOMERS}(customer_id)
+        contact_hours TEXT
     )""")
     db.execute(f"""CREATE TABLE IF NOT EXISTS {ASSIGNMENTS} (
         source_id TEXT NOT NULL, charger_id TEXT NOT NULL, site_id TEXT NOT NULL,
-        PRIMARY KEY(source_id, charger_id),
-        FOREIGN KEY(site_id) REFERENCES {SITES}(site_id)
+        PRIMARY KEY(source_id, charger_id)
     )""")
     db.execute(f"CREATE INDEX IF NOT EXISTS idx_report_assignments_site ON {ASSIGNMENTS}(site_id)")
 
