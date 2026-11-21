@@ -26,11 +26,21 @@ def history(*snapshots, after=0, end=10):
                      "configuration_snapshots": list(snapshots)}}
 
 
+def _prepared_warehouse(database, cursor=27):
+    from ocpp_reports.warehouse.schema import _schema
+    with sqlite3.connect(database) as conn:
+        _schema(conn)
+        conn.execute("INSERT INTO sources(source_id,cursor) VALUES ('source-a',?)", (cursor,))
+
+
 def test_backfill_preview_and_apply_never_modify_source_cursor(tmp_path):
     database = tmp_path / "warehouse.db"
     page = history(config(2), config(5, "400"))
     assert import_history_page(database, page) == 2
     assert not database.exists()
+    with pytest.raises(ValueError, match="existing Reports warehouse"):
+        import_history_page(database, page, apply=True)
+    _prepared_warehouse(database)
     assert import_history_page(database, page, apply=True) == 2
     assert import_history_page(database, page, apply=True) == 2
     snapshots, more = list_snapshots(database, "source-a", "cp-1")
@@ -40,11 +50,13 @@ def test_backfill_preview_and_apply_never_modify_source_cursor(tmp_path):
     with sqlite3.connect(database) as db:
         assert db.execute("SELECT COUNT(*) FROM configuration_snapshots").fetchone()[0] == 2
         assert db.execute("SELECT COUNT(*) FROM replication_changes").fetchone()[0] == 2
-        assert db.execute("SELECT COUNT(*) FROM sources").fetchone()[0] == 0
+        assert db.execute("SELECT COUNT(*) FROM sources").fetchone()[0] == 1
+        assert db.execute("SELECT cursor FROM sources WHERE source_id='source-a'").fetchone()[0] == 27
 
 
 def test_conflict_and_unredacted_secrets_are_rejected(tmp_path):
     db = tmp_path / "warehouse.db"
+    _prepared_warehouse(db)
     assert import_history_page(db, history(config()), apply=True) == 1
     with pytest.raises(ValueError, match="Conflicting immutable"):
         import_history_page(db, history(config(value="other")), apply=True)
@@ -108,6 +120,7 @@ def test_normal_csms_ingest_carries_snapshot_with_event_identity(tmp_path):
 def test_configuration_page_selects_historical_versions_and_is_source_scoped(tmp_path):
     from ocpp_reports.web import create_app
     database = tmp_path / "warehouse.db"
+    _prepared_warehouse(database)
     import_history_page(database, history(config(2), config(5, "400")), apply=True)
     browser = TestClient(create_app(database, allowed_source_ids=("source-a",), timezones=("UTC",)))
     newest = browser.get("/chargers/source-a/cp-1/configuration")
