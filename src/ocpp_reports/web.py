@@ -726,6 +726,10 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         site_admin = connector_id is None and _can_edit_site(request)
         site_meta = (site_for_charger(warehouse, source_id, charger_id)
                      if site_admin else None)
+        if site_admin and site_meta is None:
+            # Unmigrated locations retain their display label and default contact hours.
+            site_meta = {"location_name": location if location != source_id else None,
+                         "hours_display": hours_display(None)}
         return templates.TemplateResponse(
             request, "device_detail.html.j2",
             {"title": title, "brand_image_url": brand_image_url, "source_id": source_id, "charger_id": charger_id,
