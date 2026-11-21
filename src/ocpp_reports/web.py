@@ -18,6 +18,7 @@ from .warehouse.active_sessions import is_active_session
 from .warehouse.event_groups import (event_groups_page, event_group_details,
                                      latest_heartbeat_at, latest_charger_receipt_at)
 from .warehouse.charger_energy import charger_energy_30_days
+from .warehouse.config_history import list_snapshots, one_snapshot
 from .warehouse.transaction_pagination import latest_completed_charges, connector_charge_counts
 from .warehouse.charger_csv import CSV_PROFILES, charger_transactions, render_charger_csv
 from .dashboard_login import dashboard_account_directory
@@ -678,6 +679,10 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         physical_connector_count = sum(
             type(row.get("connector_id")) is int and row["connector_id"] > 0
             for row in connectors)
+        has_config = False
+        if is_admin and connector_id is None:
+            has_config = bool(list_snapshots(
+                warehouse, source_id, charger_id, limit=1)[0])
         location = (next((row.get("location") for row in connectors if row.get("location")), None)
                     or next((row.get("location") for row in data["transactions"]
                              if row.get("location")), None) or source_id)
@@ -693,7 +698,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
              "timezones": zones, "tx_total": total, "tx_page": actual_page,
              "tx_pages": pages, "event_groups": event_groups,
              "event_page": event_page, "event_has_next": event_has_next,
-             "is_admin": is_admin},
+             "is_admin": is_admin, "has_config": has_config},
             headers={"Cache-Control": "no-store"})
 
     @app.get("/chargers/{source_id}/{charger_id}/report.csv")
@@ -726,6 +731,39 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                 "Cache-Control": "no-store",
                 "X-Content-Type-Options": "nosniff",
             })
+
+    @app.get("/chargers/{source_id}/{charger_id}/configuration", response_class=HTMLResponse)
+    def charger_config_history(
+        request: Request, source_id: str, charger_id: str,
+        tz: str | None = None, event_id: int | None = Query(None, ge=1),
+        page: int = Query(1, ge=1, le=1000),
+    ):
+        """Administrator-only, evidence-backed GetConfiguration history."""
+        principal = getattr(request.state, "principal", None)
+        if principal is not None and principal.role.value != "admin":
+            raise HTTPException(403, "Configuration history requires administrator access")
+        if (not source_id.strip() or not charger_id.strip()
+                or allowed_source_ids is not None and source_id not in allowed_source_ids):
+            raise HTTPException(404, "Configuration history not found")
+        zone = tz or zones[0]
+        if zone not in zones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
+        try:
+            versions, has_next = list_snapshots(
+                warehouse, source_id, charger_id, limit=25, offset=(page - 1) * 25)
+            selected = (one_snapshot(warehouse, source_id, charger_id, event_id)
+                        if event_id is not None else (versions[0] if versions else None))
+        except (ValueError, OSError, sqlite3.Error, json.JSONDecodeError) as exc:
+            raise HTTPException(503, "Configuration history unavailable") from exc
+        if selected is None:
+            raise HTTPException(404, "Configuration history not found")
+        return templates.TemplateResponse(
+            request, "charger_configuration.html.j2",
+            {"title": title, "source_id": source_id, "charger_id": charger_id,
+             "selected": selected, "versions": versions, "has_next": has_next,
+             "page": page, "timezone": zone},
+            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+        )
 
     @app.get("/chargers/{source_id}/{charger_id}", response_class=HTMLResponse)
     def charger_page(request: Request, source_id: str, charger_id: str,

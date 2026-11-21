@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..contracts.csms_export import validate_export
+from .config_history import insert_snapshot
 
 
 def load_page(path: str | Path) -> dict[str, Any]:
@@ -123,6 +124,8 @@ def ingest_page(database: str | Path, page: dict[str, Any], *, imported_at: str 
             if cursor["after"] < current and prior is None:
                 raise ValueError(f"Previously imported event {identity} is missing")
             db.execute("INSERT OR IGNORE INTO events VALUES (?,?,?)", (source, identity, encoded))
+        for configuration in data.get("configuration_snapshots", []):
+            insert_snapshot(db, source, configuration)
         page_event_ids = {event["id"] for event in data["events"]}
         for sample in data["energy"]:
             if sample["source_event_id"] not in page_event_ids:

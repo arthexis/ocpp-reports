@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configuración · {{ charger_id }} · {{ title }}</title>
+{% include "favicon_links.html.j2" %}
+<style>
+:root{color-scheme:light;--bg:#f5f7fa;--surface:#fff;--ink:#172437;--muted:#637286;--line:#e2e8f0;--nav:#203247;--accent:#1268c7;font:16px system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.5}
+a{color:var(--accent)}a:focus-visible,select:focus-visible,input:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+header{background:var(--nav);color:white;padding:1.2rem max(1.25rem,calc((100vw - 1200px)/2));display:flex;justify-content:space-between;gap:1rem;align-items:center;flex-wrap:wrap}
+header h1{font-size:1.3rem;margin:0}.header-actions a{color:white;display:inline-flex;border:1px solid #718096;border-radius:8px;min-height:44px;padding:.5rem .75rem;align-items:center;text-decoration:none}
+main{max-width:1200px;margin:auto;padding:1.25rem}section{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+h2{font-size:1.2rem;margin:0 0 .7rem}.muted{color:var(--muted)}.note{font-size:.87rem}
+.controls{display:flex;align-items:end;gap:.8rem;flex-wrap:wrap}.controls label{display:flex;flex:1;min-width:220px;flex-direction:column;gap:.4rem;font-weight:600}
+select,input,button{font:inherit;padding:.55rem;border-radius:8px;min-height:44px;border:1px solid var(--line)}
+button{background:var(--accent);color:#fff;cursor:pointer;border-color:var(--accent)}
+.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--line);padding:.7rem .55rem;overflow-wrap:anywhere}
+th{background:var(--bg)}td:first-child{font-weight:600}td:nth-child(2){overflow-wrap:anywhere;white-space:pre-wrap}
+.pages{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-top:1rem}
+.pages a{padding:.4rem .65rem;border:1px solid var(--line);border-radius:7px}
+@media(max-width:600px){main{padding:.8rem}section{padding:.8rem}th,td{font-size:.8rem;padding:.5rem .25rem}}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5}}
+</style></head><body>
+<header>
+  <h1>Configuración · {{ charger_id }}</h1>
+  <div class="header-actions"><a href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}?tz={{ timezone|urlencode }}">← Cargador</a></div>
+</header>
+<main>
+<section aria-labelledby="history-title">
+  <h2 id="history-title">Historial GetConfiguration</h2>
+  <p class="muted note">Solo lectura · Capturas almacenadas, sin consultar al cargador · Origen {{ source_id }}</p>
+  <form class="controls" method="get">
+    <input type="hidden" name="tz" value="{{ timezone }}">
+    <input type="hidden" name="page" value="{{ page }}">
+    <label>Captura histórica
+      <select name="event_id">
+      {% for item in versions %}
+        <option value="{{ item.source_event_id }}" {% if item.source_event_id == selected.source_event_id %}selected{% endif %}>
+          {{ item.at|display_date(timezone) }} · Evento {{ item.source_event_id }} · {{ 'Completa' if item.coverage == 'full' else 'Parcial' if item.coverage == 'partial' else 'Alcance desconocido' }}
+        </option>
+      {% endfor %}
+      {% if selected.source_event_id not in versions|map(attribute='source_event_id')|list %}
+        <option value="{{ selected.source_event_id }}" selected>{{ selected.at|display_date(timezone) }} · Evento {{ selected.source_event_id }}</option>
+      {% endif %}
+      </select>
+    </label>
+    <button type="submit">Ver captura</button>
+  </form>
+  <div class="pages">
+    {% if page > 1 %}<a href="?tz={{ timezone|urlencode }}&page={{ page - 1 }}">Más recientes</a>{% endif %}
+    <span>Página {{ page }}</span>
+    {% if has_next %}<a href="?tz={{ timezone|urlencode }}&page={{ page + 1 }}">Más antiguas</a>{% endif %}
+    <a href="?tz={{ timezone|urlencode }}">Última captura</a>
+  </div>
+</section>
+<section aria-labelledby="snapshot-title">
+  <h2 id="snapshot-title">Captura del {{ selected.at|display_date(timezone) }}</h2>
+  <p class="note muted">Evento #{{ selected.source_event_id }} ·
+    {% if selected.coverage == 'full' %}Solicitud de todas las claves
+    {% elif selected.coverage == 'partial' %}Solicitud de claves específicas
+    {% else %}No se pudo determinar el alcance original{% endif %}
+  </p>
+  <label for="key-filter">Buscar parámetro</label>
+  <input id="key-filter" type="search" placeholder="Nombre de clave" autocomplete="off">
+  <div class="scroll" role="region" aria-label="Valores de configuración" tabindex="0">
+    <table id="keys"><thead><tr><th>Clave</th><th>Valor</th><th>Solo lectura</th></tr></thead>
+      <tbody>{% for row in selected.configuration %}
+        <tr><td>{{ row.key }}</td><td>{{ row.value if row.value is not none else '—' }}</td><td>{{ 'Sí' if row.readonly else 'No' }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+  {% if selected.unknown %}<h3>Claves desconocidas</h3>
+  <ul>{% for key in selected.unknown %}<li>{{ key }}</li>{% endfor %}</ul>{% endif %}
+</section>
+</main>
+<script>
+(() => {
+  const input = document.getElementById('key-filter');
+  const rows = Array.from(document.querySelectorAll('#keys tbody tr'));
+  input.addEventListener('input', () => {
+    const text = input.value.trim().toLocaleLowerCase();
+    rows.forEach(row => { row.hidden = !row.cells[0].textContent.toLocaleLowerCase().includes(text); });
+  });
+})();
+</script>
+</body></html>

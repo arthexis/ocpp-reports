@@ -21,6 +21,13 @@ def ensure_collector_schema(db: sqlite3.Connection) -> None:
         # Historical MeterValues are not latest-state projections. Preserve
         # original sample identity; the secondary index bounds source/transaction
         # lookups without scanning other customers' evidence.
+        db.execute("""CREATE TABLE IF NOT EXISTS collector_configuration_snapshots (
+            source_id TEXT NOT NULL, charger_id TEXT NOT NULL,
+            source_event_id INTEGER NOT NULL, at TEXT NOT NULL, payload TEXT NOT NULL,
+            PRIMARY KEY(source_id,source_event_id)
+        )""")
+        db.execute("""CREATE INDEX IF NOT EXISTS idx_collector_config_charger
+            ON collector_configuration_snapshots(source_id,charger_id,source_event_id DESC)""")
         db.execute("""CREATE TABLE IF NOT EXISTS collector_meter_samples (
             source_id TEXT NOT NULL, event_id INTEGER NOT NULL,
             sample_index INTEGER NOT NULL, charger_id TEXT NOT NULL,

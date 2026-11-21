@@ -19,6 +19,7 @@ class Permission(StrEnum):
     TRANSACTIONS_VIEW = "transactions.view"
     CONNECTORS_VIEW = "connectors.view"
     EVENTS_VIEW = "events.view"
+    CONFIGURATION_VIEW = "configuration.view"
     SOURCES_VIEW = "sources.view"
     USERS_MANAGE = "users.manage"
     OWN_SESSION_VIEW = "charging_session.own_view"

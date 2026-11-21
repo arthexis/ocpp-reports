@@ -10,6 +10,28 @@ from .mail_cli import app as mail_app
 from .config import DEFAULT_CONFIG, load_config
 
 app = typer.Typer(help="OCPP Reports operator CLI: inspect, ingest, run and deliver reports.", no_args_is_help=True)
+
+config_history_app = typer.Typer(help="Import existing sanitized GetConfiguration history, never query chargers.")
+app.add_typer(config_history_app, name="config-history")
+
+
+@config_history_app.command("import")
+def config_history_import(
+    page_file: Path = typer.Option(..., "--page", help="CSMS --config-history -j JSON page"),
+    database: Path = typer.Option(..., "--database", help="Reports warehouse SQLite"),
+    apply: bool = typer.Option(False, "--apply", help="Insert immutable snapshots; default is dry-run"),
+) -> None:
+    """Explicit bounded backfill, independent of the ordinary event cursor."""
+    from .warehouse.config_history import import_history_page
+    try:
+        with page_file.open("r", encoding="utf-8") as stream:
+            page = json.load(stream)
+        count = import_history_page(database, page, apply=apply)
+    except (OSError, ValueError, sqlite3.Error, json.JSONDecodeError) as exc:
+        typer.echo(f"Configuration history import refused: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    typer.echo(json.dumps({"scanned": count, "applied": apply}, sort_keys=True))
+
 app.add_typer(mail_app, name="mail")
 from .dashboard_accounts_cli import app as dashboard_accounts_app
 app.add_typer(dashboard_accounts_app, name="accounts")

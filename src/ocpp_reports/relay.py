@@ -75,6 +75,18 @@ def relay_once(database: Path, state: Path, source_id: str, endpoint: str,
     if owned:
         client = httpx.Client(timeout=10, follow_redirects=False)
     try:
+        historical = {change["kind"] for change in batch["changes"]} & {"config_snapshot"}
+        if historical:
+            if not endpoint.rstrip("/").endswith("/api/replication"):
+                raise ValueError("Historical relay requires an explicit collector endpoint")
+            ready = client.post(endpoint.rstrip("/") + "/ready",
+                                json={"source_id": source_id, "capabilities": sorted(historical)},
+                                headers={"Authorization": "Bearer " + token})
+            ready.raise_for_status()
+            detail = ready.json()
+            if (detail.get("source_id") != source_id or detail.get("ready") is not True
+                    or not historical <= set(detail.get("supported_kinds", []))):
+                raise ValueError("Destination Collector lacks configuration history support")
         response = client.post(endpoint, json=batch,
                                headers={"Authorization": "Bearer " + token})
         response.raise_for_status()
