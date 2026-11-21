@@ -752,9 +752,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             versions, has_next = list_snapshots(
                 warehouse, source_id, charger_id, limit=25, offset=(page - 1) * 25)
             selected = (one_snapshot(warehouse, source_id, charger_id, event_id)
-                        if event_id is not None else
-                        list_snapshots(warehouse, source_id, charger_id, limit=1)[0])
-            selected = selected if isinstance(selected, dict) else selected[0] if selected else None
+                        if event_id is not None else (versions[0] if versions else None))
         except (ValueError, OSError, sqlite3.Error, json.JSONDecodeError) as exc:
             raise HTTPException(503, "Configuration history unavailable") from exc
         if selected is None:
