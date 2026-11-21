@@ -79,6 +79,7 @@ header{align-items:start;gap:.65rem}
 .events-panel details[open] summary{padding-bottom:.5rem}
 .events-panel .scroll{max-height:340px;overflow:auto}
 .transactions-panel .scroll{max-width:100%}
+.transactions-panel .session-soc{white-space:nowrap}
 @media(max-width:1100px){.header-filters{width:100%;justify-content:start}.dashboard-grid{grid-template-columns:1fr}.dashboard-grid section,.dashboard-grid .connectors-panel,.dashboard-grid .transactions-panel,.dashboard-grid .events-panel,.dashboard-grid .sync-panel,.dashboard-grid .users-panel{grid-column:1}}
 @media(max-width:700px){.header-filters{flex-wrap:wrap}.header-filters label{flex:1 1 100%}.header-filters .unified-filter{width:100%;min-width:0}.header-filters .filter-caption{display:none}}
 /* Narrow phones: trim vertical chrome without reducing the search touch target. */
@@ -249,16 +250,15 @@ header{align-items:start;gap:.65rem}
   .connectors-panel td:nth-child(1),.connectors-panel td:nth-child(4){white-space:normal;overflow-wrap:anywhere}
   .transactions-panel th,.transactions-panel td{padding:.65rem .45rem}
   .transactions-panel th:nth-child(2),.transactions-panel tbody td:nth-child(2),
-  .transactions-panel th:nth-child(5),.transactions-panel tbody td:nth-child(5),
+  .transactions-panel th:nth-child(6),.transactions-panel tbody td:nth-child(6),
   .transactions-panel th:nth-child(8),.transactions-panel tbody td:nth-child(8),
   .transactions-panel th:nth-child(9),.transactions-panel tbody td:nth-child(9){display:none}
 }
-/* The main dashboard is a summary on phones. Keep the identity/detail link,
+/* The main dashboard is a summary on phones. Keep connector, session link,
    status, end time and energy; hide secondary history/SoC columns only here. */
 @media(max-width:520px){
   .transactions-panel th:nth-child(1),.transactions-panel tbody td:nth-child(1),
-  .transactions-panel th:nth-child(5),.transactions-panel tbody td:nth-child(5),
-  .transactions-panel th:nth-child(7),.transactions-panel tbody td:nth-child(7),
+  .transactions-panel th:nth-child(6),.transactions-panel tbody td:nth-child(6),
   .transactions-panel th:nth-child(8),.transactions-panel tbody td:nth-child(8),
   .transactions-panel th:nth-child(9),.transactions-panel tbody td:nth-child(9){display:none}
   .transactions-panel th,.transactions-panel td{padding:.5rem .3rem}
@@ -328,10 +328,9 @@ header{align-items:start;gap:.65rem}
 <span aria-hidden="true">|</span>
 <button type="button" data-tx-view="all" aria-pressed="{{ 'true' if tx_view == 'all' else 'false' }}" class="{{ 'selected' if tx_view == 'all' else '' }}">Todas ({{ transaction_counts["all"] }})</button>
 </div></div>
-<div class="scroll" tabindex="0" role="region" aria-label="Tabla de transacciones recientes"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>ID</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Duración</th><th title="Primera lectura SoC recibida">SoC inicial</th><th title="Última lectura SoC recibida; no necesariamente al detener">SoC último</th><th>Energía de sesión</th></tr></thead><tbody>
-{% for t in data.transactions %}<tr><td>{{ t.location }}</td><td>{{ t.charger_id }}</td><td><a href="/transactions/{{ t.source_id|urlencode }}/{{ t.charger_id|urlencode }}/{{ t.id }}?tz={{ timezone|urlencode }}&return_to={{ ('/?' ~ (request.url.query if request is defined else '') ~ '#transactions')|urlencode }}" aria-label="Ver detalles de transacción {{ t.id }}">{{ t.id }}</a></td><td><span class="status {{ 'status--active' if (t.state or '')|lower in ['open', 'active', 'charging'] else 'status--ok' if (t.state or '')|lower in ['closed', 'stopped', 'completed'] else '' }}">{{ t.state or "Desconocido" }}</span></td><td>{{ t.started_at|display_date(timezone) }}</td><td>{{ t.stopped_at|display_date(timezone) if t.stopped_at else "Activa / sin cierre" }}</td><td>{{ t.started_at|session_duration(t.stopped_at) }}</td>
-<td class="numeric">{{ (t.soc_start|string ~ '%') if t.soc_start is defined and t.soc_start is not none else '—' }}</td>
-<td class="numeric">{{ (t.soc_end|string ~ '%') if t.soc_end is defined and t.soc_end is not none else '—' }}</td>
+<div class="scroll" tabindex="0" role="region" aria-label="Tabla de transacciones recientes"><table><thead><tr><th>Ubicación</th><th>Cargador</th><th>Conector</th><th>ID</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Duración</th><th title="Primera y última lectura SoC recibidas; la última no necesariamente corresponde al cierre">SoC %</th><th>Energía de sesión</th></tr></thead><tbody>
+{% for t in data.transactions %}<tr><td>{{ t.location }}</td><td>{{ t.charger_id }}</td><td>{% if t.connector_id is defined and t.connector_id is integer and t.connector_id >= 0 %}<a href="/connectors/{{ t.source_id|urlencode }}/{{ t.charger_id|urlencode }}/{{ t.connector_id }}?tz={{ timezone|urlencode }}" aria-label="Ver conector {{ t.connector_id }} del cargador {{ t.charger_id }}">{{ t.connector_id }}</a>{% else %}—{% endif %}</td><td><a href="/transactions/{{ t.source_id|urlencode }}/{{ t.charger_id|urlencode }}/{{ t.id }}?tz={{ timezone|urlencode }}&return_to={{ ('/?' ~ (request.url.query if request is defined else '') ~ '#transactions')|urlencode }}" aria-label="Ver detalles de transacción {{ t.id }}">{{ t.id }}</a></td><td><span class="status {{ 'status--active' if (t.state or '')|lower in ['open', 'active', 'charging'] else 'status--ok' if (t.state or '')|lower in ['closed', 'stopped', 'completed'] else '' }}">{{ t.state or "Desconocido" }}</span></td><td>{{ t.started_at|display_date(timezone) }}</td><td>{{ t.stopped_at|display_date(timezone) if t.stopped_at else "Activa / sin cierre" }}</td><td>{{ t.started_at|session_duration(t.stopped_at) }}</td>
+<td class="numeric session-soc">{{ (t.soc_start|string ~ '%') if t.soc_start is defined and t.soc_start is not none else '—' }} - {{ (t.soc_end|string ~ '%') if t.soc_end is defined and t.soc_end is not none else '—' }}</td>
 <td class="numeric">{% if t.energy_wh is defined and t.energy_wh is not none %}{{ "%.2f"|format(t.energy_wh / 1000) }} kWh{% elif t.live_energy_wh is defined and t.live_energy_wh is not none and t.active %}{{ "%.2f"|format(t.live_energy_wh / 1000) }} kWh <span class="{{ 'stale' if t.live_energy_stale else 'muted' }}">(estimada{% if t.live_energy_stale %}, antigua{% else %}, en vivo{% endif %})</span><div class="note muted">Medición: {{ t.live_energy_observed_at|display_date(timezone) if t.live_energy_observed_at else "Sin fecha" }}</div>{% elif t.active %}Final pendiente · estimación no disponible{% else %}—{% endif %}</td></tr>
 {% else %}<tr><td class="empty" colspan="10">Sin transacciones</td></tr>{% endfor %}</tbody></table></div><nav class="transaction-pagination" aria-label="Páginas de transacciones">
 <span class="muted note">Mostrando {{ ((tx_page - 1) * 10 + 1) if tx_total else 0 }}–{{ [tx_page * 10, tx_total]|min }} de {{ tx_total }} transacciones recientes</span>
