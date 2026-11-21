@@ -157,7 +157,7 @@ def _site_query(db: sqlite3.Connection, clause: str, args: tuple) -> dict | None
     value = dict(row)
     value["hours_display"] = hours_display(value["contact_hours"])
     value["map_url"] = ("https://www.google.com/maps/search/?api=1&query="
-                        + quote(value["address"])) if value["address"] else None
+                        + quote(value["address"], safe="")) if value["address"] else None
     value["branch_tel"] = "tel:" + value["branch_phone"] if value["branch_phone"] else None
     value["contact_tel"] = "tel:" + value["contact_phone"] if value["contact_phone"] else None
     return value
@@ -241,6 +241,12 @@ def save_site(database: Path, source_id: str, charger_id: str, fields: dict,
         customer_id = prior["customer_id"] if prior else None
         if customer_name:
             if customer_id:
+                # Updating a shared customer's name affects every linked site.
+                # Deny a scoped admin if any linked site is outside their scope.
+                related = [row[0] for row in db.execute(
+                    f"SELECT site_id FROM {SITES} WHERE customer_id=?", (customer_id,))]
+                if not all(_authorized_site(db, item, allowed_source_ids) for item in related):
+                    raise PermissionError("Shared customer is outside administrative scope")
                 db.execute(f"UPDATE {CUSTOMERS} SET customer_name=? WHERE customer_id=?",
                            (customer_name, customer_id))
             else:
