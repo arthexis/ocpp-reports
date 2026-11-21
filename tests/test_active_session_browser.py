@@ -154,10 +154,24 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 boxes = [cards.nth(i).bounding_box() for i in range(3)]
                 assert all(box is not None for box in boxes)
                 if mobile:
-                    assert boxes[0]["y"] < boxes[1]["y"] < boxes[2]["y"]
+                    assert boxes[0]["y"] < boxes[1]["y"]
+                    assert abs(boxes[1]["y"] - boxes[2]["y"]) < 3
+                    assert boxes[1]["x"] < boxes[2]["x"]
                 else:
                     assert max(box["y"] for box in boxes) - min(box["y"] for box in boxes) < 3
                     assert boxes[0]["x"] < boxes[1]["x"] < boxes[2]["x"]
+                # Session metadata uses two columns on phones/tablets, three on wide screens.
+                fields = page.locator("#transaction-session-data dl > div")
+                assert fields.count() == 6
+                field_boxes = [fields.nth(i).bounding_box() for i in range(4)]
+                assert all(field_boxes)
+                assert abs(field_boxes[0]["y"] - field_boxes[1]["y"]) < 3
+                if mobile:
+                    assert field_boxes[2]["y"] > field_boxes[1]["y"]
+                else:
+                    assert abs(field_boxes[1]["y"] - field_boxes[2]["y"]) < 3
+                    assert field_boxes[3]["y"] > field_boxes[2]["y"]
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
                 assert page.locator("#transaction-power").count() == 0
                 assert page.locator("#transaction-timeline h2").count() == 0
                 assert page.locator(".back-link").bounding_box()["height"] >= 44
@@ -320,7 +334,7 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                 assert first and second
                 assert abs(first["y"] - second["y"]) <= 2
                 assert second["x"] > first["x"]
-                assert first["width"] < second["width"], (width, first, second)
+                assert second["width"] >= first["width"] * 1.8, (width, first, second)
                 assert card.evaluate("(el) => parseFloat(getComputedStyle(el).columnGap)") <= 5
                 label_size = short.evaluate(
                     "(el) => parseFloat(getComputedStyle(el, '::before').fontSize)")
