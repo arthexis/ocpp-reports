@@ -333,8 +333,20 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                 first, second = short.bounding_box(), wide.bounding_box()
                 assert first and second
                 assert abs(first["y"] - second["y"]) <= 2
-                assert second["x"] > first["x"]
+                assert first["x"] > second["x"], (width, first, second)
                 assert second["width"] >= first["width"] * 1.8, (width, first, second)
+                # Left now holds the former right-hand fields; each group's row order is unchanged.
+                left = ("Ubicación", "Cargador", "Estado", "Recibido")
+                right = ("Conector", "Conectado", "Potencia", "Medidor")
+                for row, (left_name, right_name) in enumerate(zip(left, right)):
+                    left_box = card.locator(f'td[data-label="{left_name}"]').bounding_box()
+                    right_box = card.locator(f'td[data-label="{right_name}"]').bounding_box()
+                    assert left_box and right_box, (width, left_name, right_name)
+                    assert abs(left_box["y"] - right_box["y"]) < 3, (width, left_name, right_name)
+                    assert left_box["x"] < right_box["x"], (width, left_name, right_name)
+                    if row:
+                        prev = card.locator(f'td[data-label="{left[row-1]}"]').bounding_box()
+                        assert prev and left_box["y"] > prev["y"], (width, left_name)
                 assert card.evaluate("(el) => parseFloat(getComputedStyle(el).columnGap)") <= 5
                 label_size = short.evaluate(
                     "(el) => parseFloat(getComputedStyle(el, '::before').fontSize)")
