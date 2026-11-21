@@ -26,7 +26,11 @@ def test_mobile_filter_profile_share_row_and_connector_cards_use_two_columns(das
     assert ".header-filters{flex:1 1 0;width:auto;min-width:0;flex-wrap:nowrap}" in mobile
     assert ".profile-menu summary{min-width:44px;min-height:44px}" in mobile
     assert ".profile-menu{flex:0 0 auto;margin-left:.15rem}" in mobile
-    assert ".connectors-panel tbody tr{display:grid;grid-template-columns:minmax(0,.68fr) minmax(0,1.32fr)" in mobile
+    assert ".connectors-panel tbody tr{display:grid;grid-template-columns:minmax(0,1.32fr) minmax(0,.68fr)" in mobile
+    for row, name in enumerate(("Ubicación", "Cargador", "Estado", "Recibido"), 1):
+        assert f'.connectors-panel td[data-label="{name}"]{{grid-area:{row}/1' in mobile
+    for row, name in enumerate(("Conector", "Conectado", "Potencia", "Medidor"), 1):
+        assert f'.connectors-panel td[data-label="{name}"]{{grid-area:{row}/2' in mobile
     assert ".connectors-panel td{display:flex;flex-direction:column;" in mobile
     assert ".connectors-panel td.empty{grid-column:1/-1;grid-row:auto}" in mobile
     assert '<th>Recibido</th>' in source
