@@ -336,8 +336,8 @@ def test_offline_chromium_mobile_profile_and_connector_grid(tmp_path):
                 assert first["x"] > second["x"], (width, first, second)
                 assert second["width"] >= first["width"] * 1.8, (width, first, second)
                 # Left now holds the former right-hand fields; each group's row order is unchanged.
-                left = ("Ubicación", "Cargador", "Estado", "Recibido")
-                right = ("Conector", "Conectado", "Potencia", "Medidor")
+                left = ("Ubicación", "Cargador", "Estado", "Medidor")
+                right = ("Conector", "Potencia", "Conectado", "Recibido")
                 for row, (left_name, right_name) in enumerate(zip(left, right)):
                     left_box = card.locator(f'td[data-label="{left_name}"]').bounding_box()
                     right_box = card.locator(f'td[data-label="{right_name}"]').bounding_box()
