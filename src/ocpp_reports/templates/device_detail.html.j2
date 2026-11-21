@@ -114,6 +114,16 @@ th{background:#f6f8fb;color:#34455a;font-weight:650}.numeric{text-align:right;fo
 .pages{display:flex;gap:.7rem;align-items:center;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
 .pages a,.pages span{padding:.35rem .65rem;border:1px solid var(--line);border-radius:7px}
 button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:pointer;padding:.55rem .8rem;min-height:44px;font:inherit}
+.site-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem 1rem;margin-bottom:1rem}
+.site-field{min-width:0;border-bottom:1px solid var(--line);padding:.5rem .2rem}
+.site-field dt{font-size:.8rem;font-weight:650;margin-bottom:.2rem}
+.site-field dd{font-size:.95rem;white-space:normal;overflow-wrap:anywhere;line-height:1.5}
+.site-actions{display:flex;flex-wrap:wrap;gap:.55rem}
+.site-actions a{display:inline-flex;align-items:center;min-height:44px;border:1px solid var(--line);
+padding:.55rem .8rem;border-radius:8px;text-decoration:none;font-weight:650}
+.site-actions a:hover,.site-actions a:focus-visible{text-decoration:underline}
+@media(max-width:700px){.site-grid{grid-template-columns:1fr;gap:.2rem}.site-actions{flex-direction:column}
+.site-actions a{width:100%;justify-content:center}}
 @media(max-width:800px){.grid{grid-template-columns:1fr}main{padding:1rem .75rem}section{padding:1rem}header{padding:1rem}}
 @media(max-width:520px){.connector-list{grid-template-columns:1fr}header h1{font-size:1.12rem}table{font-size:.78rem}th,td{padding:.55rem .45rem}}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}th{background:#263647;color:#d7e5f5}.status{background:#354657;color:#e1e9f3}}
@@ -221,6 +231,33 @@ button{background:var(--accent);color:white;border:0;border-radius:8px;cursor:po
 <span aria-current="page">{{ event_page }}</span>
 {% if event_has_next %}<a rel="next" href="{{ request.url.include_query_params(event_page=event_page+1) }}#events">Siguiente</a>{% endif %}
 </nav></section>
+{% endif %}
+{% if site_admin %}
+<section id="site-details" aria-labelledby="site-details-title">
+<h2 id="site-details-title">Datos de ubicación</h2>
+{% if site_meta %}
+<dl class="site-grid">
+{% for label, value in [
+  ('Cliente', site_meta.customer_name),
+  ('Ubicación', site_meta.location_name),
+  ('Dirección', site_meta.address),
+  ('Teléfono de sucursal', site_meta.branch_phone),
+  ('Nombre del contacto', site_meta.contact_name),
+  ('Teléfono del contacto', site_meta.contact_phone),
+  ('Horario de atención', site_meta.hours_display)
+] %}
+{% if value and value|string|trim %}
+<div class="site-field"><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+{% endif %}
+{% endfor %}
+</dl>
+{% endif %}
+<div class="site-actions">
+{% if site_meta and site_meta.map_url %}<a href="{{ site_meta.map_url }}" target="_blank" rel="noopener noreferrer">Abrir mapa</a>{% endif %}
+{% if site_meta and site_meta.branch_tel %}<a href="{{ site_meta.branch_tel }}">Llamar a sucursal</a>{% endif %}
+{% if site_meta and site_meta.contact_tel %}<a href="{{ site_meta.contact_tel }}">Llamar al contacto</a>{% endif %}
+<a href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/site">Editar ubicación</a>
+</div></section>
 {% endif %}
 </main>
 {% if selected_connector_id is none %}
