@@ -73,7 +73,7 @@ def test_tablet_header_and_tables_preserve_mobile_and_desktop_semantics(dashboar
     for column in (2, 6, 7, 8, 9):
         assert f".connectors-panel th:nth-child({column})" in tablet
         assert f".connectors-panel td:nth-child({column})" in tablet
-    for column in (2, 5, 8, 9):
+    for column in (2, 6, 8, 9):
         assert f".transactions-panel th:nth-child({column})" in tablet
         assert f".transactions-panel tbody td:nth-child({column})" in tablet
     wide_tablet = css.split("/* Power is useful at tablet widths", 1)[1]
@@ -88,7 +88,7 @@ def test_tablet_header_and_tables_preserve_mobile_and_desktop_semantics(dashboar
     assert '<p class="note" id="transaction-history-help">' not in source
     assert '<th>Inicio</th>' in source  # hidden in tablet/mobile
     assert ".transactions-panel th:nth-child(1),.transactions-panel tbody td:nth-child(1)," in source
-    assert ".transactions-panel th:nth-child(7),.transactions-panel tbody td:nth-child(7)," in source
+    assert ".transactions-panel th:nth-child(6),.transactions-panel tbody td:nth-child(6)," in source
     assert "Mostrando {{ ((tx_page - 1) * 10 + 1)" in source
     assert '<td data-label="Cargador"' in source  # retained for mobile/desktop
 
