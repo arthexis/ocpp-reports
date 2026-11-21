@@ -756,8 +756,8 @@ def test_charger_energy_toggle_and_mobile_session_columns_offline(tmp_path):
                 assert page.url.endswith("/chargers/a/cp?tz=UTC")
                 page.goto("http://reports.test/?tx_view=all&source_id=a&tz=UTC", wait_until="load")
                 assert page.locator(".transactions-panel tbody tr").count() > 0
-                hidden = (1, 2, 6, 8, 9)
-                shown = (3, 4, 5, 7, 10)
+                hidden = (1, 6, 8, 9)
+                shown = (2, 3, 4, 5, 7, 10)
                 for index in hidden:
                     assert page.locator(f".transactions-panel thead th:nth-child({index})").is_visible() != mobile
                 for index in shown:
