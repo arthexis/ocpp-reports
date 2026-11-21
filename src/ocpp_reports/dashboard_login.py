@@ -122,6 +122,16 @@ def route_permission(path, method):
         return Permission.TRANSACTIONS_VIEW
     if method == "GET" and path.startswith("/transactions/") and len(path.split("/")) == 5 and all(path.split("/")[1:]):
         return Permission.TRANSACTIONS_VIEW
+    # Sensitive site contact details and writes require integrated admin login.
+    # This is checked again against source scope and tenant inside the handlers.
+    segments = path.split("/")
+    if len(segments) >= 5 and segments[1] == "chargers" and all(segments[2:4]):
+        if (len(segments) == 5 and segments[4] == "site"
+                and method in ("GET", "POST")):
+            return Permission.USERS_MANAGE
+        if (len(segments) == 6 and segments[4:] == ["site", "assign"]
+                and method == "POST"):
+            return Permission.USERS_MANAGE
     # Device detail pages reuse existing connector-read permission; accept only
     # exact route shapes, never arbitrary subpaths or write methods.
     if method == "GET":

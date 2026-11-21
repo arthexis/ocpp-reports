@@ -261,6 +261,26 @@ def snapshot(database: Path, *, source_id: str | None = None, charger_id: str | 
                 + scope, arguments
             ):
                 locations[(row["source_id"], row["charger_id"])] = row["location"]
+        # Optional administrator-maintained shared sites override only the
+        # presentation location label, not the underlying OCPP evidence.
+        if {"report_sites", "report_site_assignments"}.issubset(tables):
+            statement = ("""SELECT a.source_id,a.charger_id,s.location_name
+                FROM report_site_assignments a
+                JOIN report_sites s ON s.site_id=a.site_id
+                WHERE s.location_name IS NOT NULL AND TRIM(s.location_name)<>''""")
+            values = []
+            if allowed_source_ids is not None:
+                statement += " AND a.source_id IN (" + ",".join(
+                    "?" for _ in allowed_source_ids) + ")"
+                values.extend(allowed_source_ids)
+            if source_id is not None:
+                statement += " AND a.source_id=?"
+                values.append(source_id)
+            if charger_id is not None:
+                statement += " AND a.charger_id=?"
+                values.append(charger_id)
+            for row in db.execute(statement, values):
+                locations[(row["source_id"], row["charger_id"])] = row["location_name"]
         # Overlay ratings by source+charger+connector, preserving independent
         # customer scopes and never substituting nominal values for power_w.
         pagination_result = None
