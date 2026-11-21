@@ -23,7 +23,7 @@ from .warehouse.transaction_pagination import latest_completed_charges, connecto
 from .warehouse.charger_csv import CSV_PROFILES, charger_transactions, render_charger_csv
 from .dashboard_login import dashboard_account_directory
 from .dashboard_auth import Permission, authorized
-from .site_metadata import (site_for_charger, editable_sites, save_site,
+from .site_metadata import (site_for_charger, editable_sites, editable_customers, save_site,
                             assign_site, hours_fields, DAYS, DAY_NAMES, hours_display)
 import sqlite3
 import json
@@ -822,7 +822,8 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             request, "charger_site.html.j2",
             {"title": title, "source_id": source_id, "charger_id": charger_id,
              "site": current or {}, "days": list(zip(DAYS, DAY_NAMES)),
-             "hours": details, "other_sites": editable_sites(warehouse, allowed_source_ids)},
+             "hours": details, "other_sites": editable_sites(warehouse, allowed_source_ids),
+             "customers": editable_customers(warehouse, allowed_source_ids)},
             headers={"Cache-Control": "no-store"})
 
     @app.post("/chargers/{source_id}/{charger_id}/site")
