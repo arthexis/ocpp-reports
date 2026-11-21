@@ -79,3 +79,50 @@ def test_admin_role_can_view_configuration_but_operator_cannot():
     from ocpp_reports.dashboard_auth import _ROLE_PERMISSIONS
     assert Permission.CONFIGURATION_VIEW in _ROLE_PERMISSIONS[Role.ADMIN]
     assert Permission.CONFIGURATION_VIEW not in _ROLE_PERMISSIONS[Role.OPERATOR]
+
+
+def test_normal_csms_ingest_carries_snapshot_with_event_identity(tmp_path):
+    from ocpp_reports.warehouse.ingestion import ingest_page
+    db = tmp_path / "warehouse.db"
+    page = {"schema": "ocpp-csms/export/v1",
+            "data": {"source_id": "source-a",
+                     "cursor": {"after": 0, "next": 2, "more": False},
+                     "events": [
+                         {"id": 1, "at": "2026-11-20T18:40:00+00:00", "charger_id": "cp-1",
+                          "action": "GetConfiguration", "kind": "ocpp", "direction": "out"},
+                         {"id": 2, "at": "2026-11-20T18:42:00+00:00", "charger_id": "cp-1",
+                          "action": "GetConfiguration", "kind": "ocpp", "direction": "in"}],
+                     "energy": [], "transactions": [], "status": {"chargers": []},
+                     "configuration_snapshots": [config()]}}
+    assert ingest_page(db, page) == 2
+    assert ingest_page(db, page) == 2
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT cursor FROM sources WHERE source_id='source-a'").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM configuration_snapshots").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM replication_changes WHERE kind='config_snapshot'").fetchone()[0] == 1
+    page["data"]["configuration_snapshots"][0]["source_event_id"] = 1
+    with pytest.raises(ValueError, match="source event evidence"):
+        ingest_page(db, page)
+
+
+def test_configuration_page_selects_historical_versions_and_is_source_scoped(tmp_path):
+    from ocpp_reports.web import create_app
+    database = tmp_path / "warehouse.db"
+    import_history_page(database, history(config(2), config(5, "400")), apply=True)
+    browser = TestClient(create_app(database, allowed_source_ids=("source-a",), timezones=("UTC",)))
+    newest = browser.get("/chargers/source-a/cp-1/configuration")
+    assert newest.status_code == 200
+    assert "400" in newest.text and "GetConfiguration" in newest.text
+    assert newest.headers["Cache-Control"] == "no-store"
+    older = browser.get("/chargers/source-a/cp-1/configuration?event_id=2")
+    assert older.status_code == 200 and "300" in older.text
+    assert browser.get("/chargers/source-b/cp-1/configuration").status_code == 404
+    assert browser.get("/chargers/source-a/other/configuration").status_code == 404
+    assert browser.get("/chargers/source-a/cp-1/configuration?event_id=999").status_code == 404
+
+
+def test_configuration_route_is_admin_only_by_explicit_auth_policy():
+    from ocpp_reports.dashboard_login import route_permission
+    assert route_permission("/chargers/source-a/cp-1/configuration", "GET") == Permission.CONFIGURATION_VIEW
+    assert route_permission("/chargers/source-a/cp-1/configuration", "POST") is None
+    assert route_permission("/chargers/source-a/cp-1/configuration/extra", "GET") is None
