@@ -28,7 +28,7 @@ def _secret_key(key: str) -> bool:
 
 def validate_snapshot(item: Any) -> dict[str, Any]:
     """Fail closed before accepting or replicating stored configuration values."""
-    if not isinstance(item, dict):
+    if not isinstance(item, dict) or set(item) != {"source_event_id", "charger_id", "at", "coverage", "configuration", "unknown"}:
         raise ValueError("Invalid configuration snapshot")
     event_id = item.get("source_event_id")
     charger = item.get("charger_id")
@@ -46,7 +46,7 @@ def validate_snapshot(item: Any) -> dict[str, Any]:
         raise ValueError("Invalid unknown configuration keys")
     seen: set[str] = set()
     for row in values:
-        if not isinstance(row, dict):
+        if not isinstance(row, dict) or set(row) != {"key", "readonly", "value"}:
             raise ValueError("Invalid configuration entry")
         key, value, readonly = row.get("key"), row.get("value"), row.get("readonly")
         if (not isinstance(key, str) or not key or len(key) > 2048
