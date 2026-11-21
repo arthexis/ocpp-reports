@@ -196,6 +196,30 @@ def editable_sites(database: Path, allowed_source_ids: tuple[str, ...] | None) -
                 _authorized_site(db, row["site_id"], allowed_source_ids)]
 
 
+def _authorized_customer(db: sqlite3.Connection, customer_id: str,
+                         allowed_source_ids: tuple[str, ...] | None) -> bool:
+    if not db.execute(f"SELECT 1 FROM {CUSTOMERS} WHERE customer_id=?",
+                      (customer_id,)).fetchone():
+        return False
+    sites = [row[0] for row in db.execute(
+        f"SELECT site_id FROM {SITES} WHERE customer_id=?", (customer_id,))]
+    if allowed_source_ids is None:
+        return True
+    return bool(sites) and all(_authorized_site(db, site, allowed_source_ids)
+                               for site in sites)
+
+
+def editable_customers(database: Path, allowed_source_ids: tuple[str, ...] | None) -> list[dict]:
+    with _connect(database) as db:
+        if not {CUSTOMERS, SITES, ASSIGNMENTS}.issubset(_tables(db)):
+            return []
+        rows = db.execute(
+            f"SELECT customer_id,customer_name FROM {CUSTOMERS} ORDER BY customer_name LIMIT 500"
+        ).fetchall()
+        return [dict(row) for row in rows
+                if _authorized_customer(db, row["customer_id"], allowed_source_ids)]
+
+
 def known_charger(db: sqlite3.Connection, source_id: str, charger_id: str) -> bool:
     tables = _tables(db)
     if "connector_state" in tables and db.execute(
@@ -239,23 +263,20 @@ def save_site(database: Path, source_id: str, charger_id: str, fields: dict,
         prior = db.execute(f"SELECT customer_id FROM {SITES} WHERE site_id=?",
                            (site_id,)).fetchone()
         customer_id = prior["customer_id"] if prior else None
+        if "customer_id" in fields:
+            # A blank selection explicitly creates a new customer (if named),
+            # or unlinks the site; omission retains its current association.
+            customer_id = clean(fields["customer_id"], maximum=64)
+        if customer_id and not _authorized_customer(db, customer_id, allowed_source_ids):
+            raise PermissionError("Customer is outside administrative scope")
         if customer_name:
             if customer_id:
-                # Updating a shared customer's name affects every linked site.
-                # Deny a scoped admin if any linked site is outside their scope.
-                related = [row[0] for row in db.execute(
-                    f"SELECT site_id FROM {SITES} WHERE customer_id=?", (customer_id,))]
-                if not all(_authorized_site(db, item, allowed_source_ids) for item in related):
-                    raise PermissionError("Shared customer is outside administrative scope")
                 db.execute(f"UPDATE {CUSTOMERS} SET customer_name=? WHERE customer_id=?",
                            (customer_name, customer_id))
             else:
                 customer_id = uuid4().hex
                 db.execute(f"INSERT INTO {CUSTOMERS} VALUES (?,?)",
                            (customer_id, customer_name))
-        elif customer_id:
-            # Empty optional customer field severs the relationship, not the shared customer.
-            customer_id = None
         data = (customer_id, *[values[key] for key in FIELDS], zone, weekly)
         if prior:
             db.execute(f"""UPDATE {SITES} SET customer_id=?,location_name=?,
