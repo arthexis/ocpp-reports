@@ -158,8 +158,13 @@ def _site_query(db: sqlite3.Connection, clause: str, args: tuple) -> dict | None
     value["hours_display"] = hours_display(value["contact_hours"])
     value["map_url"] = ("https://www.google.com/maps/search/?api=1&query="
                         + quote(value["address"], safe="")) if value["address"] else None
-    value["branch_tel"] = "tel:" + value["branch_phone"] if value["branch_phone"] else None
-    value["contact_tel"] = "tel:" + value["contact_phone"] if value["contact_phone"] else None
+    # Never trust a manually modified warehouse value to become a link target.
+    for field, link in (("branch_phone", "branch_tel"), ("contact_phone", "contact_tel")):
+        try:
+            safe_number = phone(value[field])
+        except ValueError:
+            safe_number = None
+        value[link] = "tel:" + safe_number if safe_number else None
     return value
 
 
