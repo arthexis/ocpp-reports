@@ -5,10 +5,10 @@ from datetime import datetime, timezone
 from time import perf_counter
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode, urlsplit, parse_qs
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from .warehouse_queries import snapshot
@@ -23,6 +23,8 @@ from .warehouse.transaction_pagination import latest_completed_charges, connecto
 from .warehouse.charger_csv import CSV_PROFILES, charger_transactions, render_charger_csv
 from .dashboard_login import dashboard_account_directory
 from .dashboard_auth import Permission, authorized
+from .site_metadata import (site_for_charger, editable_sites, save_site,
+                            assign_site, hours_fields, DAYS, DAY_NAMES, hours_display)
 import sqlite3
 import json
 import re
@@ -439,6 +441,28 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             tenant_id=getattr(request.app.state, "dashboard_login_tenant", ""),
         )
 
+    def _can_edit_site(request: Request) -> bool:
+        """Site contact data is sensitive: login-backed admin only, not Basic Auth."""
+        principal = getattr(request.state, "principal", None)
+        tenant = getattr(request.app.state, "dashboard_login_tenant", "")
+        return (authorized(principal, Permission.USERS_MANAGE, tenant_id=tenant)
+                and (allowed_source_ids is not None or tenant == "administration"))
+
+    def _site_scope(request: Request, source_id: str):
+        if not _can_edit_site(request):
+            raise HTTPException(403, "Site administration requires an authenticated administrator")
+        if not source_id.strip() or (allowed_source_ids is not None
+                                      and source_id not in allowed_source_ids):
+            raise HTTPException(404, "Charger not found")
+
+    def _site_write_request(request: Request):
+        if request.url.scheme != "https":
+            raise HTTPException(403, "HTTPS required")
+        if request.headers.get("origin") != str(request.base_url).rstrip("/"):
+            raise HTTPException(403, "Invalid origin")
+        if request.headers.get("content-type", "").split(";")[0] != "application/x-www-form-urlencoded":
+            raise HTTPException(415, "Unsupported content type")
+
     @app.get("/assets/brand.png", include_in_schema=False)
     def dashboard_brand_asset():
         return FileResponse(Path(__file__).parent / "assets" / "brand.png", media_type="image/png")
@@ -699,6 +723,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         location = (next((row.get("location") for row in connectors if row.get("location")), None)
                     or next((row.get("location") for row in data["transactions"]
                              if row.get("location")), None) or source_id)
+        site_admin = connector_id is None and _can_edit_site(request)
+        site_meta = (site_for_charger(warehouse, source_id, charger_id)
+                     if site_admin else None)
         return templates.TemplateResponse(
             request, "device_detail.html.j2",
             {"title": title, "brand_image_url": brand_image_url, "source_id": source_id, "charger_id": charger_id,
@@ -711,7 +738,8 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
              "timezones": zones, "tx_total": total, "tx_page": actual_page,
              "tx_pages": pages, "event_groups": event_groups,
              "event_page": event_page, "event_has_next": event_has_next,
-             "is_admin": is_admin, "has_config": has_config},
+             "is_admin": is_admin, "has_config": has_config,
+             "site_admin": site_admin, "site_meta": site_meta},
             headers={"Cache-Control": "no-store"})
 
     @app.get("/chargers/{source_id}/{charger_id}/report.csv")
@@ -776,6 +804,64 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
              "page": page, "timezone": zone},
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
+
+    @app.get("/chargers/{source_id}/{charger_id}/site", response_class=HTMLResponse)
+    def charger_site_editor(request: Request, source_id: str, charger_id: str):
+        _site_scope(request, source_id)
+        from .site_metadata import _connect, known_charger
+        with _connect(warehouse) as db:
+            if not known_charger(db, source_id, charger_id):
+                raise HTTPException(404, "Charger not found")
+        current = site_for_charger(warehouse, source_id, charger_id)
+        details = hours_fields(current.get("contact_hours") if current else None)
+        return templates.TemplateResponse(
+            request, "charger_site.html.j2",
+            {"title": title, "source_id": source_id, "charger_id": charger_id,
+             "site": current or {}, "days": list(zip(DAYS, DAY_NAMES)),
+             "hours": details, "other_sites": editable_sites(warehouse, allowed_source_ids)},
+            headers={"Cache-Control": "no-store"})
+
+    @app.post("/chargers/{source_id}/{charger_id}/site")
+    async def charger_site_save(request: Request, source_id: str, charger_id: str):
+        _site_scope(request, source_id)
+        _site_write_request(request)
+        body = await request.body()
+        if len(body) > 10000:
+            raise HTTPException(413, "Form too large")
+        try:
+            parsed = parse_qs(body.decode("utf-8"), keep_blank_values=True, max_num_fields=36)
+            if any(len(item) != 1 for item in parsed.values()):
+                raise ValueError("Duplicate form fields")
+            fields = {key: item[0] for key, item in parsed.items()}
+            save_site(warehouse, source_id, charger_id, fields,
+                      allowed_source_ids=allowed_source_ids)
+        except PermissionError:
+            raise HTTPException(403, "Site access denied")
+        except (ValueError, UnicodeError) as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return RedirectResponse(
+            f"/chargers/{urlencode({'s': source_id})[2:]}/{urlencode({'c': charger_id})[2:]}",
+            status_code=303, headers={"Cache-Control": "no-store"})
+
+    @app.post("/chargers/{source_id}/{charger_id}/site/assign")
+    async def charger_site_assign(request: Request, source_id: str, charger_id: str):
+        _site_scope(request, source_id)
+        _site_write_request(request)
+        body = await request.body()
+        if len(body) > 2000:
+            raise HTTPException(413, "Form too large")
+        try:
+            parsed = parse_qs(body.decode("utf-8"), max_num_fields=2)
+            site_id = parsed.get("site_id", [""])[0]
+            assign_site(warehouse, source_id, charger_id, site_id,
+                        allowed_source_ids=allowed_source_ids)
+        except PermissionError:
+            raise HTTPException(403, "Site access denied")
+        except (ValueError, UnicodeError) as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return RedirectResponse(
+            f"/chargers/{urlencode({'s': source_id})[2:]}/{urlencode({'c': charger_id})[2:]}",
+            status_code=303, headers={"Cache-Control": "no-store"})
 
     @app.get("/chargers/{source_id}/{charger_id}", response_class=HTMLResponse)
     def charger_page(request: Request, source_id: str, charger_id: str,
