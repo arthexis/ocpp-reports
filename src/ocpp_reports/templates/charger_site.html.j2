@@ -27,7 +27,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 <p class="muted">Esta información es administrativa y compartida por todos los cargadores asignados a la misma ubicación. Los campos pueden quedar vacíos.</p>
 <form method="post" action="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/site">
 <div class="fields">
-<label>Nombre del cliente<input name="customer_name" maxlength="160" value="{{ site.customer_name or '' }}" autocomplete="organization"></label>
+<label>Cliente existente
+<select id="customer-choice" name="customer_id">
+<option value="">Nuevo cliente / sin cliente</option>
+{% for customer in customers %}
+<option value="{{ customer.customer_id }}" data-name="{{ customer.customer_name }}" {% if site.customer_id == customer.customer_id %}selected{% endif %}>{{ customer.customer_name }}</option>
+{% endfor %}
+</select></label>
+<label>Nombre del cliente<input id="customer-name" name="customer_name" maxlength="160" value="{{ site.customer_name or '' }}" autocomplete="organization"></label>
 <label>Ubicación (nombre completo)<input name="location_name" maxlength="160" value="{{ site.location_name or '' }}"></label>
 <label>Dirección<input name="address" maxlength="500" value="{{ site.address or '' }}" autocomplete="street-address"></label>
 <label>Teléfono de sucursal<input name="branch_phone" type="tel" maxlength="40" value="{{ site.branch_phone or '' }}" autocomplete="tel"></label>
@@ -64,4 +71,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 <div class="action"><button type="submit">Asignar esta ubicación</button></div>
 </form></section>
 {% endif %}
-</main></body></html>
+</main>
+<script>
+document.getElementById("customer-choice").addEventListener("change", function () {
+  const selected = this.options[this.selectedIndex];
+  if (selected.value) document.getElementById("customer-name").value = selected.dataset.name || "";
+});
+</script>
+</body></html>
