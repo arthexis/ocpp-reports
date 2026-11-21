@@ -26,7 +26,7 @@ def test_mobile_filter_profile_share_row_and_connector_cards_use_two_columns(das
     assert ".header-filters{flex:1 1 0;width:auto;min-width:0;flex-wrap:nowrap}" in mobile
     assert ".profile-menu summary{min-width:44px;min-height:44px}" in mobile
     assert ".profile-menu{flex:0 0 auto;margin-left:.15rem}" in mobile
-    assert ".connectors-panel tbody tr{display:grid;grid-template-columns:minmax(0,.76fr) minmax(0,1.24fr)" in mobile
+    assert ".connectors-panel tbody tr{display:grid;grid-template-columns:minmax(0,.68fr) minmax(0,1.32fr)" in mobile
     assert ".connectors-panel td{display:flex;flex-direction:column;" in mobile
     assert ".connectors-panel td.empty{grid-column:1/-1;grid-row:auto}" in mobile
     assert '<th>Recibido</th>' in source
@@ -102,6 +102,22 @@ def test_transaction_detail_removes_only_redundant_explanations():
     assert "Discontinuidad del medidor detectada" in source
     assert "Vista parcial: se aplicó el límite" in source
     assert "medición antigua / no verificada" in source
+    assert 'id="transaction-session-data"' in source
+
+
+def test_transaction_detail_uses_mobile_two_column_metrics_and_responsive_data():
+    from importlib.resources import files
+
+    source = files("ocpp_reports").joinpath("templates/transaction_detail.html.j2").read_text()
+    css = source.split("<style>", 1)[1].split("</style>", 1)[0]
+    assert ".session-details dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))" in css
+    assert ".session-details dl{grid-template-columns:repeat(2,minmax(0,1fr))}" in css
+    mobile = css.split("@media(max-width:540px)", 1)[1].split("}", 1)[0]
+    assert ".overview{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}" in mobile
+    assert ".overview>.detail-heading{grid-column:1/-1}" in mobile
+    assert ".session-details dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}" in mobile
+    assert 'id="transaction-energy"' in source
+    assert 'id="transaction-soc"' in source
     assert 'id="transaction-session-data"' in source
 
 
