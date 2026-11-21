@@ -10,7 +10,7 @@ h1{margin:.3rem 0;font-size:1.45rem}h2{font-size:1.08rem;margin:.2rem 0 1rem}
 a{color:var(--accent)}header a{color:#fff}.muted{color:var(--muted)}
 .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.9rem 1.25rem}
 .fields>label{display:flex;flex-direction:column;min-width:0;gap:.3rem;font-weight:600;font-size:.87rem}
-input,select{width:100%;max-width:100%;min-height:44px;padding:.55rem;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit}
+input,select,textarea{width:100%;max-width:100%;min-height:44px;padding:.55rem;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit}
 button{border:0;background:var(--accent);color:#fff;cursor:pointer;padding:.7rem 1rem;border-radius:8px;min-height:44px;font:inherit;font-weight:650}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .hours{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}
@@ -36,7 +36,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 </select></label>
 <label>Nombre del cliente<input id="customer-name" name="customer_name" maxlength="160" value="{{ site.customer_name or '' }}" autocomplete="organization"></label>
 <label>Ubicación (nombre completo)<input name="location_name" maxlength="160" value="{{ site.location_name or '' }}"></label>
-<label>Dirección<input name="address" maxlength="500" value="{{ site.address or '' }}" autocomplete="street-address"></label>
+<label>Dirección<textarea name="address" rows="3" maxlength="500" autocomplete="street-address">{{ site.address or '' }}</textarea></label>
 <label>Teléfono de sucursal<input name="branch_phone" type="tel" maxlength="40" value="{{ site.branch_phone or '' }}" autocomplete="tel"></label>
 <label>Nombre del contacto<input name="contact_name" maxlength="160" value="{{ site.contact_name or '' }}" autocomplete="name"></label>
 <label>Teléfono del contacto<input name="contact_phone" type="tel" maxlength="40" value="{{ site.contact_phone or '' }}"></label>
