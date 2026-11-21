@@ -198,8 +198,8 @@ header{align-items:start;gap:.65rem}
   .header-filters .unified-filter{width:100%;min-width:0}
   .profile-menu{flex:0 0 auto;margin-left:.15rem}
   .profile-menu summary{min-width:44px;min-height:44px}
-  /* Short values on the left; longer identity/status/date values on the right. */
-  .connectors-panel tbody tr{display:grid;grid-template-columns:minmax(0,.76fr) minmax(0,1.24fr);column-gap:.28rem;row-gap:.14rem;align-items:start}
+  /* Swap the field groups on phones while retaining their original top-to-bottom order. */
+  .connectors-panel tbody tr{display:grid;grid-template-columns:minmax(0,1.32fr) minmax(0,.68fr);column-gap:.28rem;row-gap:.14rem;align-items:start}
   .connectors-panel td{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;min-width:0;overflow-wrap:anywhere;font-size:1.18rem;line-height:1.2;padding:.1rem .02rem calc(.1rem + 1px);gap:.08rem}
   /* Do not force a 44px line box: it adds blank space below the linked value.
      Expand the link's clickable pseudo-surface upward over its own label,
@@ -214,13 +214,13 @@ header{align-items:start;gap:.65rem}
     content:"";position:absolute;left:0;right:0;bottom:0;height:44px
   }
   .connectors-panel td::before{flex:0 0 auto;width:100%;font-size:.77rem;line-height:1.13}
-  .connectors-panel td[data-label="Conector"]{grid-area:1/1}
-  .connectors-panel td[data-label="Conectado"]{grid-area:2/1}
-  .connectors-panel td[data-label="Potencia"]{grid-area:3/1}
+  .connectors-panel td[data-label="Conector"]{grid-area:1/2}
+  .connectors-panel td[data-label="Conectado"]{grid-area:3/2}
+  .connectors-panel td[data-label="Potencia"]{grid-area:2/2}
   .connectors-panel td[data-label="Medidor"]{grid-area:4/1}
-  .connectors-panel td[data-label="Ubicación"]{grid-area:1/2}
-  .connectors-panel td[data-label="Cargador"]{grid-area:2/2}
-  .connectors-panel td[data-label="Estado"]{grid-area:3/2;align-items:flex-start}
+  .connectors-panel td[data-label="Ubicación"]{grid-area:1/1}
+  .connectors-panel td[data-label="Cargador"]{grid-area:2/1}
+  .connectors-panel td[data-label="Estado"]{grid-area:3/1;align-items:flex-start}
   .connectors-panel td[data-label="Recibido"]{grid-area:4/2}
   .connectors-panel td[data-label="Potencia"] .connector-power{display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:.08rem .16rem;max-width:100%;white-space:normal}
   .connectors-panel td[data-label="Potencia"] .connector-power .note{font-size:.73rem}
