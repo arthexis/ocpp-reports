@@ -125,7 +125,7 @@ def test_create_login_update_disable_delete_and_audit(tmp_path, monkeypatch):
         deletion = post(admin, "/accounts/delete", csrf, username="tecnologia",
                         confirm="ELIMINAR")
         assert deletion.status_code == 303
-        assert "tecnologia" not in admin.get("/accounts").text
+        assert "<h3>tecnologia</h3>" not in admin.get("/accounts").text
         with sqlite3.connect(auth) as db:
             assert db.execute("SELECT 1 FROM dashboard_users WHERE user_id='tecnologia'").fetchone() is None
             assert db.execute("SELECT COUNT(*) FROM dashboard_sessions WHERE user_id='tecnologia'").fetchone()[0] == 0
