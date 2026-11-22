@@ -114,7 +114,7 @@ def _logged_client(db, tmp_path, monkeypatch, role="admin", sources=("a",)):
     return client
 
 
-def test_admin_only_site_view_and_two_independent_phone_actions(tmp_path, monkeypatch):
+def test_admin_edit_and_operator_read_only_site_with_independent_phone_actions(tmp_path, monkeypatch):
     db = warehouse(tmp_path)
     admin = _logged_client(db, tmp_path, monkeypatch)
     url = "/chargers/a/same"
@@ -133,13 +133,29 @@ def test_admin_only_site_view_and_two_independent_phone_actions(tmp_path, monkey
     assert "Av. Reforma 10" in body
     assert admin.get("/chargers/b/same").status_code == 404
     operator = _logged_client(db, tmp_path, monkeypatch, role="operator")
-    body = operator.get(url).text
-    assert 'id="site-details"' not in body
-    assert "Responsable" not in body
-    assert "811112222" not in body
+    operator_page = operator.get(url)
+    assert operator_page.status_code == 200
+    body = operator_page.text
+    assert 'id="site-details"' in body
+    assert "Responsable" in body
+    assert "Porsche Centro" in body and "Av. Reforma 10" in body
+    assert "Llamar a sucursal" in body and "Llamar al contacto" in body
+    assert "tel:+528111112222" in body and "tel:+528133334444" in body
+    assert "Abrir mapa" in body
+    assert "Horario de atención" in body
+    assert "Editar ubicación" not in body
+    assert url + "/site" not in body
+    assert operator.get("/chargers/b/same").status_code == 404
     assert operator.get(url + "/site").status_code == 403
     assert operator.post(url + "/site", data=data,
                          headers={"origin": "https://testserver"}).status_code == 403
+    assert operator.post(url + "/site/assign", data={"site_id": "unknown"},
+                         headers={"origin": "https://testserver"}).status_code == 403
+    assert "branch_phone" not in json.dumps(operator.get("/api/snapshot").json())
+    assert "contact_name" not in json.dumps(operator.get("/api/snapshot").json())
+    basic_user = _logged_client(db, tmp_path, monkeypatch, role="user")
+    assert basic_user.get(url).status_code == 403
+    assert basic_user.get(url + "/site").status_code == 403
     assert admin.post(url + "/site", data=data,
                       headers={"origin": "https://another.example"}).status_code == 403
 
@@ -238,3 +254,31 @@ def test_shared_site_label_overlays_only_exact_charger_and_multiline_address(tmp
         conn.execute("UPDATE report_sites SET contact_phone=? WHERE site_id=?",
                      ("javascript:alert(1)", site))
     assert site_for_charger(db, "a", "same")["contact_tel"] is None
+
+def test_operator_sees_empty_site_without_editor_or_empty_call_buttons(tmp_path, monkeypatch):
+    db = warehouse(tmp_path)
+    operator = _logged_client(db, tmp_path, monkeypatch, role="operator")
+    url = "/chargers/a/same"
+    response = operator.get(url)
+    assert response.status_code == 200
+    assert 'id="site-details"' in response.text
+    assert "Horario de atención" in response.text
+    assert "Editar ubicación" not in response.text
+    assert "Llamar a sucursal" not in response.text
+    assert "Llamar al contacto" not in response.text
+    assert "Abrir mapa" not in response.text
+
+
+def test_operator_sees_contact_only_phone_and_never_gets_editor(tmp_path, monkeypatch):
+    db = warehouse(tmp_path)
+    save_site(db, "a", "same", {"contact_phone": "+52 81 1234 5678"},
+              allowed_source_ids=("a",))
+    operator = _logged_client(db, tmp_path, monkeypatch, role="operator")
+    url = "/chargers/a/same"
+    page = operator.get(url)
+    assert page.status_code == 200
+    assert "Llamar al contacto" in page.text
+    assert "tel:+528112345678" in page.text
+    assert "Llamar a sucursal" not in page.text
+    assert "Editar ubicación" not in page.text
+    assert operator.get(url + "/site").status_code == 403
