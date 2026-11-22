@@ -441,8 +441,19 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             tenant_id=getattr(request.app.state, "dashboard_login_tenant", ""),
         )
 
+    def _can_view_site(request: Request) -> bool:
+        """Integrated operators and admins may read scoped site contact data.
+
+        Never grant access to legacy Basic Auth (principal=None), basic users,
+        or an unscoped non-administration dashboard.
+        """
+        principal = getattr(request.state, "principal", None)
+        tenant = getattr(request.app.state, "dashboard_login_tenant", "")
+        return (authorized(principal, Permission.CONNECTORS_VIEW, tenant_id=tenant)
+                and (allowed_source_ids is not None or tenant == "administration"))
+
     def _can_edit_site(request: Request) -> bool:
-        """Site contact data is sensitive: login-backed admin only, not Basic Auth."""
+        """Only integrated administrators can modify site contact data."""
         principal = getattr(request.state, "principal", None)
         tenant = getattr(request.app.state, "dashboard_login_tenant", "")
         return (authorized(principal, Permission.USERS_MANAGE, tenant_id=tenant)
@@ -723,10 +734,11 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         location = (next((row.get("location") for row in connectors if row.get("location")), None)
                     or next((row.get("location") for row in data["transactions"]
                              if row.get("location")), None) or source_id)
-        site_admin = connector_id is None and _can_edit_site(request)
+        site_visible = connector_id is None and _can_view_site(request)
+        site_admin = site_visible and _can_edit_site(request)
         site_meta = (site_for_charger(warehouse, source_id, charger_id)
-                     if site_admin else None)
-        if site_admin and site_meta is None:
+                     if site_visible else None)
+        if site_visible and site_meta is None:
             # Unmigrated locations retain their display label and default contact hours.
             site_meta = {"location_name": location if location != source_id else None,
                          "hours_display": hours_display(None)}
@@ -743,7 +755,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
              "tx_pages": pages, "event_groups": event_groups,
              "event_page": event_page, "event_has_next": event_has_next,
              "is_admin": is_admin, "has_config": has_config,
-             "site_admin": site_admin, "site_meta": site_meta},
+             "site_visible": site_visible, "site_admin": site_admin, "site_meta": site_meta},
             headers={"Cache-Control": "no-store"})
 
     @app.get("/chargers/{source_id}/{charger_id}/report.csv")
