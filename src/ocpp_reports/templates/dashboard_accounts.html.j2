@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Administrar cuentas · {{ title|e }}</title>
+<style>
+:root{color-scheme:light;--bg:#f4f7fb;--surface:#fff;--ink:#172638;--muted:#627388;--line:#dce4ee;--primary:#1268c7;--danger:#a61d33;font:16px system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.48}
+header{background:#203247;color:white;padding:1rem max(1rem,calc((100% - 1120px)/2))}
+header a{color:#fff}main{max-width:1120px;margin:auto;padding:1.2rem}
+h1{font-size:1.5rem;margin:.3rem 0}h2{font-size:1.14rem;margin:.2rem 0 1rem}
+h3{font-size:1rem;margin:.4rem 0}p{margin:.35rem 0 .9rem}.muted{color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-bottom:1rem;padding:1.15rem}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem 1rem}
+label:not(.checkbox){display:flex;flex-direction:column;gap:.3rem;font-size:.91rem;font-weight:600;min-width:0}
+input:not([type=checkbox]),select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid #98a8b9;border-radius:7px;min-height:44px;padding:.55rem;width:100%;max-width:100%}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+button{border:0;border-radius:8px;background:var(--primary);color:#fff;min-height:44px;padding:.7rem 1rem;font:inherit;font-weight:650;cursor:pointer}
+button.danger{background:var(--danger)}
+a{color:var(--primary)}.action{margin-top:1rem;display:flex;gap:.7rem;align-items:center;flex-wrap:wrap}
+.accounts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.accounts .card{margin-bottom:0;min-width:0}
+summary{cursor:pointer;min-height:44px;padding:.45rem 0;font-weight:650;overflow-wrap:anywhere}
+.kicker{font-size:.82rem;color:var(--muted)}details[open] summary{border-bottom:1px solid var(--line);margin-bottom:1rem}
+.status{font-weight:650}.status.off{color:var(--danger)}.alert{border-left:4px solid var(--danger);background:var(--surface);padding:.85rem 1rem;margin:0 0 1rem;border-radius:5px}
+.notice{border-left:4px solid var(--primary);background:var(--surface);padding:.85rem 1rem;margin:0 0 1rem}
+.danger-zone{border-top:1px solid var(--line);padding-top:.9rem;margin-top:1.2rem}
+.checkbox{display:flex;align-items:flex-start;gap:.55rem;margin:.75rem 0;font-size:.9rem}
+.checkbox input{margin-top:.3rem;accent-color:var(--danger)}
+@media(max-width:760px){main{padding:.75rem}.fields,.accounts{grid-template-columns:1fr}.card{padding:1rem}header{padding:1rem}}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2937;--ink:#eaf0f8;--muted:#b2bfcd;--line:#34475c;--primary:#4a9eec;--danger:#ef6173}header{background:#0c1725}input:not([type=checkbox]),select{border-color:#63798d}button{color:#071320}}
+</style></head>
+<body>
+<header><a href="/">← Volver al dashboard</a><h1>Administrar cuentas</h1>
+<p>Dashboard: {{ tenant|e }} · Sesión: {{ actor|e }}</p></header>
+<main>
+<p class="muted">Solo los administradores pueden crear, modificar y eliminar usuarios del tenant actual. Los cambios de rol, estado y contraseña cierran todas las sesiones anteriores de la cuenta afectada.</p>
+{% if error %}<div class="alert" role="alert">{{ error|e }}</div>{% endif %}
+{% if notice %}<div class="notice" role="status">{{ notice|e }}</div>{% endif %}
+<section class="card" aria-labelledby="new-account"><h2 id="new-account">Agregar cuenta</h2>
+<form action="/accounts/create" method="post" autocomplete="off">
+<input type="hidden" name="csrf_token" value="{{ csrf_token|e }}">
+<div class="fields">
+<label>Usuario<input name="username" required pattern="[A-Za-z][A-Za-z0-9._-]{2,63}" maxlength="64" placeholder="tecnologia" autocomplete="off"></label>
+<label>Permisos<select name="role" required><option value="operator">Operador (solo lectura)</option><option value="admin">Administrador (edición)</option></select></label>
+<label>Contraseña nueva<input type="password" name="password" required minlength="12" maxlength="1024" autocomplete="new-password"></label>
+<label>Confirmar contraseña<input type="password" name="confirm_password" required minlength="12" maxlength="1024" autocomplete="new-password"></label>
+</div><div class="action"><button type="submit">Crear cuenta</button></div>
+</form><p class="muted">Mínimo 12 caracteres. El usuario solo puede pertenecer a un tenant; las contraseñas nunca se muestran después de guardarlas.</p>
+</section>
+
+<section aria-labelledby="existing-accounts"><h2 id="existing-accounts">Cuentas de {{ tenant|e }}</h2>
+<div class="accounts">
+{% for account in accounts %}
+<article class="card">
+<h3>{{ account.user_id|e }}</h3>
+<p class="kicker">{{ "Administrador" if account.role == "admin" else "Operador" if account.role == "operator" else account.role|e }} ·
+<span class="status {{ '' if account.active else 'off' }}">{{ 'Activa' if account.active else 'Deshabilitada' }}</span></p>
+<p class="muted">Último acceso: {{ account.last_login_at|display_date('America/Monterrey') if account.last_login_at else 'Sin registro' }}</p>
+{% if account.user_id == actor %}
+<p class="muted">Esta es tu sesión. Para cambiar tu propia contraseña, usa el <a href="/change-password">menú de contraseña</a>. No puedes desactivar ni eliminar tu propia cuenta desde aquí.</p>
+{% else %}
+<details><summary>Editar cuenta</summary>
+<form action="/accounts/update" method="post" autocomplete="off">
+<input type="hidden" name="csrf_token" value="{{ csrf_token|e }}">
+<input type="hidden" name="username" value="{{ account.user_id|e }}">
+<div class="fields">
+<label>Rol<select name="role" required>
+<option value="operator" {% if account.role == 'operator' %}selected{% endif %}>Operador</option>
+<option value="admin" {% if account.role == 'admin' %}selected{% endif %}>Administrador</option>
+</select></label>
+<label>Estado<select name="active" required><option value="1" {% if account.active %}selected{% endif %}>Activa</option>
+<option value="0" {% if not account.active %}selected{% endif %}>Deshabilitada</option></select></label>
+<label>Restablecer contraseña (opcional)<input type="password" name="password" minlength="12" maxlength="1024" autocomplete="new-password"></label>
+<label>Confirmar contraseña nueva<input type="password" name="confirm_password" minlength="12" maxlength="1024" autocomplete="new-password"></label>
+</div>
+<p class="muted">Deja ambas contraseñas vacías para conservar la actual. El nombre del usuario no se modifica.</p>
+<button type="submit">Guardar cambios</button>
+</form>
+<div class="danger-zone"><h3>Eliminar cuenta</h3>
+<p class="muted">La eliminación es permanente y revoca las sesiones de esta cuenta. No afecta las sesiones OCPP.</p>
+<form action="/accounts/delete" method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token|e }}">
+<input type="hidden" name="username" value="{{ account.user_id|e }}">
+<label class="checkbox"><input name="confirm" type="checkbox" value="ELIMINAR" required>
+<span>Confirmo que quiero eliminar la cuenta <strong>{{ account.user_id|e }}</strong>.</span></label>
+<button type="submit" class="danger">Eliminar cuenta</button>
+</form></div></details>
+{% endif %}
+</article>
+{% else %}
+<p class="muted">Todavía no hay cuentas registradas en este tenant.</p>
+{% endfor %}
+</div>
+</section>
+</main></body></html>
