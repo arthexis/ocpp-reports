@@ -144,6 +144,7 @@ def create_account(path: str | Path, *, actor: str, tenant: str, username: str,
                 "INSERT INTO dashboard_users(user_id,password_hash,role,tenant_id,active) "
                 "VALUES(?,?,?,?,1)", (username, digest, role, tenant),
             )
+            _audit(db, actor=actor, tenant=tenant, action="create", username=username)
     except sqlite3.IntegrityError as exc:
         raise AccountError(409, "No fue posible crear la cuenta con ese nombre.") from exc
 
