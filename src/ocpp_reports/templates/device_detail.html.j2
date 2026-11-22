@@ -232,7 +232,7 @@ padding:.55rem .8rem;border-radius:8px;text-decoration:none;font-weight:650}
 {% if event_has_next %}<a rel="next" href="{{ request.url.include_query_params(event_page=event_page+1) }}#events">Siguiente</a>{% endif %}
 </nav></section>
 {% endif %}
-{% if site_admin %}
+{% if site_visible %}
 <section id="site-details" aria-labelledby="site-details-title">
 <h2 id="site-details-title">Datos de ubicación</h2>
 {% if site_meta %}
@@ -256,7 +256,7 @@ padding:.55rem .8rem;border-radius:8px;text-decoration:none;font-weight:650}
 {% if site_meta and site_meta.map_url %}<a href="{{ site_meta.map_url }}" target="_blank" rel="noopener noreferrer">Abrir mapa</a>{% endif %}
 {% if site_meta and site_meta.branch_tel %}<a href="{{ site_meta.branch_tel }}">Llamar a sucursal</a>{% endif %}
 {% if site_meta and site_meta.contact_tel %}<a href="{{ site_meta.contact_tel }}">Llamar al contacto</a>{% endif %}
-<a href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/site">Editar ubicación</a>
+{% if site_admin %}<a href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/site">Editar ubicación</a>{% endif %}
 </div></section>
 {% endif %}
 </main>
