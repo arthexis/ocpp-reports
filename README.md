@@ -211,6 +211,27 @@ no users yet. Roles remain scoped to one tenant per user; a dashboard
 instance still authenticates only against its configured `auth_tenant`.
 Password entry is interactive; never pass passwords on command lines.
 
+### Account management from the dashboard
+
+On an integrated-login dashboard, accounts with the `admin` role can open
+**Usuarios con acceso → Administrar cuentas** (or **Perfil → Administrar cuentas**).
+The page supports creating accounts with `admin` or `operator` roles, changing
+a user's role or enabled state, setting a new password, and permanently deleting
+an account after explicit confirmation. Username identifiers remain immutable.
+A password must have 12–1024 characters and is entered and confirmed in the
+browser; password hashes and session tokens are never displayed.
+
+All web mutations are limited to the administrator's **current login tenant**
+(even on the central `administration` dashboard, where the read-only directory
+can display other tenants). Changes revoke the affected user's sessions
+immediately; operations are audited without password contents. Operators, basic
+users and legacy Basic Auth cannot access the management routes. Web admins
+cannot disable, demote or delete themselves; use **Cambiar contraseña** for
+your own password. The last active admin in a tenant cannot be removed.
+Forms use HTTPS, same-origin validation and session-bound CSRF protection.
+
+CLI account administration remains available for recovery and initial setup.
+
 ### Recent event history
 
 Recent dashboard events are grouped in **global event timestamp order**, not
