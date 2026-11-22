@@ -148,7 +148,9 @@ def test_reject_csrf_origin_malformed_duplicates_passwords_and_unsafe_roles(tmp_
         dupes = [("csrf_token", csrf), ("username", "x"), ("username", "y"),
                  ("role", "admin"), ("password", "New-user-password-2026"),
                  ("confirm_password", "New-user-password-2026")]
-        assert admin.post("/accounts/create", content=urlencode(dupes),\n                          headers={"origin": ORIGIN,\n                                   "content-type": "application/x-www-form-urlencoded"}).status_code == 422
+        assert admin.post("/accounts/create", content=urlencode(dupes),
+                          headers={"origin": ORIGIN,
+                                   "content-type": "application/x-www-form-urlencoded"}).status_code == 422
         assert post(admin, "/accounts/create", csrf, **{**fields, "role": "user"}).status_code == 422
         assert post(admin, "/accounts/create", csrf, **{**fields, "username": "../attack"}).status_code == 422
         assert post(admin, "/accounts/create", csrf, **{**fields, "password": "short", "confirm_password": "short"}).status_code == 422
