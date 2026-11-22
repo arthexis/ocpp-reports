@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from urllib.parse import urlencode
 
 from fastapi.testclient import TestClient
 
@@ -100,7 +101,7 @@ def test_create_login_update_disable_delete_and_audit(tmp_path, monkeypatch):
                         confirm_password="Technology-Password-2026")
         assert creation.status_code == 303
         assert creation.headers["location"] == "/accounts?notice=created"
-        page = admin.get("/accounts").text
+        page = admin.get("/accounts?notice=created").text
         assert "tecnologia" in page and "Cuenta creada" in page
         assert "Technology-Password-2026" not in page
         with TestClient(app, base_url=ORIGIN) as tech:
@@ -147,7 +148,7 @@ def test_reject_csrf_origin_malformed_duplicates_passwords_and_unsafe_roles(tmp_
         dupes = [("csrf_token", csrf), ("username", "x"), ("username", "y"),
                  ("role", "admin"), ("password", "New-user-password-2026"),
                  ("confirm_password", "New-user-password-2026")]
-        assert admin.post("/accounts/create", data=dupes, headers={"origin": ORIGIN}).status_code == 422
+        assert admin.post("/accounts/create", content=urlencode(dupes),\n                          headers={"origin": ORIGIN,\n                                   "content-type": "application/x-www-form-urlencoded"}).status_code == 422
         assert post(admin, "/accounts/create", csrf, **{**fields, "role": "user"}).status_code == 422
         assert post(admin, "/accounts/create", csrf, **{**fields, "username": "../attack"}).status_code == 422
         assert post(admin, "/accounts/create", csrf, **{**fields, "password": "short", "confirm_password": "short"}).status_code == 422
