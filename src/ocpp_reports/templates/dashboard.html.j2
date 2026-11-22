@@ -353,7 +353,7 @@ header{align-items:start;gap:.65rem}
 </tbody></table></div></section>
 {% if login_enabled and is_admin %}
 <section class="users-panel" id="dashboard-users" aria-labelledby="dashboard-users-heading">
-<div class="panel-heading"><h2 id="dashboard-users-heading">Usuarios con acceso</h2></div>
+<div class="panel-heading"><h2 id="dashboard-users-heading">Usuarios con acceso</h2><a href="/accounts" class="back-link">Administrar cuentas</a></div>
 <div class="scroll" tabindex="0" role="region" aria-label="Usuarios autorizados para este dashboard">
 <table><thead><tr><th>Usuario</th>{% if is_central_admin %}<th>Dashboard</th>{% endif %}<th>Permisos</th><th>Último acceso</th><th>Cuenta</th></tr></thead>
 <tbody>{% for account in dashboard_accounts %}
