@@ -21,13 +21,16 @@ from .warehouse.charger_energy import charger_energy_30_days
 from .warehouse.config_history import list_snapshots, one_snapshot
 from .warehouse.transaction_pagination import latest_completed_charges, connector_charge_counts
 from .warehouse.charger_csv import CSV_PROFILES, charger_transactions, render_charger_csv
-from .dashboard_login import dashboard_account_directory
+from .dashboard_login import dashboard_account_directory, COOKIE
+from .dashboard_account_management import (AccountError, csrf_token, list_tenant_accounts,
+    create_account, update_account, delete_account)
 from .dashboard_auth import Permission, authorized
 from .site_metadata import (site_for_charger, editable_sites, editable_customers, save_site,
                             assign_site, hours_fields, DAYS, DAY_NAMES, hours_display)
 import sqlite3
 import json
 import re
+import hmac
 
 
 def minute_utc(value: str | None) -> str:
@@ -516,6 +519,112 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             raise HTTPException(503, str(exc)) from exc
         except (ValueError, OSError) as exc:
             raise HTTPException(503, "Warehouse unavailable") from exc
+
+    def _account_scope(request: Request) -> tuple[str, str, str]:
+        """Only current integrated tenant admins may manage login accounts."""
+        principal = getattr(request.state, "principal", None)
+        tenant = getattr(request.app.state, "dashboard_login_tenant", "")
+        database = getattr(request.app.state, "dashboard_login_db", None)
+        if not database or not authorized(principal, Permission.USERS_MANAGE, tenant_id=tenant):
+            raise HTTPException(403, "Account management requires an authenticated administrator")
+        return str(database), tenant, principal.user_id
+
+    def _accounts_page(request: Request, *, notice: str = "", error: str = "",
+                       status_code: int = 200):
+        database, tenant, actor = _account_scope(request)
+        messages = {"created": "Cuenta creada.", "updated": "Cuenta actualizada; sus sesiones anteriores fueron revocadas.",
+                    "deleted": "Cuenta eliminada; sus sesiones anteriores fueron revocadas."}
+        response = templates.TemplateResponse(
+            request, "dashboard_accounts.html.j2",
+            {"title": title, "tenant": tenant, "actor": actor,
+             "accounts": list_tenant_accounts(database, tenant),
+             "csrf_token": csrf_token(request.cookies.get(COOKIE, ""), tenant),
+             "notice": messages.get(notice, ""), "error": error},
+            status_code=status_code,
+            headers={"Cache-Control": "no-store",
+                     "Referrer-Policy": "no-referrer",
+                     "X-Content-Type-Options": "nosniff"},
+        )
+        return response
+
+    async def _account_form(request: Request) -> tuple[dict[str, str], str, str, str]:
+        database, tenant, actor = _account_scope(request)
+        if request.url.scheme != "https" or request.headers.get("origin") != str(request.base_url).rstrip("/"):
+            raise HTTPException(403, "Invalid origin or transport")
+        if request.headers.get("content-type", "").split(";")[0] != "application/x-www-form-urlencoded":
+            raise HTTPException(415, "Unsupported content type")
+        body = await request.body()
+        if len(body) > 8192:
+            raise HTTPException(413, "Form too large")
+        try:
+            values = parse_qs(body.decode("utf-8"), keep_blank_values=True, max_num_fields=12)
+        except (ValueError, UnicodeError) as exc:
+            raise HTTPException(422, "Invalid form") from exc
+        if any(len(parts) != 1 for parts in values.values()):
+            raise HTTPException(422, "Duplicate form field")
+        fields = {key: parts[0] for key, parts in values.items()}
+        expected = csrf_token(request.cookies.get(COOKIE, ""), tenant)
+        submitted = fields.get("csrf_token", "")
+        if not expected or not hmac.compare_digest(expected, submitted):
+            raise HTTPException(403, "Invalid CSRF token")
+        return fields, database, tenant, actor
+
+    def _password_fields(fields: dict[str, str], *, required: bool) -> str | None:
+        password = fields.get("password", "")
+        confirmation = fields.get("confirm_password", "")
+        if not password and not confirmation and not required:
+            return None
+        if password != confirmation:
+            raise AccountError(422, "Las contraseñas no coinciden.")
+        if not password:
+            raise AccountError(422, "Debes establecer una contraseña.")
+        return password
+
+    @app.get("/accounts", response_class=HTMLResponse, include_in_schema=False)
+    def accounts_page(request: Request, notice: str = ""):
+        return _accounts_page(request, notice=notice)
+
+    @app.post("/accounts/create", include_in_schema=False)
+    async def accounts_create(request: Request):
+        fields, database, tenant, actor = await _account_form(request)
+        try:
+            password = _password_fields(fields, required=True)
+            create_account(database, actor=actor, tenant=tenant,
+                           username=fields.get("username", ""), role=fields.get("role", ""),
+                           password=password)
+        except AccountError as exc:
+            return _accounts_page(request, error=str(exc), status_code=exc.status_code)
+        return RedirectResponse("/accounts?notice=created", status_code=303,
+                                headers={"Cache-Control": "no-store"})
+
+    @app.post("/accounts/update", include_in_schema=False)
+    async def accounts_update(request: Request):
+        fields, database, tenant, actor = await _account_form(request)
+        try:
+            password = _password_fields(fields, required=False)
+            if fields.get("active") not in ("0", "1"):
+                raise AccountError(422, "Selecciona el estado de la cuenta.")
+            update_account(database, actor=actor, tenant=tenant,
+                           username=fields.get("username", ""),
+                           role=fields.get("role", ""), active=fields["active"] == "1",
+                           password=password)
+        except AccountError as exc:
+            return _accounts_page(request, error=str(exc), status_code=exc.status_code)
+        return RedirectResponse("/accounts?notice=updated", status_code=303,
+                                headers={"Cache-Control": "no-store"})
+
+    @app.post("/accounts/delete", include_in_schema=False)
+    async def accounts_delete(request: Request):
+        fields, database, tenant, actor = await _account_form(request)
+        try:
+            if fields.get("confirm") != "ELIMINAR":
+                raise AccountError(422, "Confirma explícitamente la eliminación.")
+            delete_account(database, actor=actor, tenant=tenant,
+                           username=fields.get("username", ""))
+        except AccountError as exc:
+            return _accounts_page(request, error=str(exc), status_code=exc.status_code)
+        return RedirectResponse("/accounts?notice=deleted", status_code=303,
+                                headers={"Cache-Control": "no-store"})
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request, source_id: str | None = None,
