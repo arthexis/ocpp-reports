@@ -141,3 +141,13 @@ def test_multiple_charges_have_distinct_carousel_entries():
     assert len({item["id"] for item in frames}) == 2
     assert states["abc|ABB|1"]["state"] == "Charging"
     assert states["abc|ABB|2"]["state"] == "Preparing"
+
+
+def test_second_worker_cannot_duplicate_sounds(tmp_path):
+    import fcntl
+    from ocpp_reports.lcd_hook import run_worker
+    path = tmp_path / "hook.json"
+    with open(str(path) + ".lock", "w") as fd:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(BlockingIOError):
+            run_worker(tmp_path / "unused.sqlite", path, once=True)
