@@ -144,6 +144,9 @@ def project(data, *, now):
 
     for (source, charger), row in sorted(stations.items()):
         state = str(row.get("status") or "")
+        # Baseline healthy C0 too: an eventual station-wide fault or
+        # EmergencyStop is a true audible transition, not a new identity.
+        states[f"{source}|{charger}|0"] = {"state": state, "tx": None, "audible": False}
         if state in ERROR:
             append(source, charger, 0, state, row.get("status_observed_at"),
                    row.get("location") or source, urgent=True)
