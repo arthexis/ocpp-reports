@@ -56,6 +56,8 @@ def test_connectors_fault_do_not_generate_station_alarm():
     frames, states = project(data(c1="Faulted", c0="Available"), now=NOW)
     assert frames == []
     assert states["abc|ABB|1"]["state"] == "Faulted"
+    before = {"abc|ABB|1": {"state": "Charging", "tx": 9}}
+    assert transitions(before, states) == []  # ABB C1 fault with healthy C0
 
 
 def test_station_fault_visible_and_alertable():
@@ -94,8 +96,8 @@ def test_sounds_exactly_once_per_status_transition():
                "b": {"state": "Preparing", "tx": None}}
     assert transitions(None, current) == []
     assert transitions(current, current) == []
-    after = {"a": {"state": "Complete", "tx": 9},
-             "b": {"state": "Charging", "tx": 10}}
+    after = {"a": {"state": "Complete", "tx": 9, "audible": True},
+             "b": {"state": "Charging", "tx": 10, "audible": True}}
     assert transitions(current, after) == [("a", "ok"), ("b", "ok")]
 
 
