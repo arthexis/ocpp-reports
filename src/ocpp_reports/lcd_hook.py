@@ -5,12 +5,13 @@ application or raw OCPP data is included in the transport payload.
 """
 from __future__ import annotations
 
-import argparse
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 import math
 import os
 import sqlite3
+import sys
 from pathlib import Path
 import subprocess
 import tempfile
@@ -136,7 +137,7 @@ def project(data, *, now):
         states[key] = {"state": state, "tx": tx_id, "audible": True}
         title = short_location(location, minutes_since(start, now))
         line2 = state + (f" {soc}" if soc and state in ("Charging", "Complete") else "")
-        frame = {"id": __import__("hashlib").sha256(key.encode()).hexdigest()[:24],
+        frame = {"id": hashlib.sha256(key.encode()).hexdigest()[:24],
                  "line1": title, "line2": line2[:16]}
         if until is not None:
             frame["until"] = until.isoformat()
@@ -284,7 +285,7 @@ def run_worker(database=DEFAULT_DB, state=DEFAULT_STATE, *,
             one_cycle(database, state, lcd=lcd, sound=sound)
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
             # A failed cycle never triggers a local hardware fallback.
-            print(f"lcd-hook: {exc}", file=__import__("sys").stderr, flush=True)
+            print(f"lcd-hook: {exc}", file=sys.stderr, flush=True)
             if once:
                 raise
         if once:
