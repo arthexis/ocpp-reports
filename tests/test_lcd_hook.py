@@ -79,7 +79,8 @@ def test_emergency_stop_visible_even_with_c0_available():
 def test_complete_120_seconds_not_offline_artifact():
     stop = NOW - timedelta(seconds=119)
     frames, states = project(data(c1="Available", tx=False, stop=stop), now=NOW)
-    assert [f["line2"] for f in frames] == ["Complete 78%"] or [f["line2"] for f in frames] == ["Complete"]
+    assert [f["line2"] for f in frames] == ["Complete"]
+    assert frames[0]["line1"] == "P Monterrey 035m"  # fixed end-start duration
     frames, _ = project(data(c1="Available", tx=False,
                              stop=NOW-timedelta(seconds=121)), now=NOW)
     assert frames == []
