@@ -6,6 +6,7 @@ application or raw OCPP data is included in the transport payload.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import fcntl
 import hashlib
 import json
 import math
@@ -279,15 +280,24 @@ def run_worker(database=DEFAULT_DB, state=DEFAULT_STATE, *,
                lcd="lcd", sound="sound", interval=30, once=False):
     if not 10 <= interval <= 300:
         raise ValueError("invalid refresh interval")
-    while True:
-        started = time.monotonic()
-        try:
-            one_cycle(database, state, lcd=lcd, sound=sound)
-        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
-            # A failed cycle never triggers a local hardware fallback.
-            print(f"lcd-hook: {exc}", file=sys.stderr, flush=True)
+    # One producer owns the persisted state and remote output at a time.
+    # Competing service/manual invocations cannot both claim one transition.
+    lock = Path(str(state) + ".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        while True:
+            started = time.monotonic()
+            try:
+                one_cycle(database, state, lcd=lcd, sound=sound)
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+                # A failed cycle never triggers a local hardware fallback.
+                print(f"lcd-hook: {exc}", file=sys.stderr, flush=True)
+                if once:
+                    raise
             if once:
-                raise
-        if once:
-            return
-        time.sleep(max(0.5, interval - (time.monotonic() - started)))
+                return
+            time.sleep(max(0.5, interval - (time.monotonic() - started)))
+    finally:
+        os.close(fd)
