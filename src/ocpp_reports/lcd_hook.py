@@ -132,10 +132,10 @@ def project(data, *, now):
     displays = []
     states = {}
 
-    def append(source, charger, connector, state, start, location, soc=None, until=None, tx_id=None, urgent=False):
+    def append(source, charger, connector, state, start, location, soc=None, until=None, tx_id=None, urgent=False, elapsed_at=None):
         key = f"{source}|{charger}|{connector}"
         states[key] = {"state": state, "tx": tx_id, "audible": True}
-        title = short_location(location, minutes_since(start, now))
+        title = short_location(location, minutes_since(start, elapsed_at or now))
         line2 = state + (f" {soc}" if soc and state in ("Charging", "Complete") else "")
         frame = {"id": hashlib.sha256(key.encode()).hexdigest()[:24],
                  "line1": title, "line2": line2[:16]}
@@ -179,7 +179,7 @@ def project(data, *, now):
             stopped, finished = recently_stopped[source, charger, index]
             append(source, charger, index, "Complete",
                    finished.get("started_at") or finished.get("stopped_at"),
-                   location, until=stopped + timedelta(seconds=120), tx_id=finished.get("id"))
+                   location, until=stopped + timedelta(seconds=120), tx_id=finished.get("id"), elapsed_at=stopped)
         else:
             states[key] = {"state": status, "tx": tx_id, "audible": False}
     # Preserve deterministic ordering with station-wide incidents first.
