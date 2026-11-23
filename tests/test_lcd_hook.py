@@ -124,3 +124,20 @@ def test_send_failure_has_no_sound_and_does_not_replay(tmp_path, monkeypatch):
         one_cycle(tmp_path / "db", state, lcd="lcd", sound="sound",
                   run=lambda *a, **kw: type("Result", (), {"returncode": 1})(), now=NOW)
     assert json.loads(state.read_text())["schema"] == 1
+
+
+def test_multiple_charges_have_distinct_carousel_entries():
+    sample = data()
+    sample["connectors"].append({
+        "source_id": "abc", "charger_id": "ABB", "connector_id": 2,
+        "status": "Preparing", "location": "Audi Valle",
+        "status_observed_at": (NOW - timedelta(minutes=4)).isoformat(),
+        "transaction_id": None,
+    })
+    frames, states = project(sample, now=NOW)
+    assert len(frames) == 2
+    assert [item["line1"] for item in frames] == [
+        "P Monterrey 037m", "A Valle 004m"]
+    assert len({item["id"] for item in frames}) == 2
+    assert states["abc|ABB|1"]["state"] == "Charging"
+    assert states["abc|ABB|2"]["state"] == "Preparing"
