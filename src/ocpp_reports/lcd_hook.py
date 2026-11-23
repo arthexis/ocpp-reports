@@ -17,6 +17,7 @@ import time
 import unicodedata
 
 from .warehouse_queries import snapshot
+from .warehouse.transaction_timeline import transaction_timeline
 
 ACTIVE = {"Preparing", "Charging"}
 ERROR = {"Faulted", "Unavailable"}
@@ -61,6 +62,16 @@ def fresh_soc(transaction, now):
     """Only a timestamped OCPP-meter SoC for this exact transaction."""
     if not isinstance(transaction, dict):
         return None
+    # Populated exclusively from transaction_timeline's verified immutable
+    # OCPP MeterValues sample, source/charger/connector/tx ID already checked.
+    sample = transaction.get("_lcd_verified_soc")
+    if type(sample) is dict:
+        observed = instant(sample.get("at"))
+        value = sample.get("value")
+        if (type(value) in (int, float) and math.isfinite(value)
+                and 0 <= value <= 100 and observed is not None
+                and timedelta(0) <= now - observed <= timedelta(seconds=120)):
+            return f"{round(value):d}%"
     source = transaction.get("soc_provenance") or transaction.get("soc_end_provenance")
     if source != "ocpp-meter-values":
         return None
@@ -220,6 +231,29 @@ def transitions(before, after):
 def one_cycle(database, state, *, lcd, sound, run=subprocess.run, now=None):
     now = now or datetime.now(timezone.utc)
     data = snapshot(Path(database), transaction_limit=500, skip_events=True)
+    # A projected SoC endpoint alone is not evidence of a recent reading.
+    # Consult indexed immutable meter history for each exact active session.
+    charging = {(c.get("source_id"), c.get("charger_id"),
+                 c.get("connector_id"), c.get("transaction_id"))
+                for c in data.get("connectors", [])
+                if c.get("status") == "Charging" and type(c.get("transaction_id")) is int}
+    count = 0
+    for tx in data.get("transactions", []):
+        key = (tx.get("source_id"), tx.get("charger_id"), tx.get("connector_id"), tx.get("id"))
+        if key not in charging or tx.get("stopped_at") is not None or count >= MAX_DISPLAYS:
+            continue
+        count += 1
+        try:
+            trace = transaction_timeline(database, tx, scan_limit=256, point_limit=120)
+            measured = [point for point in trace.get("points", [])
+                        if type(point.get("soc")) in (int, float)
+                        and instant(point.get("at")) is not None
+                        and timedelta(0) <= now - instant(point["at"]) <= timedelta(seconds=120)]
+            if measured:
+                latest = max(measured, key=lambda point: point["at"])
+                tx["_lcd_verified_soc"] = {"value": latest["soc"], "at": latest["at"]}
+        except (OSError, ValueError, TypeError):
+            pass  # Missing meter evidence never produces an inferred SoC.
     frames, statuses = project(data, now=now)
     previous = read_state(Path(state))
     # Journal the new state BEFORE any physical sound side effect. A crash
