@@ -121,7 +121,7 @@ def project(data, *, now):
 
     def append(source, charger, connector, state, start, location, soc=None, until=None, tx_id=None, urgent=False):
         key = f"{source}|{charger}|{connector}"
-        states[key] = {"state": state, "tx": tx_id}
+        states[key] = {"state": state, "tx": tx_id, "audible": True}
         title = short_location(location, minutes_since(start, now))
         line2 = state + (f" {soc}" if soc and state in ("Charging", "Complete") else "")
         frame = {"id": __import__("hashlib").sha256(key.encode()).hexdigest()[:24],
@@ -158,14 +158,14 @@ def project(data, *, now):
         elif status in ERROR:
             # Connector-only faults are not station-level incidents. Do not
             # generate a sound or LCD frame when C0 remains healthy/unknown.
-            states[key] = {"state": status, "tx": tx_id}
+            states[key] = {"state": status, "tx": tx_id, "audible": False}
         elif (source, charger, index) in recently_stopped and (source, charger) not in emergency:
             stopped, finished = recently_stopped[source, charger, index]
             append(source, charger, index, "Complete",
                    finished.get("started_at") or finished.get("stopped_at"),
                    location, until=stopped + timedelta(seconds=120), tx_id=finished.get("id"))
         else:
-            states[key] = {"state": status, "tx": tx_id}
+            states[key] = {"state": status, "tx": tx_id, "audible": False}
     # Preserve deterministic ordering with station-wide incidents first.
     displays.sort(key=lambda d: (d[0], d[1], d[2], d[3]))
     return [entry[-1] for entry in displays[:MAX_DISPLAYS]], states
@@ -212,7 +212,7 @@ def transitions(before, after):
         old = before.get(key)
         if old is None or old.get("state") == row["state"]:
             continue
-        if row["state"] in SOUNDS:
+        if row.get("audible") is True and row["state"] in SOUNDS:
             result.append((key, SOUNDS[row["state"]]))
     return result
 
