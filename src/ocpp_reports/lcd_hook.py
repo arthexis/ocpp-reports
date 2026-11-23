@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import math
 import os
+import sqlite3
 from pathlib import Path
 import subprocess
 import tempfile
@@ -252,7 +253,7 @@ def one_cycle(database, state, *, lcd, sound, run=subprocess.run, now=None):
             if measured:
                 latest = max(measured, key=lambda point: point["at"])
                 tx["_lcd_verified_soc"] = {"value": latest["soc"], "at": latest["at"]}
-        except (OSError, ValueError, TypeError):
+        except (OSError, ValueError, TypeError, sqlite3.Error):
             pass  # Missing meter evidence never produces an inferred SoC.
     frames, statuses = project(data, now=now)
     previous = read_state(Path(state))
