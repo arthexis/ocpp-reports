@@ -7,8 +7,9 @@ Wants=network-online.target
 Type=simple
 User=ocpp-reports
 Group=ocpp-reports
-Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=/usr/local/bin/ocpp-reports lcd-hook --database /var/lib/ocpp-reports/warehouse.sqlite --state /var/lib/ocpp-reports/lcd-hook-state.json --lcd %h/.local/bin/lcd --sound %h/.local/bin/sound --interval 30
+Environment=HOME=/home/ocpp-reports
+Environment=PATH=/home/ocpp-reports/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/ocpp-reports lcd-hook --database /var/lib/ocpp-reports/warehouse.sqlite --state /var/lib/ocpp-reports/lcd-hook-state.json --lcd /home/ocpp-reports/.local/bin/lcd --sound /home/ocpp-reports/.local/bin/sound --interval 30
 Restart=on-failure
 RestartSec=10
 NoNewPrivileges=true
