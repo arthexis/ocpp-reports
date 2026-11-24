@@ -5,18 +5,21 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=ocpp-reports
-Group=ocpp-reports
-Environment=HOME=/home/ocpp-reports
-Environment=PATH=/home/ocpp-reports/.local/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=/usr/local/bin/ocpp-reports lcd-hook --database /var/lib/ocpp-reports/warehouse.sqlite --state /var/lib/ocpp-reports/lcd-hook-state.json --lcd /home/ocpp-reports/.local/bin/lcd --sound /home/ocpp-reports/.local/bin/sound --interval 30
+User=ubuntu
+Group=ubuntu
+Environment=HOME=/home/ubuntu
+Environment=PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
+StateDirectory=ocpp-reports-lcd
+StateDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/local/bin/ocpp-reports lcd-hook --database /var/lib/ocpp-reports/warehouse.sqlite --state /var/lib/ocpp-reports-lcd/hook-state.json --lcd /home/ubuntu/.local/bin/lcd --sound /home/ubuntu/.local/bin/sound --interval 30
 Restart=on-failure
 RestartSec=10
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=false
-ReadWritePaths=/var/lib/ocpp-reports
+ProtectHome=read-only
+ReadWritePaths=/var/lib/ocpp-reports-lcd
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
