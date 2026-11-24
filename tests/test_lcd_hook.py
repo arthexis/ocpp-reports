@@ -151,3 +151,24 @@ def test_second_worker_cannot_duplicate_sounds(tmp_path):
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with pytest.raises(BlockingIOError):
             run_worker(tmp_path / "unused.sqlite", path, once=True)
+
+def test_verified_stop_supersedes_last_known_charging_state():
+    sample = data(c1="Charging", stop=NOW - timedelta(seconds=10))
+    frames, states = project(sample, now=NOW)
+    assert len(frames) == 1
+    assert frames[0]["line2"].startswith("Complete")
+    assert states["abc|ABB|1"]["state"] == "Complete"
+
+
+def test_new_session_does_not_show_prior_session_complete():
+    sample = data(c1="Charging", stop=NOW - timedelta(seconds=10))
+    sample["connectors"][1]["transaction_id"] = 10
+    sample["transactions"].append({
+        "source_id": "abc", "charger_id": "ABB", "connector_id": 1, "id": 10,
+        "started_at": (NOW - timedelta(minutes=2)).isoformat(),
+        "stopped_at": None,
+    })
+    frames, states = project(sample, now=NOW)
+    assert len(frames) == 1
+    assert frames[0]["line2"].startswith("Charging")
+    assert states["abc|ABB|1"]["tx"] == 10
