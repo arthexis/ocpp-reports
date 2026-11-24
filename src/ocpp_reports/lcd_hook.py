@@ -168,20 +168,26 @@ def project(data, *, now):
         tx_id = row.get("transaction_id")
         tx = transactions.get((source, charger, index, tx_id)) if type(tx_id) is int else None
         location = row.get("location") or source
-        if status in ACTIVE:
+        stopped_info = recently_stopped.get((source, charger, index))
+        # An exporter may retain a last-known Charging connector status after
+        # the authoritative transaction has stopped. Prefer the verified stop
+        # only if no different/new transaction superseded it.
+        completed = (stopped_info is not None and
+                     (type(tx_id) is not int or tx_id == stopped_info[1].get("id")) and
+                     (source, charger) not in emergency)
+        if completed:
+            stopped, finished = stopped_info
+            append(source, charger, index, "Complete",
+                   finished.get("started_at") or finished.get("stopped_at"),
+                   location, until=stopped + timedelta(seconds=120),
+                   tx_id=finished.get("id"), elapsed_at=stopped)
+        elif status in ACTIVE:
             start = tx.get("started_at") if status == "Charging" and tx else row.get("status_observed_at")
             append(source, charger, index, status, start, location,
                    fresh_soc(tx, now) if status == "Charging" else None, tx_id=tx_id)
-        elif status in ERROR:
+        else:
             # Connector-only faults are not station-level incidents. Do not
             # generate a sound or LCD frame when C0 remains healthy/unknown.
-            states[key] = {"state": status, "tx": tx_id, "audible": False}
-        elif (source, charger, index) in recently_stopped and (source, charger) not in emergency:
-            stopped, finished = recently_stopped[source, charger, index]
-            append(source, charger, index, "Complete",
-                   finished.get("started_at") or finished.get("stopped_at"),
-                   location, until=stopped + timedelta(seconds=120), tx_id=finished.get("id"), elapsed_at=stopped)
-        else:
             states[key] = {"state": status, "tx": tx_id, "audible": False}
     # Preserve deterministic ordering with station-wide incidents first.
     displays.sort(key=lambda d: (d[0], d[1], d[2], d[3]))
