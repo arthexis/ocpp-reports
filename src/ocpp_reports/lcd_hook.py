@@ -271,6 +271,11 @@ def one_cycle(database, state, *, lcd, sound, run=subprocess.run, now=None):
     # Journal the new state BEFORE any physical sound side effect. A crash
     # can lose a notification but must never replay an uncertain output.
     store_state(Path(state), statuses)
+    try:
+        from .activity_feed import publish
+        publish(previous, statuses, now)
+    except Exception:
+        pass
     # One atomic whole-carousel update, not independent overlay modifications.
     payload = json.dumps(frames, sort_keys=True, separators=(",", ":"))
     result = run([str(lcd), "reports", payload], timeout=18, capture_output=True, check=False)
