@@ -1,0 +1,23 @@
+[Unit]
+Description=OCPP Reports read-only LCD/Sound status hook
+After=network-online.target ocpp-reports-ingest.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ocpp-reports
+Group=ocpp-reports
+Environment=HOME=/home/ocpp-reports
+Environment=PATH=/home/ocpp-reports/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/ocpp-reports lcd-hook --database /var/lib/ocpp-reports/warehouse.sqlite --state /var/lib/ocpp-reports/lcd-hook-state.json --lcd /home/ocpp-reports/.local/bin/lcd --sound /home/ocpp-reports/.local/bin/sound --interval 30
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/var/lib/ocpp-reports
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

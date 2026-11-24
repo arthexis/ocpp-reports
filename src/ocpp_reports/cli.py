@@ -742,3 +742,17 @@ def diagnose_import_local(
     except (OSError, ValueError, RuntimeError) as exc:
         typer.echo(f"Local diagnostics import failed: {exc}", err=True)
         raise typer.Exit(2)
+
+
+@app.command("lcd-hook")
+def lcd_hook_command(
+    database: Path = typer.Option(Path("/var/lib/ocpp-reports/warehouse.sqlite"), "--database"),
+    state: Path = typer.Option(Path("/var/lib/ocpp-reports/lcd-hook-state.json"), "--state"),
+    lcd: str = typer.Option("lcd", "--lcd"),
+    sound: str = typer.Option("sound", "--sound"),
+    interval: int = typer.Option(30, "--interval", min=10, max=300),
+    once: bool = typer.Option(False, "--once"),
+) -> None:
+    """Publish bounded charging status frames through the authenticated LCD route."""
+    from .lcd_hook import run_worker
+    run_worker(database, state, lcd=lcd, sound=sound, interval=interval, once=once)
