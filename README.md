@@ -214,7 +214,7 @@ Password entry is interactive; never pass passwords on command lines.
 ### Account management from the dashboard
 
 On an integrated-login dashboard, accounts with the `admin` role can open
-**Usuarios con acceso → Administrar cuentas** (or **Perfil → Administrar cuentas**).
+**Usuarios con acceso → Administrar**. Select a user from the list to edit that account.
 The page supports creating accounts with `admin` or `operator` roles, changing
 a user's role or enabled state, setting a new password, and permanently deleting
 an account after explicit confirmation. Username identifiers remain immutable.

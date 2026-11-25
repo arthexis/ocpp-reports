@@ -7,22 +7,24 @@
 :root{color-scheme:light;--bg:#f4f7fb;--surface:#fff;--ink:#172638;--muted:#627388;--line:#dce4ee;--primary:#1268c7;--danger:#a61d33;font:16px system-ui,sans-serif}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.48}
 header{background:#203247;color:white;padding:1rem max(1rem,calc((100% - 1120px)/2))}
-header a{color:#fff}main{max-width:1120px;margin:auto;padding:1.2rem}
+header a{color:#fff}.back-link{color:white;border:1px solid #718096;border-radius:8px;min-height:44px;display:inline-flex;align-items:center;padding:.5rem .75rem;text-decoration:none;font-weight:600}.back-link:hover,.back-link:focus-visible{background:#ffffff18;text-decoration:underline}main{max-width:1120px;margin:auto;padding:1.2rem}
 h1{font-size:1.5rem;margin:.3rem 0}h2{font-size:1.14rem;margin:.2rem 0 1rem}
 h3{font-size:1rem;margin:.4rem 0}p{margin:.35rem 0 .9rem}.muted{color:var(--muted)}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-bottom:1rem;padding:1.15rem}
 .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem 1rem}
 label:not(.checkbox){display:flex;flex-direction:column;gap:.3rem;font-size:.91rem;font-weight:600;min-width:0}
 input:not([type=checkbox]),select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid #98a8b9;border-radius:7px;min-height:44px;padding:.55rem;width:100%;max-width:100%}
-input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
 button{border:0;border-radius:8px;background:var(--primary);color:#fff;min-height:44px;padding:.7rem 1rem;font:inherit;font-weight:650;cursor:pointer}
 button.danger{background:var(--danger)}
 a{color:var(--primary)}.action{margin-top:1rem;display:flex;gap:.7rem;align-items:center;flex-wrap:wrap}
-.accounts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.accounts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:1rem;align-items:start}
+.account-list{display:flex;flex-direction:column;gap:.25rem}
+.account-list a{display:block;padding:.65rem .8rem;border-radius:7px;overflow-wrap:anywhere;text-decoration:none}
+.account-list a:hover,.account-list a[aria-current="true"]{background:var(--bg);text-decoration:underline}
+.account-list a[aria-current="true"]{font-weight:650}
 .accounts .card{margin-bottom:0;min-width:0}
-summary{cursor:pointer;min-height:44px;padding:.45rem 0;font-weight:650;overflow-wrap:anywhere}
-.kicker{font-size:.82rem;color:var(--muted)}details[open] summary{border-bottom:1px solid var(--line);margin-bottom:1rem}
-.status{font-weight:650}.status.off{color:var(--danger)}.alert{border-left:4px solid var(--danger);background:var(--surface);padding:.85rem 1rem;margin:0 0 1rem;border-radius:5px}
+.alert{border-left:4px solid var(--danger);background:var(--surface);padding:.85rem 1rem;margin:0 0 1rem;border-radius:5px}
 .notice{border-left:4px solid var(--primary);background:var(--surface);padding:.85rem 1rem;margin:0 0 1rem}
 .danger-zone{border-top:1px solid var(--line);padding-top:.9rem;margin-top:1.2rem}
 .checkbox{display:flex;align-items:flex-start;gap:.55rem;margin:.75rem 0;font-size:.9rem}
@@ -31,10 +33,9 @@ summary{cursor:pointer;min-height:44px;padding:.45rem 0;font-weight:650;overflow
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2937;--ink:#eaf0f8;--muted:#b2bfcd;--line:#34475c;--primary:#4a9eec;--danger:#ef6173}header{background:#0c1725}input:not([type=checkbox]),select{border-color:#63798d}button{color:#071320}}
 </style></head>
 <body>
-<header><a href="/">← Volver al dashboard</a><h1>Administrar cuentas</h1>
+<header><a class="back-link" href="/">← Volver al dashboard</a><h1>Administrar cuentas</h1>
 <p>Dashboard: {{ tenant|e }} · Sesión: {{ actor|e }}</p></header>
 <main>
-<p class="muted">Solo los administradores pueden crear, modificar y eliminar usuarios del tenant actual. Los cambios de rol, estado y contraseña cierran todas las sesiones anteriores de la cuenta afectada.</p>
 {% if error %}<div class="alert" role="alert">{{ error|e }}</div>{% endif %}
 {% if notice %}<div class="notice" role="status">{{ notice|e }}</div>{% endif %}
 <section class="card" aria-labelledby="new-account"><h2 id="new-account">Agregar cuenta</h2>
@@ -51,16 +52,20 @@ summary{cursor:pointer;min-height:44px;padding:.45rem 0;font-weight:650;overflow
 
 <section aria-labelledby="existing-accounts"><h2 id="existing-accounts">Cuentas de {{ tenant|e }}</h2>
 <div class="accounts">
-{% for account in accounts %}
-<article class="card">
-<h3>{{ account.user_id|e }}</h3>
-<p class="kicker">{{ "Administrador" if account.role == "admin" else "Operador" if account.role == "operator" else account.role|e }} ·
-<span class="status {{ '' if account.active else 'off' }}">{{ 'Activa' if account.active else 'Deshabilitada' }}</span></p>
-<p class="muted">Último acceso: {{ account.last_login_at|display_date('America/Monterrey') if account.last_login_at else 'Sin registro' }}</p>
-{% if account.user_id == actor %}
-<p class="muted">Esta es tu sesión. Para cambiar tu propia contraseña, usa el <a href="/change-password">menú de contraseña</a>. No puedes desactivar ni eliminar tu propia cuenta desde aquí.</p>
+<nav class="card account-list" aria-label="Usuarios">
+{% for item in accounts %}
+<a href="/accounts?user={{ item.user_id|urlencode }}" {% if selected_account and item.user_id == selected_account.user_id %}aria-current="true"{% endif %}>{{ item.user_id|e }}</a>
 {% else %}
-<details><summary>Editar cuenta</summary>
+<p class="muted">Todavía no hay cuentas registradas en este tenant.</p>
+{% endfor %}
+</nav>
+<article class="card" aria-label="Editar usuario">
+{% if selected_account %}
+{% set account = selected_account %}
+<h3>{{ account.user_id|e }}</h3>
+{% if account.user_id == actor %}
+<a href="/change-password">Cambiar contraseña</a>
+{% else %}
 <form action="/accounts/update" method="post" autocomplete="off">
 <input type="hidden" name="csrf_token" value="{{ csrf_token|e }}">
 <input type="hidden" name="username" value="{{ account.user_id|e }}">
@@ -85,12 +90,12 @@ summary{cursor:pointer;min-height:44px;padding:.45rem 0;font-weight:650;overflow
 <label class="checkbox"><input name="confirm" type="checkbox" value="ELIMINAR" required>
 <span>Confirmo que quiero eliminar la cuenta <strong>{{ account.user_id|e }}</strong>.</span></label>
 <button type="submit" class="danger">Eliminar cuenta</button>
-</form></div></details>
+</form></div>
+{% endif %}
+{% else %}
+<p class="muted">Selecciona un usuario para editarlo</p>
 {% endif %}
 </article>
-{% else %}
-<p class="muted">Todavía no hay cuentas registradas en este tenant.</p>
-{% endfor %}
 </div>
 </section>
 </main></body></html>

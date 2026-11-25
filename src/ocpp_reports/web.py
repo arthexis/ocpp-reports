@@ -530,14 +530,16 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         return str(database), tenant, principal.user_id
 
     def _accounts_page(request: Request, *, notice: str = "", error: str = "",
-                       status_code: int = 200):
+                       status_code: int = 200, selected_user: str = ""):
         database, tenant, actor = _account_scope(request)
+        accounts = list_tenant_accounts(database, tenant)
+        selected_account = next((account for account in accounts if account["user_id"] == selected_user), None)
         messages = {"created": "Cuenta creada.", "updated": "Cuenta actualizada; sus sesiones anteriores fueron revocadas.",
                     "deleted": "Cuenta eliminada; sus sesiones anteriores fueron revocadas."}
         response = templates.TemplateResponse(
             request, "dashboard_accounts.html.j2",
             {"title": title, "tenant": tenant, "actor": actor,
-             "accounts": list_tenant_accounts(database, tenant),
+             "accounts": accounts, "selected_account": selected_account,
              "csrf_token": csrf_token(request.cookies.get(COOKIE, ""), tenant),
              "notice": messages.get(notice, ""), "error": error},
             status_code=status_code,
@@ -581,8 +583,8 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         return password
 
     @app.get("/accounts", response_class=HTMLResponse, include_in_schema=False)
-    def accounts_page(request: Request, notice: str = ""):
-        return _accounts_page(request, notice=notice)
+    def accounts_page(request: Request, notice: str = "", user: str = ""):
+        return _accounts_page(request, notice=notice, selected_user=user)
 
     @app.post("/accounts/create", include_in_schema=False)
     async def accounts_create(request: Request):
@@ -609,8 +611,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                            role=fields.get("role", ""), active=fields["active"] == "1",
                            password=password)
         except AccountError as exc:
-            return _accounts_page(request, error=str(exc), status_code=exc.status_code)
-        return RedirectResponse("/accounts?notice=updated", status_code=303,
+            return _accounts_page(request, error=str(exc), status_code=exc.status_code,
+                                  selected_user=fields.get("username", ""))
+        return RedirectResponse("/accounts?" + urlencode({"notice": "updated", "user": fields["username"]}), status_code=303,
                                 headers={"Cache-Control": "no-store"})
 
     @app.post("/accounts/delete", include_in_schema=False)
@@ -622,7 +625,8 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             delete_account(database, actor=actor, tenant=tenant,
                            username=fields.get("username", ""))
         except AccountError as exc:
-            return _accounts_page(request, error=str(exc), status_code=exc.status_code)
+            return _accounts_page(request, error=str(exc), status_code=exc.status_code,
+                                  selected_user=fields.get("username", ""))
         return RedirectResponse("/accounts?notice=deleted", status_code=303,
                                 headers={"Cache-Control": "no-store"})
 

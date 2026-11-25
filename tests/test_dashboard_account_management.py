@@ -61,11 +61,13 @@ def test_only_admin_sees_management_and_only_own_tenant(tmp_path, monkeypatch):
         login(op, "operator-a", OP_PASS)
         assert op.get("/accounts").status_code == 403
         assert op.post("/accounts/delete", data={}, headers={"origin": ORIGIN}).status_code == 403
-        assert "Administrar cuentas" not in op.get("/").text
+        assert 'href="/accounts"' not in op.get("/").text
     with TestClient(app, base_url=ORIGIN) as admin:
         login(admin, "admin-main", ADMIN_PASS)
         assert 'id="dashboard-users"' in admin.get("/").text
-        assert 'href="/accounts"' in admin.get("/").text
+        dashboard = admin.get("/").text
+        assert dashboard.count('href="/accounts"') == 1
+        assert 'style="margin-left:auto">Administrar</a>' in dashboard
         page = admin.get("/accounts")
         assert "admin-main" in page.text and "operator-a" in page.text
         assert "hidden-other" not in page.text
@@ -73,7 +75,25 @@ def test_only_admin_sees_management_and_only_own_tenant(tmp_path, monkeypatch):
         assert "password_hash" not in page.text
         assert page.headers["cache-control"] == "no-store"
         assert page.headers["referrer-policy"] == "no-referrer"
-        assert "grid-template-columns:repeat(2,minmax(0,1fr))" in page.text
+        assert "grid-template-columns:minmax(0,1fr) minmax(0,2fr)" in page.text
+        assert "Selecciona un usuario para editarlo" in page.text
+        assert "Solo los administradores pueden crear" not in page.text
+        assert 'class="back-link" href="/"' in page.text
+        assert 'action="/accounts/update"' not in page.text
+        assert 'action="/accounts/delete"' not in page.text
+        selected = admin.get("/accounts?user=operator-a").text
+        assert selected.count('action="/accounts/update"') == 1
+        assert selected.count('action="/accounts/delete"') == 1
+        assert selected.count('name="username" value="operator-a"') == 2
+        assert 'aria-current="true"' in selected
+        assert "Selecciona un usuario para editarlo" not in selected
+        own = admin.get("/accounts?user=admin-main").text
+        assert 'href="/change-password">Cambiar contraseña</a>' in own
+        assert 'action="/accounts/update"' not in own
+        assert 'action="/accounts/delete"' not in own
+        unknown = admin.get("/accounts?user=hidden-other").text
+        assert "hidden-other" not in unknown
+        assert "Selecciona un usuario para editarlo" in unknown
         assert "@media(max-width:760px)" in page.text
         csrf = token(admin)
         for action in ("update", "delete"):
@@ -112,6 +132,8 @@ def test_create_login_update_disable_delete_and_audit(tmp_path, monkeypatch):
                           role="admin", active="1", password=NEW_PASS,
                           confirm_password=NEW_PASS)
             assert update.status_code == 303
+            assert update.headers["location"] == "/accounts?notice=updated&user=tecnologia"
+            assert 'name="username" value="tecnologia"' in admin.get(update.headers["location"]).text
             # Any role/password/account change revokes active sessions immediately.
             assert tech.get("/accounts").status_code == 403
             assert tech.get("/", follow_redirects=False).status_code == 303
@@ -125,7 +147,7 @@ def test_create_login_update_disable_delete_and_audit(tmp_path, monkeypatch):
         deletion = post(admin, "/accounts/delete", csrf, username="tecnologia",
                         confirm="ELIMINAR")
         assert deletion.status_code == 303
-        assert "<h3>tecnologia</h3>" not in admin.get("/accounts").text
+        assert "/accounts?user=tecnologia" not in admin.get("/accounts").text
         with sqlite3.connect(auth) as db:
             assert db.execute("SELECT 1 FROM dashboard_users WHERE user_id='tecnologia'").fetchone() is None
             assert db.execute("SELECT COUNT(*) FROM dashboard_sessions WHERE user_id='tecnologia'").fetchone()[0] == 0
