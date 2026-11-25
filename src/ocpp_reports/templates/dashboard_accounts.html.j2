@@ -3,11 +3,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>Administrar cuentas · {{ title|e }}</title>
+{% from "detail_header.html.j2" import detail_header %}
 <style>
+{% include "detail_header.css.j2" %}
 :root{color-scheme:light;--bg:#f4f7fb;--surface:#fff;--ink:#172638;--muted:#627388;--line:#dce4ee;--primary:#1268c7;--danger:#a61d33;font:16px system-ui,sans-serif}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.48}
-header{background:#203247;color:white;padding:1rem max(1rem,calc((100% - 1120px)/2))}
-header a{color:#fff}.back-link{color:white;border:1px solid #718096;border-radius:8px;min-height:44px;display:inline-flex;align-items:center;padding:.5rem .75rem;text-decoration:none;font-weight:600}.back-link:hover,.back-link:focus-visible{background:#ffffff18;text-decoration:underline}main{max-width:1120px;margin:auto;padding:1.2rem}
+main{max-width:1120px;margin:auto;padding:1.2rem}
 h1{font-size:1.5rem;margin:.3rem 0}h2{font-size:1.14rem;margin:.2rem 0 1rem}
 h3{font-size:1rem;margin:.4rem 0}p{margin:.35rem 0 .9rem}.muted{color:var(--muted)}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-bottom:1rem;padding:1.15rem}
@@ -29,12 +30,11 @@ a{color:var(--primary)}.action{margin-top:1rem;display:flex;gap:.7rem;align-item
 .danger-zone{border-top:1px solid var(--line);padding-top:.9rem;margin-top:1.2rem}
 .checkbox{display:flex;align-items:flex-start;gap:.55rem;margin:.75rem 0;font-size:.9rem}
 .checkbox input{margin-top:.3rem;accent-color:var(--danger)}
-@media(max-width:760px){main{padding:.75rem}.fields,.accounts{grid-template-columns:1fr}.card{padding:1rem}header{padding:1rem}}
-@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2937;--ink:#eaf0f8;--muted:#b2bfcd;--line:#34475c;--primary:#4a9eec;--danger:#ef6173}header{background:#0c1725}input:not([type=checkbox]),select{border-color:#63798d}button{color:#071320}}
+@media(max-width:760px){main{padding:.75rem}.fields,.accounts{grid-template-columns:1fr}.card{padding:1rem}}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2937;--ink:#eaf0f8;--muted:#b2bfcd;--line:#34475c;--primary:#4a9eec;--danger:#ef6173;--nav:#0c1725}input:not([type=checkbox]),select{border-color:#63798d}button{color:#071320}}
 </style></head>
 <body>
-<header><a class="back-link" href="/">← Volver al dashboard</a><h1>Administrar cuentas</h1>
-<p>Dashboard: {{ tenant|e }} · Sesión: {{ actor|e }}</p></header>
+{{ detail_header('Administrar cuentas', '/', subtitle='Dashboard: ' ~ tenant ~ ' · Sesión: ' ~ actor) }}
 <main>
 {% if error %}<div class="alert" role="alert">{{ error|e }}</div>{% endif %}
 {% if notice %}<div class="notice" role="status">{{ notice|e }}</div>{% endif %}
