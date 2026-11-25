@@ -44,8 +44,8 @@ def test_recent_source_with_observed_disconnection_is_not_available(dashboard_cl
 def test_old_source_stays_neutral_despite_last_connected_true(dashboard_client_factory, dashboard_snapshot_factory):
     html = _html(dashboard_client_factory, dashboard_snapshot_factory(source_age_seconds=3600))
     assert _has_badge(html, "Estado", "Available", "status--historic")
-    assert _has_badge(html, "Conectado", css="status--historic", titled=True)
-    assert _has_badge(html, "Estado", "Origen atrasado")
+    assert _has_badge(html, "Conectado", "Desconocido", css="status--warn", titled=True)
+    assert not _has_badge(html, "Estado", "Origen atrasado")
     assert html.count("Disponibles") == "0 (0)"
 
 
@@ -58,8 +58,8 @@ def test_missing_status_timestamp_does_not_invent_new_status(dashboard_client_fa
 
 def test_absent_source_evidence_does_not_claim_live_connectivity(dashboard_client_factory, dashboard_snapshot_factory):
     html = _html(dashboard_client_factory, dashboard_snapshot_factory(source_age_seconds=None))
-    assert _has_badge(html, "Estado", "Origen sin fecha")
-    assert _has_badge(html, "Conectado", css="status--historic", titled=True)
+    assert not _has_badge(html, "Estado", "Origen sin fecha")
+    assert _has_badge(html, "Conectado", "Desconocido", css="status--warn", titled=True)
 
 
 def test_timestamp_validation_and_pipeline_freshness_are_distinct():
@@ -81,9 +81,9 @@ def test_timestamp_validation_and_pipeline_freshness_are_distinct():
     [
         (1, "Sí", "status--ok", "1 (1)", "0 (0)"),
         (0, "No", "status--historic", "0 (0)", "1 (1)"),
-        (None, "Sin datos", "status--historic", "0 (0)", "1 (1)"),
-        ("1", "Sin datos", "status--historic", "0 (0)", "1 (1)"),
-        (2, "Sin datos", "status--historic", "0 (0)", "1 (1)"),
+        (None, "Desconocido", "status--historic", "0 (0)", "1 (1)"),
+        ("1", "Desconocido", "status--historic", "0 (0)", "1 (1)"),
+        (2, "Desconocido", "status--historic", "0 (0)", "1 (1)"),
     ],
 )
 def test_sqlite_connection_flags_drive_badges_and_counts(
@@ -131,11 +131,11 @@ def test_connector_search_preserves_original_source_freshness(dashboard_client_f
     assert client.get("/api/snapshot").json()["sources"][0]["source_id"] == "site-a"
 
 
-def test_filtered_connector_still_warns_about_old_source(dashboard_client_factory, dashboard_snapshot_factory):
+def test_filtered_connector_displays_unknown_connection_for_old_source(dashboard_client_factory, dashboard_snapshot_factory):
     data = dashboard_snapshot_factory(connected=1, source_age_seconds=3600)
     html = DashboardHTML(dashboard_client_factory(data).get(
         "/", params={"filter": "Available"}).text)
-    assert _has_badge(html, "Estado", "Origen atrasado")
+    assert not _has_badge(html, "Estado", "Origen atrasado")
     assert _has_badge(html, "Estado", "Available", "status--historic")
 
 
@@ -204,3 +204,16 @@ def test_activity_metadata_does_not_change_raw_snapshot(dashboard_client_factory
     assert connector["last_activity_at"] == data["connectors"][0]["last_activity_at"]
     assert "activity_freshness" not in connector
     assert "stale" not in connector
+
+
+@pytest.mark.parametrize("view", ["individual", "station", "combined"])
+@pytest.mark.parametrize("age,flag,expected", [(3600, True, "Desconocido"), (3600, False, "Desconocido"), (None, True, "Desconocido"), (0, True, "Sí"), (0, False, "No"), (0, None, "Desconocido")])
+def test_connection_indicator_across_views(dashboard_client_factory, dashboard_snapshot_factory, view, age, flag, expected):
+    data = dashboard_snapshot_factory(source_age_seconds=age, connected=flag)
+    if view == "station":
+        data["connectors"][0]["connector_id"] = 0
+    page = dashboard_client_factory(data).get("/", params={"connector_view": view})
+    html = DashboardHTML(page.text)
+    assert _has_badge(html, "Conectado", expected, {"Sí": "status--ok", "No": "status--off", "Desconocido": "status--warn"}[expected])
+    assert not _has_badge(html, "Estado", "Origen atrasado")
+    assert not _has_badge(html, "Estado", "Origen sin fecha")
