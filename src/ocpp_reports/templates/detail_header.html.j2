@@ -1,11 +1,11 @@
 {% macro detail_header(heading, back_href, back_label='Volver al dashboard', subtitle='', logo_url='') -%}
 <header class="site-header">
   <div class="detail-header-primary">
-    <a class="back-link" href="{{ back_href }}">← {{ back_label }}</a>
     <div class="brand">
       {% if logo_url %}<img class="brand-logo" src="{{ logo_url }}" alt="{{ heading }}" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ heading }}</h1>{% else %}<h1>{{ heading }}</h1>{% endif %}
       {% if subtitle %}<div class="detail-header-subtitle">{{ subtitle }}</div>{% endif %}
     </div>
+    <a class="back-link" href="{{ back_href }}">← {{ back_label }}</a>
   </div>
   {% if caller is defined %}<div class="header-actions">{{ caller() }}</div>{% endif %}
 </header>

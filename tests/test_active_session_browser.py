@@ -922,7 +922,7 @@ def test_accounts_shared_header_layout():
             assert back.get_attribute("href") == "/"
             assert heading.inner_text() == "Administrar cuentas"
             b, h = back.bounding_box(), heading.bounding_box()
-            assert b["x"] + b["width"] <= h["x"]
+            assert h["x"] + h["width"] <= b["x"]
             assert b["y"] < h["y"] + h["height"] and h["y"] < b["y"] + b["height"]
             assert b["height"] >= 44
             assert page.locator(".site-header").evaluate("(e) => e.scrollWidth <= e.clientWidth")
