@@ -3,19 +3,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Transacción #{{ transaction.id }} · {{ title }}</title>
 {% include "favicon_links.html.j2" %}
+{% from "detail_header.html.j2" import detail_header %}
 <style>
+{% include "detail_header.css.j2" %}
 /* Same design tokens and chrome as the Reports dashboard. */
 :root{color-scheme:light;--bg:#f5f7fa;--surface:#fff;--ink:#172437;--muted:#637286;--line:#e2e8f0;--nav:#203247;--accent:#1268c7;--warning:#a96700;font:16px system-ui,sans-serif}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);line-height:1.45}
 a{color:var(--accent)}a:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
-.site-header{background:var(--nav);color:white;padding:1.2rem max(1.25rem,calc((100vw - 1280px)/2));display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
-.site-header h1{margin:0;font-size:1.55rem;letter-spacing:-.03em}
-.site-header .brand-logo{display:block;max-height:56px;max-width:min(240px,65vw);width:auto;height:auto;object-fit:contain}
-.site-header [hidden]{display:none!important}
-.site-header .muted{color:#d0dbe6;margin:.2rem 0 0}
-.back-link{color:white;border:1px solid #718096;border-radius:8px;min-height:44px;display:inline-flex;align-items:center;padding:.5rem .75rem;text-decoration:none;font-weight:600}
-.back-link:hover,.back-link:focus-visible{background:#ffffff18;text-decoration:underline}
 .skip-link{position:absolute;left:1rem;top:-5rem;background:white;color:#172437;padding:.6rem 1rem;z-index:10;border-radius:6px}
 .skip-link:focus{top:.5rem}
 main{max-width:960px;margin:auto;padding:1.4rem 1.25rem 3rem}
@@ -45,8 +40,8 @@ main{max-width:960px;margin:auto;padding:1.4rem 1.25rem 3rem}
 .session-details dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem 1rem;margin:0}
 dl>div{min-width:0;border-bottom:1px solid var(--line);padding-bottom:.65rem}
 dt{font-size:.82rem;color:var(--muted)}dd{margin:.15rem 0 0;font-weight:600;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-@media(max-width:900px){.site-header{padding:1.1rem 1.25rem}.overview{grid-template-columns:1fr 1fr}.overview>.detail-heading{grid-column:1/-1}.session-details dl{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:540px){.site-header{padding:.65rem .9rem;gap:.55rem}.site-header h1{font-size:1.12rem}.site-header .muted{font-size:.76rem}.back-link{min-height:44px}main{padding:.65rem}.detail-heading,section.card{padding:1rem}.overview{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}.overview>.detail-heading{grid-column:1/-1}.overview>section.card{padding:.8rem;min-width:0}.overview .metric-label{font-size:.78rem}.overview .soc-values{gap:.25rem .5rem}.soc-start{font-size:1.25rem}.soc-end{font-size:1.45rem}.big{font-size:clamp(1.25rem,5.2vw,1.65rem)}.session-details dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}.detail-heading h2{font-size:1.3rem}}
+@media(max-width:900px){.overview{grid-template-columns:1fr 1fr}.overview>.detail-heading{grid-column:1/-1}.session-details dl{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){main{padding:.65rem}.detail-heading,section.card{padding:1rem}.overview{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}.overview>.detail-heading{grid-column:1/-1}.overview>section.card{padding:.8rem;min-width:0}.overview .metric-label{font-size:.78rem}.overview .soc-values{gap:.25rem .5rem}.soc-start{font-size:1.25rem}.soc-end{font-size:1.45rem}.big{font-size:clamp(1.25rem,5.2vw,1.65rem)}.session-details dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}.detail-heading h2{font-size:1.3rem}}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}.status{background:#354657;color:#e1e9f3}.status--active{background:#193c62;color:#a9d4ff}.status--ok{background:#164333;color:#9ce7c1}.status--historic{background:#364354;color:#c1cbd8}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
 
@@ -73,10 +68,7 @@ main{max-width:1320px}
 @media(max-width:540px){.timeline-card{padding:.8rem}.timeline-plot{padding:.5rem}}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a>
-<header class="site-header">
-  <div class="brand">{% if brand_image_url %}<img class="brand-logo" src="{{ brand_image_url }}" alt="{{ title }}" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ title }}</h1>{% else %}<h1>{{ title }}</h1>{% endif %}<div class="muted">Panel de sesiones · Solo lectura{% if refresh_active %} · Consulta cada 15 s{% endif %}</div></div>
-  <a class="back-link" href="{{ back_href|default('/?tz=' ~ (timezone|urlencode) ~ '#transactions') }}">← Volver al dashboard</a>
-</header>
+{{ detail_header(title, back_href|default('/?tz=' ~ (timezone|urlencode) ~ '#transactions'), subtitle='Panel de sesiones · Solo lectura' ~ (' · Consulta cada 15 s' if refresh_active else ''), logo_url=brand_image_url) }}
 <main id="content" data-transaction-detail="true" data-active="{{ 'true' if refresh_active else 'false' }}">
 <div class="overview">
 <section class="detail-heading" aria-labelledby="transaction-heading">

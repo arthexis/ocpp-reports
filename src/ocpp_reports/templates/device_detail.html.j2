@@ -2,17 +2,13 @@
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ 'Conector ' ~ selected_connector_id if selected_connector_id is not none else 'Cargador' }} · {{ charger_id }} · {{ title }}</title>
 {% include "favicon_links.html.j2" %}
+{% from "detail_header.html.j2" import detail_header %}
 <style>
+{% include "detail_header.css.j2" %}
 /* Reuse the same Reports dashboard palette, header, cards and responsive tables. */
 :root{color-scheme:light;--bg:#f5f7fa;--surface:#fff;--ink:#172437;--muted:#637286;--line:#e2e8f0;--nav:#203247;--accent:#1268c7;--warning:#a96700;font:16px system-ui,sans-serif}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.45}
 a{color:var(--accent)}a:focus-visible,summary:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
-header{background:var(--nav);color:white;padding:1.2rem max(1.25rem,calc((100vw - 1280px)/2));display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
-header h1{font-size:1.45rem;margin:0}header .note{color:#d0dbe6}
-header .brand-logo{display:block;max-height:56px;max-width:min(240px,65vw);width:auto;height:auto;object-fit:contain}
-header [hidden]{display:none!important}
-.back-link{color:#fff;border:1px solid #718096;border-radius:8px;min-height:44px;display:inline-flex;align-items:center;padding:.5rem .75rem;text-decoration:none;font-weight:600}
-.header-actions{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
 main{max-width:1320px;margin:auto;padding:1.4rem 1.25rem 3rem}
 section{margin:0 0 1.25rem;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1.25rem;box-shadow:0 2px 10px #152c4608}
 section h2{font-size:1.05rem;margin:0 0 1rem}.note{font-size:.82rem}.muted{color:var(--muted)}.identity{font-size:1.5rem;margin:.1rem 0 .35rem;overflow-wrap:anywhere}
@@ -124,15 +120,15 @@ padding:.55rem .8rem;border-radius:8px;text-decoration:none;font-weight:650}
 .site-actions a:hover,.site-actions a:focus-visible{text-decoration:underline}
 @media(max-width:700px){.site-grid{grid-template-columns:1fr;gap:.2rem}.site-actions{flex-direction:column}
 .site-actions a{width:100%;justify-content:center}}
-@media(max-width:800px){.grid{grid-template-columns:1fr}main{padding:1rem .75rem}section{padding:1rem}header{padding:1rem}}
-@media(max-width:520px){.connector-list{grid-template-columns:1fr}header h1{font-size:1.12rem}table{font-size:.78rem}th,td{padding:.55rem .45rem}}
+@media(max-width:800px){.grid{grid-template-columns:1fr}main{padding:1rem .75rem}section{padding:1rem}}
+@media(max-width:520px){.connector-list{grid-template-columns:1fr}table{font-size:.78rem}th,td{padding:.55rem .45rem}}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}th{background:#263647;color:#d7e5f5}.status{background:#354657;color:#e1e9f3}}
 </style></head><body>
 <a class="back-link" style="position:absolute;left:1rem;top:-5rem" href="#content">Ir al contenido</a>
-<header><div>{% if brand_image_url %}<img class="brand-logo" src="{{ brand_image_url }}" alt="{{ title }}" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ title }}</h1>{% else %}<h1>{{ title }}</h1>{% endif %}<div class="note">Solo lectura · Estado y sesiones: refresco cada 5 s · {{ timezone }}</div></div>
-<div class="header-actions"><a class="back-link" href="/?tz={{ timezone|urlencode }}#connectors">← Dashboard</a>
+{% call detail_header(title, '/?tz=' ~ (timezone|urlencode) ~ '#connectors', 'Dashboard', 'Solo lectura · Estado y sesiones: refresco cada 5 s · ' ~ timezone, brand_image_url) %}
 {% if has_config %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/configuration?tz={{ timezone|urlencode }}">Configuración</a>{% endif %}
-{% if selected_connector_id is none %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/report.csv?tz={{ timezone|urlencode }}" download>Descargar CSV</a>{% else %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}?tz={{ timezone|urlencode }}">Cargador completo</a>{% endif %}</div></header>
+{% if selected_connector_id is none %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/report.csv?tz={{ timezone|urlencode }}" download>Descargar CSV</a>{% else %}<a class="back-link" href="/chargers/{{ source_id|urlencode }}/{{ charger_id|urlencode }}?tz={{ timezone|urlencode }}">Cargador completo</a>{% endif %}
+{% endcall %}
 <main id="content">
 <section aria-labelledby="device-title"><h2 class="identity" id="device-title">{% if selected_connector_id is none %}Cargador {{ charger_id }}{% else %}Cargador {{ charger_id }} · Conector {{ selected_connector_id }}{% endif %}</h2>
 <p class="muted">{{ location }} · Origen {{ source_id }}</p>

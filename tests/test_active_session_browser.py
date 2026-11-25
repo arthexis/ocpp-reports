@@ -898,3 +898,33 @@ def test_offline_chromium_search_profile_alignment_and_caption(tmp_path):
                 context.close()
         finally:
             browser.close()
+
+
+def test_accounts_shared_header_layout():
+    """Render synthetic accounts page and verify the common header at both widths."""
+    from importlib.resources import files
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+    playwright = pytest.importorskip("playwright.sync_api")
+    env = Environment(loader=FileSystemLoader(str(files("ocpp_reports").joinpath("templates"))),
+                      autoescape=select_autoescape(default=True))
+    html = env.get_template("dashboard_accounts.html.j2").render(
+        title="Reports", tenant="administration", actor="admin-test", accounts=[],
+        selected_account=None, csrf_token="synthetic", notice="", error="")
+    with playwright.sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        for width in (1280, 390, 320):
+            page = browser.new_page(viewport={"width": width, "height": 800})
+            page.route("**/*", lambda route: route.abort())
+            page.set_content(html)
+            back = page.locator(".site-header .back-link")
+            heading = page.locator(".site-header h1")
+            assert back.get_attribute("href") == "/"
+            assert heading.inner_text() == "Administrar cuentas"
+            b, h = back.bounding_box(), heading.bounding_box()
+            assert h["x"] + h["width"] <= b["x"]
+            assert b["y"] < h["y"] + h["height"] and h["y"] < b["y"] + b["height"]
+            assert b["height"] >= 44
+            assert page.locator(".site-header").evaluate("(e) => e.scrollWidth <= e.clientWidth")
+            page.close()
+        browser.close()
