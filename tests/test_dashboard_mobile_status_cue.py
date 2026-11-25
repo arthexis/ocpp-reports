@@ -8,7 +8,7 @@ def test_mobile_historical_labels_are_short_but_keep_freshness(dashboard_source)
     assert "Último: " not in source
     assert "último registro" not in source
     assert "Estado antiguo</span>" not in source
-    assert "Origen atrasado</span>" in source
+    assert "Origen atrasado</span>" not in source
     assert "Estado sin fecha</span>" in source
     assert 'data-label="Conectado"' in source
     assert 'c.connected is sameas true' in source
