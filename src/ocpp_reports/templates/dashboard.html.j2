@@ -117,11 +117,13 @@ header{align-items:start;gap:.65rem}
   .connectors-panel td[data-label="Cargador"] .charger-session-link{min-height:44px}
 }
 
-/* Help is a native top-layer dialog, independent of table geometry. */
+/* Help overlays the dashboard without affecting table geometry. */
 .panel-heading{display:flex;align-items:center;gap:.35rem;margin-bottom:.5rem;min-width:0;flex:1 1 auto;flex-wrap:wrap}
 .panel-heading h2{margin:0}
 .panel-help-trigger{flex:0 0 auto;border:0;background:transparent;color:var(--muted);font-size:1.15rem;line-height:1;cursor:pointer;border-radius:100%;min-width:32px;min-height:32px;padding:.2rem}
 .panel-help-trigger:hover,.panel-help-trigger:focus-visible{color:var(--accent)}
+.panel-help-tooltip{position:fixed;z-index:1000;width:min(25rem,calc(100% - 1rem));max-height:calc(100% - 1rem);overflow:auto;overscroll-behavior:contain;padding:.75rem;border:1px solid var(--line);border-radius:.55rem;background:var(--surface);color:var(--ink);box-shadow:0 6px 20px #0003;font-size:.84rem;line-height:1.45;white-space:normal}
+.panel-help-tooltip[hidden]{display:none}
 .panel-help-dialog{position:fixed;box-sizing:border-box;width:min(28rem,calc(100% - 2rem));max-height:calc(100% - 2rem);overflow:auto;overscroll-behavior:contain;margin:auto;padding:1rem;border:1px solid var(--line);border-radius:.75rem;background:var(--surface);color:var(--ink);box-shadow:0 12px 40px #0004}
 .panel-help-dialog::backdrop{background:rgba(0,0,0,.25)}
 .panel-help-dialog-heading{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:0 0 .5rem;padding:0;background:none;border:0;position:static}
@@ -352,6 +354,7 @@ header{align-items:start;gap:.65rem}
 {% endif %}
 {% endif %}</div></main>
 
+<div id="panel-help-tooltip" class="panel-help-tooltip" role="tooltip" hidden></div>
 <dialog id="panel-help-dialog" class="panel-help-dialog" aria-labelledby="panel-help-title" aria-describedby="panel-help-description">
   <div class="panel-help-dialog-heading"><h2 id="panel-help-title"></h2><button type="button" class="panel-help-close" aria-label="Cerrar información" autofocus>×</button></div>
   <p id="panel-help-description"></p>
@@ -359,20 +362,86 @@ header{align-items:start;gap:.65rem}
 
 <script>
 (() => {
-  // Native modal keeps the dashboard geometry and scroll position unchanged.
+  // Hover-capable desktop uses a tooltip; touch/compact screens use a modal.
+  const desktopHelp = window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 521px)");
+  const tooltip = document.getElementById("panel-help-tooltip");
   const help = document.getElementById("panel-help-dialog");
   const helpTitle = document.getElementById("panel-help-title");
   const helpText = document.getElementById("panel-help-description");
+  const triggers = [...document.querySelectorAll(".panel-help-trigger")];
   let helpTrigger = null;
-  for (const trigger of document.querySelectorAll(".panel-help-trigger")) {
-    trigger.addEventListener("click", () => {
+  let tooltipTrigger = null;
+  const hideTooltip = () => {
+    tooltip.hidden = true;
+    tooltipTrigger?.removeAttribute("aria-describedby");
+    tooltipTrigger = null;
+  };
+  const positionTooltip = () => {
+    if (!tooltipTrigger) return;
+    const r = tooltipTrigger.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) { hideTooltip(); return; }
+    const w = tooltip.offsetWidth;
+    const h = tooltip.offsetHeight;
+    tooltip.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + "px";
+    tooltip.style.top = Math.max(8, Math.min(r.bottom + h <= innerHeight - 8 ?
+      r.bottom : r.top - h, innerHeight - h - 8)) + "px";
+  };
+  const showTooltip = (trigger) => {
+    if (!desktopHelp.matches || help.open) return;
+    if (tooltipTrigger !== trigger) hideTooltip();
+    tooltipTrigger = trigger;
+    tooltip.textContent = trigger.dataset.helpText;
+    trigger.setAttribute("aria-describedby", tooltip.id);
+    tooltip.hidden = false;
+    positionTooltip();
+  };
+  const updateHelpMode = () => {
+    hideTooltip();
+    for (const trigger of triggers) {
+      if (desktopHelp.matches) {
+        trigger.removeAttribute("aria-haspopup");
+        trigger.removeAttribute("aria-controls");
+      } else {
+        trigger.setAttribute("aria-haspopup", "dialog");
+        trigger.setAttribute("aria-controls", help.id);
+      }
+    }
+  };
+  updateHelpMode();
+  desktopHelp.addEventListener("change", updateHelpMode);
+  for (const trigger of triggers) {
+    trigger.addEventListener("pointerenter", (event) => {
+      if (event.pointerType !== "touch") showTooltip(trigger);
+    });
+    trigger.addEventListener("pointerleave", (event) => {
+      if (tooltipTrigger === trigger && !tooltip.contains(event.relatedTarget) &&
+          !trigger.matches(":focus-visible")) hideTooltip();
+    });
+    trigger.addEventListener("focus", () => {
+      if (trigger.matches(":focus-visible")) showTooltip(trigger);
+    });
+    trigger.addEventListener("blur", () => {
+      if (tooltipTrigger === trigger && !trigger.matches(":hover") && !tooltip.matches(":hover")) hideTooltip();
+    });
+    trigger.addEventListener("click", (event) => {
+      if (desktopHelp.matches && event.pointerType !== "touch") { showTooltip(trigger); return; }
       if (help.open) return;
+      hideTooltip();
       helpTrigger = trigger;
       helpTitle.textContent = trigger.dataset.helpTitle;
       helpText.textContent = trigger.dataset.helpText;
       help.showModal();
     });
   }
+  tooltip.addEventListener("pointerleave", (event) => {
+    if (tooltipTrigger && !tooltipTrigger.contains(event.relatedTarget) &&
+        !tooltipTrigger.matches(":focus-visible")) hideTooltip();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !tooltip.hidden) hideTooltip();
+  });
+  window.addEventListener("resize", positionTooltip);
+  window.addEventListener("scroll", positionTooltip, {passive: true, capture: true});
   help.querySelector(".panel-help-close").addEventListener("click", () => help.close());
   help.addEventListener("click", (event) => {
     if (event.target !== help) return;
