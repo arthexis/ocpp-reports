@@ -254,7 +254,10 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 page.locator("a.status-session-link").first.click()
                 page.wait_for_url(lambda url: urlsplit(url).path == "/transactions/a/cp/7" and urlsplit(url).query.startswith("tz=UTC"))
                 assert page.locator("#transaction-energy").inner_text().find("34.75 kWh") >= 0
-                assert "Estimada" in page.locator("#transaction-energy").inner_text()
+                assert "Estimada" not in page.locator("#transaction-energy").inner_text()
+                assert "Estimada" in page.locator("#transaction-energy .big").get_attribute("title")
+                assert "Última medición:" in page.locator("#transaction-energy").inner_text()
+                assert "sin garantía" not in page.locator("#transaction-status").inner_text()
                 assert page.locator("#transaction-power").count() == 0
                 assert page.locator(".overview > section, .overview > .detail-heading").count() == 3
                 assert "71%" in page.locator("#transaction-soc").inner_text()

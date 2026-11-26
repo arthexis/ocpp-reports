@@ -45,7 +45,10 @@ def test_live_transaction_detail_uses_exact_identity_and_live_age(tmp_path):
     page = client.get("/transactions/a/cp/7")
     assert page.status_code == 200
     assert "34.75 kWh" in page.text
-    assert "Estimada" in page.text and "medición reciente" in page.text
+    assert 'title="Estimada · medición reciente"' in page.text
+    assert 'class="note">Estimada' not in page.text
+    assert "sin garantía de telemetría nueva" not in page.text
+    assert "Última medición:" in page.text
     assert "78%" in page.text and "23%" in page.text
     assert 'http-equiv="refresh"' not in page.text
     assert "window.setInterval(refreshTransaction, 15000)" in page.text
@@ -65,7 +68,8 @@ def test_live_transaction_detail_uses_exact_identity_and_live_age(tmp_path):
         db.execute("UPDATE current_transactions SET payload=? WHERE source_id='a'",
                    (json.dumps(current),))
     stale = client.get("/transactions/a/cp/7")
-    assert "medición antigua / no verificada" in stale.text
+    assert 'title="Estimada · medición antigua / no verificada"' in stale.text
+    assert 'class="note">Estimada' not in stale.text
     assert "34.75 kWh" in stale.text
 
 

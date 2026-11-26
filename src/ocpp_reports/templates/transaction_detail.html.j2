@@ -73,15 +73,14 @@ main{max-width:1320px}
 <h2 id="transaction-heading">Transacción #{{ transaction.id }}</h2>
 <p class="note">{{ transaction.location }} · {{ transaction.charger_id }} · Conector {{ transaction.connector_id if transaction.connector_id is defined and transaction.connector_id is not none else "desconocido" }}</p>
 <p id="transaction-status" aria-live="polite"><span class="status {{ 'status--active' if refresh_active else 'status--ok' if (transaction.state or '')|lower in ['closed','stopped','completed'] else 'status--historic' }}">{{ transaction.state or "Desconocido" }}</span>
-{% if refresh_active %}<span class="note refresh-note">En curso · consulta cada 15 s (sin garantía de telemetría nueva)</span>{% endif %}</p>
+{% if refresh_active %}<span class="note refresh-note">En curso · consulta cada 15 s</span>{% endif %}</p>
 </section>
 <section class="card" id="transaction-energy" aria-label="Energía de sesión"><div class="metric-label">Energía de sesión</div>
 {% if transaction.energy_wh is defined and transaction.energy_wh is not none %}
 <div class="big">{{ "%.2f"|format(transaction.energy_wh / 1000) }} kWh</div>
 <div class="note">Final · medición al cierre</div>
 {% elif refresh_active and transaction.live_energy_wh is defined and transaction.live_energy_wh is not none %}
-<div class="big">{{ "%.2f"|format(transaction.live_energy_wh / 1000) }} kWh</div>
-<div class="note">Estimada{% if transaction.live_energy_stale %} · medición antigua / no verificada{% else %} · medición reciente{% endif %}</div>
+<div class="big" title="Estimada{% if transaction.live_energy_stale %} · medición antigua / no verificada{% else %} · medición reciente{% endif %}">{{ "%.2f"|format(transaction.live_energy_wh / 1000) }} kWh</div>
 <div class="note">Última medición: {{ transaction.live_energy_observed_at|display_date(timezone) if transaction.live_energy_observed_at else "Desconocida" }}</div>
 {% elif refresh_active %}
 <div class="big">—</div><div class="note">Energía final pendiente · estimación no disponible</div>
