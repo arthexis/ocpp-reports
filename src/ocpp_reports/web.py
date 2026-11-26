@@ -938,7 +938,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             )
         return templates.TemplateResponse(
             request, "charger_configuration.html.j2",
-            {"title": title, "source_id": source_id, "charger_id": charger_id,
+            {"title": title, "brand_image_url": brand_image_url, "source_id": source_id, "charger_id": charger_id,
              "selected": selected, "versions": versions, "has_next": has_next,
              "page": page, "timezone": zone},
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
@@ -960,7 +960,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         details = hours_fields(current.get("contact_hours") if current else None)
         return templates.TemplateResponse(
             request, "charger_site.html.j2",
-            {"title": title, "source_id": source_id, "charger_id": charger_id,
+            {"title": title, "brand_image_url": brand_image_url, "source_id": source_id, "charger_id": charger_id,
              "site": current or {}, "days": list(zip(DAYS, DAY_NAMES)),
              "hours": details, "other_sites": editable_sites(warehouse, allowed_source_ids),
              "customers": editable_customers(warehouse, allowed_source_ids)},

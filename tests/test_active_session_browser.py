@@ -1037,3 +1037,60 @@ def test_shared_table_heading_alignment_offline(tmp_path, monkeypatch):
                     context.close()
         finally:
             browser.close()
+
+
+def test_all_views_share_branded_content_rails(tmp_path, monkeypatch):
+    """Every dashboard/detail header shares the content card edges."""
+    import hashlib
+    import time
+    from ocpp_reports.dashboard_login import attach_login, provision, COOKIE
+    from test_config_history import config
+    playwright = pytest.importorskip("playwright.sync_api")
+    warehouse = tmp_path / "geometry.sqlite"
+    _seed(warehouse)
+    with sqlite3.connect(warehouse) as db:
+        item = {**config(), "charger_id": "cp"}
+        db.execute("INSERT INTO collector_configuration_snapshots VALUES (?,?,?,?,?)",
+                   ("a", "cp", item["source_event_id"], item["at"], json.dumps(item)))
+    auth = tmp_path / "geometry-auth.sqlite"
+    provision(auth, "geometry-admin", "offline-only-strong-password", "admin", "administration")
+    app = create_app(warehouse, allowed_source_ids=("a",), brand_image_url="/assets/brand-light.png")
+    attach_login(app, path=auth, tenant="administration")
+    token = "synthetic-geometry-token"
+    with sqlite3.connect(auth) as db:
+        db.execute("INSERT INTO dashboard_sessions(token_hash,user_id,expires) VALUES (?,?,?)",
+                   (hashlib.sha256(token.encode()).hexdigest(), "geometry-admin", int(time.time())+300))
+    client = TestClient(app)
+    client.cookies.set(COOKIE, token)
+    paths = ("/", "/chargers/a/cp", "/connectors/a/cp/1", "/transactions/a/cp/7",
+             "/accounts", "/chargers/a/cp/configuration", "/chargers/a/cp/site")
+    with playwright.sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            for width in (1920, 1280, 850, 700, 390, 320):
+                context = browser.new_context(viewport={"width":width,"height":900})
+                page = context.new_page()
+                page.route("**/*", _offline_route(client, {"GET":0}))
+                for path in paths:
+                    assert client.get(path).status_code == 200, path
+                    page.goto("http://reports.test"+path, wait_until="load")
+                    logo = page.locator("header .brand-logo")
+                    assert logo.is_visible(), (width, path)
+                    assert logo.evaluate("el => el.complete && el.naturalWidth > 0")
+                    bounds = page.evaluate("""() => {
+                        const main=document.querySelector('main'), head=document.querySelector('body>header');
+                        const m=main.getBoundingClientRect(), h=head.getBoundingClientRect();
+                        const ms=getComputedStyle(main), hs=getComputedStyle(head);
+                        return [m.left+parseFloat(ms.paddingLeft), m.right-parseFloat(ms.paddingRight),
+                                h.left+parseFloat(hs.paddingLeft), h.right-parseFloat(hs.paddingRight)];
+                    }""")
+                    assert abs(bounds[0]-bounds[2]) <= 1, (width,path,bounds)
+                    assert abs(bounds[1]-bounds[3]) <= 1, (width,path,bounds)
+                    back = page.locator("header .back-link").last
+                    if back.count():
+                        b = back.bounding_box()
+                        assert abs(b["x"]+b["width"]-bounds[1]) <= 1, (width,path,b,bounds)
+                    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2"), (width,path)
+                context.close()
+        finally:
+            browser.close()

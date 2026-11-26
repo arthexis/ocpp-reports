@@ -121,6 +121,7 @@ padding:.55rem .8rem;border-radius:8px;text-decoration:none;font-weight:650}
 @media(max-width:520px){.connector-list{grid-template-columns:1fr}table{font-size:.78rem}th,td{padding:.55rem .45rem}}
 @media(prefers-color-scheme:dark){th{background:#263647;color:#d7e5f5}.status{background:#354657;color:#e1e9f3}}
 {% include "table_panel.css.j2" %}
+{% include "page_geometry.css.j2" %}
 </style></head><body>
 <a class="back-link" style="position:absolute;left:1rem;top:-5rem" href="#content">Ir al contenido</a>
 {% call detail_header(title, '/?tz=' ~ (timezone|urlencode) ~ '#connectors', 'Dashboard', 'Solo lectura · Estado y sesiones: refresco cada 5 s · ' ~ timezone, brand_image_url) %}

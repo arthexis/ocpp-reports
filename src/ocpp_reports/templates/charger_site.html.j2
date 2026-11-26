@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Editar ubicación · {{ charger_id }} · {{ title }}</title>
+{% include "favicon_links.html.j2" %}
 {% from "detail_header.html.j2" import detail_header %}
 <style>
 {% include "detail_header.css.j2" %}
@@ -21,8 +22,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .action{display:flex;gap:.8rem;flex-wrap:wrap;align-items:center;margin-top:1rem}
 @media(max-width:700px){.fields,.hours{grid-template-columns:1fr}main{padding:.75rem}section{padding:1rem}}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5}}
+{% include "page_geometry.css.j2" %}
 </style></head><body>
-{{ detail_header('Editar datos de ubicación', '/chargers/' ~ (source_id|urlencode) ~ '/' ~ (charger_id|urlencode), 'Cargador', 'Origen ' ~ source_id ~ ' · Cargador ' ~ charger_id) }}
+{{ detail_header(title, '/chargers/' ~ (source_id|urlencode) ~ '/' ~ (charger_id|urlencode), 'Cargador', 'Editar datos de ubicación · Origen ' ~ source_id ~ ' · Cargador ' ~ charger_id, brand_image_url) }}
 <main>
 <section aria-labelledby="metadata-title"><h2 id="metadata-title">Cliente y sucursal</h2>
 <p class="muted">Esta información es administrativa y compartida por todos los cargadores asignados a la misma ubicación. Los campos pueden quedar vacíos.</p>
