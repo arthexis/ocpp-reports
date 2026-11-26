@@ -544,3 +544,43 @@ def test_minute_groups_combine_connectors_states_and_faults_without_losing_respo
         "C1 · Faulted · ReaderFailure", "C1 · Available",
         "C2 · Available", "C0 · Available"]
     assert all(e["direction"] == "in" for e in events)
+
+
+def test_meter_values_group_by_connector_and_transaction_with_reply_pagination(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    path = tmp_path / "meter-session.sqlite"
+    start = datetime(2026, 11, 26, 21, 0, tzinfo=timezone.utc)
+    with sqlite3.connect(path) as db:
+        ensure_collector_schema(db)
+        def exchange(n, action, connector=None, transaction=None, source="a", charger="cp"):
+            for response in (False, True):
+                event_id = n + int(response)
+                payload = dict(id=event_id, charger_id=charger, action=action,
+                               kind="meter_values" if action == "MeterValues" else "ocpp",
+                               direction="out" if response else "in",
+                               at=(start + timedelta(minutes=n, milliseconds=5*response)).isoformat())
+                if not response:
+                    payload.update(connector_id=connector, transaction_id=transaction)
+                db.execute("INSERT INTO collector_latest VALUES (?,?,?,?,?)",
+                           (source, "event", str(event_id), event_id, json.dumps(payload)))
+        exchange(1, "MeterValues", 1, 270)
+        exchange(3, "Heartbeat")
+        exchange(5, "MeterValues", 2, 271)
+        exchange(7, "MeterValues", 1, 270)
+        exchange(9, "MeterValues", 1, 270)
+        exchange(11, "MeterValues", 1, 272)
+        exchange(13, "MeterValues", 1, None)
+        exchange(15, "MeterValues", 1, 270, source="b")
+        exchange(17, "MeterValues", 1, 270, charger="other")
+    opts = dict(source_id="a", charger_id="cp", allowed_source_ids=("a",))
+    groups = event_groups_page(path, **opts)["groups"]
+    assert [(g["first_event_id"], g["event_count"]) for g in groups] == [
+        (13, 1), (11, 1), (9, 3), (5, 1), (3, 1)]
+    details = event_group_details(path, group_source="a", first_event_id=9, limit=2, **opts)
+    assert [e["id"] for e in details["events"]] == [9, 7]
+    assert [e["response_id"] for e in details["events"]] == [10, 8]
+    assert details["has_next"]
+    tail = event_group_details(path, group_source="a", first_event_id=9, offset=2, limit=2, **opts)
+    assert [e["id"] for e in tail["events"]] == [1]
+    assert [e["response_id"] for e in tail["events"]] == [2]
+    assert not tail["has_next"]
