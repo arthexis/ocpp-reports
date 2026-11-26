@@ -115,6 +115,35 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 assert page.locator("a.charger-session-link").count() == 2  # charger and connector detail links
                 assert page.locator("a.status-session-link").count() == 1
                 assert "Ver carga actual" not in page.locator(".connectors-panel").inner_text()
+                # Opening help must not resize or reposition any dashboard panel.
+                dialog = page.locator("#panel-help-dialog")
+                geometry = """() => [...document.querySelectorAll('main section, main table')].map(
+                    el => { const r = el.getBoundingClientRect();
+                    return [r.x + scrollX, r.y + scrollY, r.width, r.height]; })"""
+                for trigger in page.locator(".panel-help-trigger").all():
+                    trigger.scroll_into_view_if_needed()
+                    before = page.evaluate(geometry)
+                    title = trigger.get_attribute("data-help-title")
+                    if mobile:
+                        trigger.tap()
+                    else:
+                        trigger.click()
+                    assert dialog.is_visible()
+                    assert dialog.get_by_role("heading", name=title).is_visible()
+                    assert page.evaluate(geometry) == before
+                    assert dialog.bounding_box()["width"] <= viewport["width"]
+                    if mobile:
+                        dialog.get_by_role("button", name="Cerrar información").tap()
+                    else:
+                        page.keyboard.press("Escape")
+                    assert not dialog.is_visible()
+                    assert page.evaluate(geometry) == before
+                    assert trigger.evaluate("el => document.activeElement === el")
+                trigger = page.locator(".panel-help-trigger").first
+                trigger.click()
+                assert dialog.is_visible()
+                page.mouse.click(2, 2)
+                assert not dialog.is_visible()
                 theme = page.evaluate("""() => {
                   const s = getComputedStyle(document.documentElement);
                   return Object.fromEntries(['--bg','--surface','--ink','--muted',
