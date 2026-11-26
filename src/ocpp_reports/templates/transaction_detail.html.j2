@@ -132,7 +132,7 @@ main{max-width:1320px}
 </section>
 <section class="card session-details" id="transaction-session-data"><h2>Datos de la sesión</h2><dl>
 <div><dt>Origen</dt><dd>{{ transaction.source_id }}</dd></div>
-<div><dt>Cargador</dt><dd>{{ transaction.charger_id }}</dd></div>
+<div><dt>Tarjeta RFID</dt><dd>{{ transaction.rfid|e if transaction.rfid is string and transaction.rfid|trim else "—" }}</dd></div>
 <div><dt>Inicio</dt><dd>{{ transaction.started_at|display_date(timezone) }}</dd></div>
 <div><dt>Fin</dt><dd>{{ transaction.stopped_at|display_date(timezone) if transaction.stopped_at else "Activa / sin cierre" }}</dd></div>
 <div><dt>{{ "Duración transcurrida (aprox.)" if refresh_active else "Duración final" }}</dt><dd>{{ elapsed_duration if refresh_active else transaction.started_at|session_duration(transaction.stopped_at) if transaction.stopped_at else "—" }}</dd></div>

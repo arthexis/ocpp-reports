@@ -143,3 +143,26 @@ def test_transaction_detail_header_inherits_instance_logo_and_text_fallback(tmp_
     assert plain.status_code == 200
     assert '<h1>Other Dashboard</h1>' in plain.text
     assert 'class="brand-logo"' not in plain.text
+
+
+def test_session_details_show_scoped_rfid_for_local_and_replicated_transactions(tmp_path):
+    path = _warehouse(tmp_path)
+    base = {"id": 11, "charger_id": "cp", "connector_id": 1,
+            "state": "stopped", "active": False,
+            "started_at": "2026-11-26T12:00:00Z",
+            "stopped_at": "2026-11-26T12:30:00Z", "energy_wh": 1234}
+    _store(path, "local", "a", {**base, "rfid": "0000A123"})
+    _store(path, "remote", "a", {**base, "id": 12, "rfid": "<TEST&RFID>"})
+    _store(path, "remote", "a", {**base, "id": 13, "rfid": None})
+    _store(path, "remote", "a", {**base, "id": 14})
+    _store(path, "remote", "b", {**base, "rfid": "OTHER-TENANT"})
+    client = TestClient(web.create_app(path, allowed_source_ids=("a",)))
+    for tx, expected in ((11, "0000A123"), (12, "&lt;TEST&amp;RFID&gt;"),
+                         (13, "—"), (14, "—")):
+        page = client.get(f"/transactions/a/cp/{tx}")
+        assert page.status_code == 200
+        assert f"<dt>Tarjeta RFID</dt><dd>{expected}</dd>" in page.text
+        assert "<dt>Cargador</dt>" not in page.text
+        assert "OTHER-TENANT" not in page.text
+        assert "<TEST&RFID>" not in page.text
+    assert client.get("/transactions/b/cp/11").status_code == 404
