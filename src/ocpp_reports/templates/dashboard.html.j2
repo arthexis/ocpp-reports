@@ -99,12 +99,6 @@ header{align-items:start;gap:.65rem}
 .transaction-pages a:hover{background:var(--bg)}
 .transaction-pages .page-current{background:var(--accent);color:var(--surface);font-weight:700}
 .transaction-pages .page-disabled{color:var(--muted);opacity:.65}
-.transactions-heading{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem}
-.transactions-heading h2{margin:0}
-.transaction-filters,.connector-filters{display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;font-size:.85rem}
-.transaction-filters button,.connector-filters button{border:0;background:transparent;color:var(--muted);font-size:inherit;font-weight:500;padding:.2rem .3rem;min-height:32px}
-.transaction-filters button.selected,.connector-filters button.selected{color:var(--accent);font-weight:750;text-decoration:underline;text-underline-offset:4px}
-.transaction-filters button:hover,.connector-filters button:hover{color:var(--accent)}
 .transaction-filters span,.connector-filters span{color:var(--muted)}
 .charger-session-link{display:inline-flex;align-items:center;min-width:44px;min-height:44px;max-width:100%;color:var(--accent);font-weight:650;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
 .status-session-link{display:inline-flex;align-items:center;min-height:44px;max-width:100%;border-radius:999px;text-decoration:none}
@@ -118,10 +112,6 @@ header{align-items:start;gap:.65rem}
   .connectors-panel td[data-label="Estado"] .status{white-space:nowrap;overflow-wrap:normal}
   .connectors-panel td[data-label="Estado"] .status-session-link{flex:0 0 auto}
   .connectors-panel td[data-label="Cargador"] .charger-session-link{min-height:44px}
-  .transactions-heading{gap:.4rem}
-  .transaction-filters{white-space:normal;flex-wrap:wrap;gap:.15rem .3rem}
-  .transaction-filters span[aria-hidden="true"]{display:none}
-  .transaction-filters button{min-height:40px;padding:.35rem .4rem}
 }
 
 /* Panel explanations stay off the page until hover, keyboard focus, or tap. */
@@ -155,11 +145,7 @@ header{align-items:start;gap:.65rem}
   .operations{margin-bottom:.55rem}
   .counts-legend{margin:-.15rem 0 .4rem;font-size:.7rem}
   .dashboard-grid{gap:.6rem}
-  .connectors-panel{padding:.7rem}
-  .connectors-panel .transactions-heading{gap:.2rem;margin-bottom:.35rem}
-  .connectors-panel .panel-heading{margin-bottom:0}
-  .connectors-panel .connector-filters{gap:.15rem;font-size:.8rem}
-  .connectors-panel .connector-filters button{padding:.15rem .2rem;min-height:30px}
+  .dashboard-grid > section{padding:.7rem}
   .connectors-panel tbody tr{padding:.4rem;margin-bottom:.45rem}
   .connectors-panel td{padding:.18rem .05rem;gap:.35rem}
   .connectors-panel td::before{flex-basis:32%}
@@ -272,6 +258,7 @@ header{align-items:start;gap:.65rem}
   .connectors-panel th:nth-child(5){width:14%}
   .connectors-panel th:nth-child(6){width:21%}
 }
+{% include "table_panel.css.j2" %}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a><header><div class="brand">{% if brand_image_url %}<img class="brand-logo" src="{{ brand_image_url }}" alt="{{ title }}" width="56" height="56" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><h1 hidden>{{ title }}</h1>{% else %}<h1>{{ title }}</h1>{% endif %}
 <div class="muted">Solo lectura · Refresco de pantalla cada 5 s ·
@@ -298,8 +285,8 @@ header{align-items:start;gap:.65rem}
 <a class="operational-card operational-card--uncertain" href="#connectors"><strong>{{ operational_counts.uncertain.stations }} ({{ operational_counts.uncertain.connectors }})</strong><span>Datos antiguos / otros</span></a>
 </div></section>
 
-<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading"><div class="panel-heading"><h2>Conectores</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Conectores" aria-controls="help-connectors" aria-expanded="false" aria-describedby="help-connectors">ⓘ</button></span><span class="panel-help-text" id="help-connectors" role="tooltip">Conectado indica Sí o No cuando la observación del CSMS es vigente; Desconocido cuando el origen está atrasado o falta evidencia vigente. No es una prueba de red en tiempo real. La antigüedad del StatusNotification no indica por sí sola desconexión. Potencia: medida reciente o nominal configurada en CSMS (no es consumo actual). La capacidad de C0 es compartida y no debe sumarse con la de los conectores. Energía registrada: lectura acumulada de medidor (C0 = suma de conectores individuales), no consumo de la sesión. No sumar C0 nuevamente en totales. Cargas: total histórico de transacciones distintas por conector, incluidas sesiones abiertas y sin energía; C0 suma los conectores físicos. Recibido muestra la fecha original del último StatusNotification cuando existe; no la hora de recepción del snapshot, que solo indica actualización del export. Sin fecha original se muestra desconocido; las fechas originales permanecen en la API.</span></div>
-<div class="connector-filters" role="group" aria-label="Filtrar conectores">
+<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading table-panel-heading"><div class="panel-heading"><h2>Conectores</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Conectores" aria-controls="help-connectors" aria-expanded="false" aria-describedby="help-connectors">ⓘ</button></span><span class="panel-help-text" id="help-connectors" role="tooltip">Conectado indica Sí o No cuando la observación del CSMS es vigente; Desconocido cuando el origen está atrasado o falta evidencia vigente. No es una prueba de red en tiempo real. La antigüedad del StatusNotification no indica por sí sola desconexión. Potencia: medida reciente o nominal configurada en CSMS (no es consumo actual). La capacidad de C0 es compartida y no debe sumarse con la de los conectores. Energía registrada: lectura acumulada de medidor (C0 = suma de conectores individuales), no consumo de la sesión. No sumar C0 nuevamente en totales. Cargas: total histórico de transacciones distintas por conector, incluidas sesiones abiertas y sin energía; C0 suma los conectores físicos. Recibido muestra la fecha original del último StatusNotification cuando existe; no la hora de recepción del snapshot, que solo indica actualización del export. Sin fecha original se muestra desconocido; las fechas originales permanecen en la API.</span></div>
+<div class="connector-filters table-panel-actions" role="group" aria-label="Filtrar conectores">
 <button type="button" data-connector-view="individual" aria-pressed="{{ 'true' if connector_view == 'individual' else 'false' }}" class="{{ 'selected' if connector_view == 'individual' else '' }}">Individual</button>
 <span aria-hidden="true">|</span>
 <button type="button" data-connector-view="station" aria-pressed="{{ 'true' if connector_view == 'station' else 'false' }}" class="{{ 'selected' if connector_view == 'station' else '' }}">Estación</button>
@@ -317,8 +304,8 @@ header{align-items:start;gap:.65rem}
 <td data-label="Medidor" class="numeric">{% set displayed_energy_wh = c.aggregate_energy_wh if c.connector_id == 0 and c.aggregate_energy_wh is defined else c.energy_wh %}{{ "%.2f"|format(displayed_energy_wh / 1000) ~ " kWh" if displayed_energy_wh is not none else "—" }}</td><td class="numeric connector-charge-count" data-label="Cargas">{{ c.charge_count|default(0) }}</td><td class="connector-last-charge" data-label="Última carga">{{ c.last_charge_at|display_date(timezone) if c.last_charge_at else "—" }}</td><td data-label="Recibido">{{ c.status_observed_at|display_date(timezone) if not c.status_time_unknown else "Desconocido" }}</td></tr>
 {% else %}<tr><td class="empty" colspan="10">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
 </section>
-<section class="transactions-panel" id="transactions"><div class="transactions-heading"><div class="panel-heading"><h2>Sesiones de carga</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Transacciones recientes" aria-controls="help-transactions" aria-expanded="false" aria-describedby="help-transactions">ⓘ</button></span><span class="panel-help-text" id="help-transactions" role="tooltip">SoC: primera y última medición reportada; no se estiman valores ni se presupone una medición al cierre.</span></div>
-<div class="transaction-filters" role="group" aria-label="Filtrar transacciones por estado y energía final">
+<section class="transactions-panel" id="transactions"><div class="transactions-heading table-panel-heading"><div class="panel-heading"><h2>Sesiones de carga</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Transacciones recientes" aria-controls="help-transactions" aria-expanded="false" aria-describedby="help-transactions">ⓘ</button></span><span class="panel-help-text" id="help-transactions" role="tooltip">SoC: primera y última medición reportada; no se estiman valores ni se presupone una medición al cierre.</span></div>
+<div class="transaction-filters table-panel-actions" role="group" aria-label="Filtrar transacciones por estado y energía final">
 <button type="button" data-tx-view="active" aria-pressed="{{ 'true' if tx_view == 'active' else 'false' }}" class="{{ 'selected' if tx_view == 'active' else '' }}">En curso ({{ transaction_counts.get("active", 0) }})</button>
 <span aria-hidden="true">|</span>
 <button type="button" data-tx-view="success" aria-pressed="{{ 'true' if tx_view == 'success' else 'false' }}" class="{{ 'selected' if tx_view == 'success' else '' }}">Exitosas ({{ transaction_counts["success"] }})</button>
@@ -347,12 +334,12 @@ header{align-items:start;gap:.65rem}
 </div></nav>
 </section>
 {% if is_admin | default(true) %}
-<section class="sync-panel" id="synchronization"><div class="panel-heading"><h2>Sincronización</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Sincronización" aria-controls="help-synchronization" aria-expanded="false" aria-describedby="help-synchronization">ⓘ</button></span><span class="panel-help-text" id="help-synchronization" role="tooltip">Ingestión local y recepción de réplica son distintas. Cadencia predeterminada: ingesta local (follow) cada 5 segundos y consulta del Forwarder en reposo cada 2 segundos. Los intervalos describen consultas; el ritmo de los datos depende del origen, la red y la configuración.</span></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
+<section class="sync-panel" id="synchronization"><div class="table-panel-heading"><div class="panel-heading"><h2>Sincronización</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Sincronización" aria-controls="help-synchronization" aria-expanded="false" aria-describedby="help-synchronization">ⓘ</button></span><span class="panel-help-text" id="help-synchronization" role="tooltip">Ingestión local y recepción de réplica son distintas. Cadencia predeterminada: ingesta local (follow) cada 5 segundos y consulta del Forwarder en reposo cada 2 segundos. Los intervalos describen consultas; el ritmo de los datos depende del origen, la red y la configuración.</span></div></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
 {% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at|display_date(timezone) if s.last_ingested_at else "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at|display_date(timezone) if s.last_replication_received_at else "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
 {% if login_enabled and is_admin %}
 <section class="users-panel" id="dashboard-users" aria-labelledby="dashboard-users-heading">
-<div class="panel-heading"><h2 id="dashboard-users-heading">Usuarios con acceso</h2><a href="/accounts" class="back-link" style="margin-left:auto">Administrar</a></div>
+<div class="table-panel-heading"><div class="panel-heading"><h2 id="dashboard-users-heading">Usuarios con acceso</h2></div><div class="table-panel-actions"><a href="/accounts">Administrar</a></div></div>
 <div class="scroll" tabindex="0" role="region" aria-label="Usuarios autorizados para este dashboard">
 <table><thead><tr><th>Usuario</th>{% if is_central_admin %}<th>Dashboard</th>{% endif %}<th>Permisos</th><th>Último acceso</th><th>Cuenta</th></tr></thead>
 <tbody>{% for account in dashboard_accounts %}

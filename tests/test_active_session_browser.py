@@ -933,3 +933,54 @@ def test_accounts_shared_header_layout():
             assert page.locator(".site-header").evaluate("(e) => e.scrollWidth <= e.clientWidth")
             page.close()
         browser.close()
+
+
+def test_shared_table_heading_alignment_offline(tmp_path, monkeypatch):
+    """Compare actual layout, not just CSS strings, in both color schemes."""
+    playwright = pytest.importorskip("playwright.sync_api")
+    from test_dashboard_account_management import setup, login, ADMIN_PASS, ORIGIN
+
+    _, app = setup(tmp_path, monkeypatch)
+    with TestClient(app, base_url=ORIGIN) as client, playwright.sync_playwright() as p:
+        login(client, "admin-main", ADMIN_PASS)
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            for scheme in ("light", "dark"):
+                for width in (1920, 1200, 700, 390):
+                    context = browser.new_context(viewport={"width": width, "height": 900},
+                                                  color_scheme=scheme, locale="es-MX",
+                                                  is_mobile=width <= 520, has_touch=width <= 520)
+                    page = context.new_page()
+                    page.route("**/*", _offline_route(client, {"GET": 0}))
+                    page.goto("http://reports.test/", wait_until="load")
+                    panels = ("#connectors", "#transactions", "#synchronization", "#dashboard-users")
+                    for panel in panels:
+                        heading = page.locator(panel + " .table-panel-heading")
+                        assert heading.count() == 1
+                        assert heading.is_visible()
+                        assert heading.evaluate("(el) => el.scrollWidth <= el.clientWidth + 2")
+                    action = page.locator("#dashboard-users .table-panel-actions a")
+                    control = page.locator("#connectors .table-panel-actions button.selected")
+                    style = """el => {const s=getComputedStyle(el);return [
+                        s.fontSize,s.lineHeight,s.minHeight,s.paddingLeft,s.paddingRight,
+                        s.paddingTop,s.paddingBottom,s.textUnderlineOffset]}"""
+                    assert action.evaluate(style) == control.evaluate(style)
+                    assert action.evaluate("el => getComputedStyle(el).color") == control.evaluate(
+                        "el => getComputedStyle(el).color")
+                    insets = [page.locator(panel).evaluate(
+                        "el => getComputedStyle(el).paddingLeft") for panel in panels]
+                    assert len(set(insets)) == 1, (width, scheme, insets)
+                    if width >= 1200:
+                        left = page.locator("#synchronization thead").bounding_box()
+                        right = page.locator("#dashboard-users thead").bounding_box()
+                        assert abs(left["y"] - right["y"]) <= 1, (width, scheme, left, right)
+                        for panel in panels:
+                            heading = page.locator(panel + " .table-panel-heading").bounding_box()
+                            title = page.locator(panel + " h2").bounding_box()
+                            assert abs(title["y"] + title["height"]/2 -
+                                       heading["y"] - heading["height"]/2) <= 1
+                        _shot(page, f"table-heading-alignment-{scheme}-{width}.png")
+                    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
+                    context.close()
+        finally:
+            browser.close()
