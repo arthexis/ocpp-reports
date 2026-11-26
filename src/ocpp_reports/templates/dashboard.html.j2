@@ -278,7 +278,7 @@ header{align-items:start;gap:.65rem}
 {% endif %}
 </header><main id="content">
 <section class="operations" aria-labelledby="operations-heading">
-<div class="panel-heading"><h2 id="operations-heading">Estado de los cargadores</h2>{{ panel_help('Estado de los cargadores', 'Cada cifra muestra estaciones (conectores físicos); C0 no se duplica. Los estados son los últimos informados, no una prueba de conexión actual. Datos antiguos u otros estados pueden coincidir con una falla.') }}</div>
+<div class="panel-heading"><h2 id="operations-heading">Estado de los cargadores</h2>{{ panel_help('Estado de los cargadores', 'Estaciones (conectores individuales): C0 no se duplica. Se muestra el último estado, no una prueba de conexión actual. Una falla con origen atrasado también puede contarse como dato incierto.') }}</div>
 <p class="counts-legend">Cifras: estaciones (conectores individuales)</p><div class="cards operations-cards">
 <a class="operational-card operational-card--available" href="#connectors"><strong>{{ operational_counts.available.stations }} ({{ operational_counts.available.connectors }})</strong><span>Disponibles</span></a>
 <a class="operational-card operational-card--charging" href="{{ active_transactions_href|default('#connectors') }}"><strong>{{ operational_counts.charging.stations }} ({{ operational_counts.charging.connectors }})</strong><span>Cargando</span></a>
@@ -286,7 +286,7 @@ header{align-items:start;gap:.65rem}
 <a class="operational-card operational-card--uncertain" href="#connectors"><strong>{{ operational_counts.uncertain.stations }} ({{ operational_counts.uncertain.connectors }})</strong><span>Datos antiguos / otros</span></a>
 </div></section>
 
-<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading table-panel-heading"><div class="panel-heading"><h2>Conectores</h2>{{ panel_help('Conectores', 'Estado: último informado; Recibido: fecha original del estado. Conectado: Sí/No según la observación vigente del CSMS, o Desconocido si falta evidencia. Potencia: medida reciente o capacidad nominal. Energía: medidor acumulado, no consumo de sesión. Cargas: transacciones históricas, incluso abiertas o sin energía. C0 resume la estación; no sumar sus valores a los de los conectores.') }}</div>
+<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading table-panel-heading"><div class="panel-heading"><h2>Conectores</h2>{{ panel_help('Conectores', 'Estado: último informado; Recibido: fecha original del estado, no la hora de recepción del snapshot. Conectado: Sí/No según la observación vigente del CSMS, o Desconocido si falta evidencia. Potencia: medida reciente o capacidad nominal. Energía: medidor acumulado, no consumo de sesión. Cargas: transacciones históricas, incluso abiertas o sin energía. C0 resume la estación; no sumar sus valores a los de los conectores.') }}</div>
 <div class="connector-filters table-panel-actions" role="group" aria-label="Filtrar conectores">
 <button type="button" data-connector-view="individual" aria-pressed="{{ 'true' if connector_view == 'individual' else 'false' }}" class="{{ 'selected' if connector_view == 'individual' else '' }}">Individual</button>
 <span aria-hidden="true">|</span>

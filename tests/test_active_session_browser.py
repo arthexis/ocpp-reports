@@ -967,9 +967,9 @@ def test_accounts_shared_header_layout():
 def test_shared_table_heading_alignment_offline(tmp_path, monkeypatch):
     """Compare actual layout, not just CSS strings, in both color schemes."""
     playwright = pytest.importorskip("playwright.sync_api")
-    from test_dashboard_account_management import setup, login, ADMIN_PASS, ORIGIN
+    from test_dashboard_account_management import _setup, login, ADMIN_PASS, ORIGIN
 
-    _, app = setup(tmp_path, monkeypatch)
+    _, app = _setup(tmp_path, monkeypatch)
     with TestClient(app, base_url=ORIGIN) as client, playwright.sync_playwright() as p:
         login(client, "admin-main", ADMIN_PASS)
         browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
