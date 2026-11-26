@@ -967,6 +967,9 @@ def test_shared_table_heading_alignment_offline(tmp_path, monkeypatch):
                     assert action.evaluate(style) == control.evaluate(style)
                     assert action.evaluate("el => getComputedStyle(el).color") == control.evaluate(
                         "el => getComputedStyle(el).color")
+                    insets = [page.locator(panel).evaluate(
+                        "el => getComputedStyle(el).paddingLeft") for panel in panels]
+                    assert len(set(insets)) == 1, (width, scheme, insets)
                     if width >= 1200:
                         left = page.locator("#synchronization thead").bounding_box()
                         right = page.locator("#dashboard-users thead").bounding_box()
