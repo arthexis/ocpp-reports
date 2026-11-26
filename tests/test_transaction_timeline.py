@@ -160,7 +160,7 @@ def test_remote_only_empty_state_and_active_refresh(tmp_path):
     assert "Historial de mediciones no disponible" in page.text
     assert "<th>Voltaje (V)</th>" in page.text
     assert "<th>Corriente (A)</th>" in page.text
-    assert "<th>Corriente ofrecida (A)</th>" in page.text
+    assert "<th>Ofrecida (A)</th>" in page.text
     assert "<th>Temp. (°C)</th>" in page.text
     assert 'data-active="true"' in page.text
     assert '"transaction-timeline"' in page.text
@@ -336,7 +336,7 @@ def test_electrical_telemetry_timeline_and_optional_offered_current(tmp_path):
         "/transactions/a/cp/7")
     assert page.status_code == 200
     for title in ("SoC (%)", "Voltaje (V)", "Corriente (A)", "Temp. (°C)",
-                  "Corriente ofrecida (A)"):
+                  "Ofrecida (A)"):
         assert title in page.text
     assert "-4.5" in page.text
     assert "<td>220.0</td>" in page.text
@@ -356,7 +356,7 @@ def test_electrical_telemetry_timeline_and_optional_offered_current(tmp_path):
     assert "<th>Temp. (°C)</th>" in empty.text
     assert "<th>Corriente (A)</th>" in empty.text
     assert empty.text.count("<td></td>") == 8
-    assert "<th>Corriente ofrecida (A)</th>" in empty.text
+    assert "<th>Ofrecida (A)</th>" in empty.text
     assert 'class="timeline-offered"' not in empty.text
     assert "SoC (%)</th>" not in empty.text
 
