@@ -924,7 +924,8 @@ def test_accounts_shared_header_layout():
             assert "Administrar cuentas" in page.locator(".detail-header-subtitle").inner_text()
             b, h = back.bounding_box(), heading.bounding_box()
             assert h["x"] + h["width"] <= b["x"]
-            assert b["y"] < h["y"] + h["height"] and h["y"] < b["y"] + b["height"]
+            brand = page.locator(".site-header .brand").bounding_box()
+            assert abs((b["y"] + b["height"] / 2) - (brand["y"] + brand["height"] / 2)) <= 1
             assert b["height"] >= 44
             card = page.locator("main > .card").first.bounding_box()
             assert abs(h["x"] - card["x"]) <= 1
