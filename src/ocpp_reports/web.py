@@ -538,7 +538,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                     "deleted": "Cuenta eliminada; sus sesiones anteriores fueron revocadas."}
         response = templates.TemplateResponse(
             request, "dashboard_accounts.html.j2",
-            {"title": title, "tenant": tenant, "actor": actor,
+            {"title": title, "brand_image_url": brand_image_url, "tenant": tenant, "actor": actor,
              "accounts": accounts, "selected_account": selected_account,
              "csrf_token": csrf_token(request.cookies.get(COOKIE, ""), tenant),
              "notice": messages.get(notice, ""), "error": error},

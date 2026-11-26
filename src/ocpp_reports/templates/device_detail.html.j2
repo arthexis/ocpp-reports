@@ -6,10 +6,7 @@
 <style>
 {% include "detail_header.css.j2" %}
 /* Reuse the same Reports dashboard palette, header, cards and responsive tables. */
-:root{color-scheme:light;--bg:#f5f7fa;--surface:#fff;--ink:#172437;--muted:#637286;--line:#e2e8f0;--nav:#203247;--accent:#1268c7;--warning:#a96700;font:16px system-ui,sans-serif}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.45}
-a{color:var(--accent)}a:focus-visible,summary:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
-main{max-width:1320px;margin:auto;padding:1.4rem 1.25rem 3rem}
+{% include "detail_page.css.j2" %}
 section{margin:0 0 1.25rem;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1.25rem;box-shadow:0 2px 10px #152c4608}
 section h2{font-size:1.05rem;margin:0 0 1rem}.note{font-size:.82rem}.muted{color:var(--muted)}.identity{font-size:1.5rem;margin:.1rem 0 .35rem;overflow-wrap:anywhere}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.grid>*{min-width:0}
@@ -120,9 +117,9 @@ padding:.55rem .8rem;border-radius:8px;text-decoration:none;font-weight:650}
 .site-actions a:hover,.site-actions a:focus-visible{text-decoration:underline}
 @media(max-width:700px){.site-grid{grid-template-columns:1fr;gap:.2rem}.site-actions{flex-direction:column}
 .site-actions a{width:100%;justify-content:center}}
-@media(max-width:800px){.grid{grid-template-columns:1fr}main{padding:1rem .75rem}section{padding:1rem}}
+@media(max-width:800px){.grid{grid-template-columns:1fr}section{padding:1rem}}
 @media(max-width:520px){.connector-list{grid-template-columns:1fr}table{font-size:.78rem}th,td{padding:.55rem .45rem}}
-@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5;--warning:#ffbe60}th{background:#263647;color:#d7e5f5}.status{background:#354657;color:#e1e9f3}}
+@media(prefers-color-scheme:dark){th{background:#263647;color:#d7e5f5}.status{background:#354657;color:#e1e9f3}}
 </style></head><body>
 <a class="back-link" style="position:absolute;left:1rem;top:-5rem" href="#content">Ir al contenido</a>
 {% call detail_header(title, '/?tz=' ~ (timezone|urlencode) ~ '#connectors', 'Dashboard', 'Solo lectura · Estado y sesiones: refresco cada 5 s · ' ~ timezone, brand_image_url) %}
