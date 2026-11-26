@@ -1,3 +1,6 @@
+{% macro panel_help(title, text) -%}
+<button type="button" class="panel-help-trigger" aria-label="Información sobre {{ title }}" aria-haspopup="dialog" aria-controls="panel-help-dialog" data-help-title="{{ title }}" data-help-text="{{ text }}">ⓘ</button>
+{%- endmacro %}
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ title }}</title>
@@ -114,20 +117,18 @@ header{align-items:start;gap:.65rem}
   .connectors-panel td[data-label="Cargador"] .charger-session-link{min-height:44px}
 }
 
-/* Panel explanations stay off the page until hover, keyboard focus, or tap. */
-.panel-heading{display:flex;align-items:center;gap:.35rem;margin-bottom:.5rem;min-width:0}
+/* Help is a native top-layer dialog, independent of table geometry. */
+.panel-heading{display:flex;align-items:center;gap:.35rem;margin-bottom:.5rem;min-width:0;flex:1 1 auto;flex-wrap:wrap}
 .panel-heading h2{margin:0}
-.panel-heading{flex:1 1 auto;min-width:0;flex-wrap:wrap}
-.panel-help{display:inline-flex;align-items:center;flex:0 0 auto}
-.panel-help-trigger{border:0;background:transparent;color:var(--muted);font-size:1.15rem;line-height:1;cursor:pointer;border-radius:100%;min-width:32px;min-height:32px;padding:.2rem}
+.panel-help-trigger{flex:0 0 auto;border:0;background:transparent;color:var(--muted);font-size:1.15rem;line-height:1;cursor:pointer;border-radius:100%;min-width:32px;min-height:32px;padding:.2rem}
 .panel-help-trigger:hover,.panel-help-trigger:focus-visible{color:var(--accent)}
-/* Help opens below the heading in document flow, never across charger status rows.
-   Touch requires explicit click state: pointer focus alone cannot open a popup
-   before a click is dispatched on older Android browsers. */
-.panel-help-text{display:none;position:static;flex:0 0 100%;min-width:0;width:100%;max-height:min(50vh,320px);overflow:auto;overscroll-behavior:contain;padding:.75rem .85rem;border:1px solid var(--line);border-radius:.55rem;background:var(--surface);color:var(--ink);font-size:.84rem;font-weight:400;line-height:1.45;text-align:left;white-space:normal}
-.panel-help.is-open + .panel-help-text{display:block}
-@media(hover:hover){.panel-help:hover + .panel-help-text,.panel-help:focus-within + .panel-help-text{display:block}}
-@media(hover:none){.panel-help:not(.is-open) + .panel-help-text{display:none}}
+.panel-help-dialog{position:fixed;box-sizing:border-box;width:min(28rem,calc(100% - 2rem));max-height:calc(100% - 2rem);overflow:auto;overscroll-behavior:contain;margin:auto;padding:1rem;border:1px solid var(--line);border-radius:.75rem;background:var(--surface);color:var(--ink);box-shadow:0 12px 40px #0004}
+.panel-help-dialog::backdrop{background:rgba(0,0,0,.25)}
+.panel-help-dialog-heading{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:0 0 .5rem;padding:0;background:none;border:0;position:static}
+.panel-help-dialog h2{font-size:1.05rem;margin:0}
+.panel-help-dialog p{margin:0;font-size:.9rem;line-height:1.55;white-space:pre-line}
+.panel-help-close{border:0;background:transparent;color:inherit;font-size:1.35rem;min-width:40px;min-height:40px;cursor:pointer}
+@media(max-width:520px){.panel-help-trigger{min-width:40px;min-height:40px}}
 
 /* Readability: contain wide desktop data without clipping the viewport. */
 .connectors-panel .scroll{width:100%;max-width:100%;min-width:0;overflow-x:auto;overscroll-behavior-x:contain}
@@ -277,7 +278,7 @@ header{align-items:start;gap:.65rem}
 {% endif %}
 </header><main id="content">
 <section class="operations" aria-labelledby="operations-heading">
-<div class="panel-heading"><h2 id="operations-heading">Estado de los cargadores</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Estado de los cargadores" aria-controls="help-operations" aria-expanded="false" aria-describedby="help-operations">ⓘ</button></span><span class="panel-help-text" id="help-operations" role="tooltip">Estaciones (conectores individuales). Se cuenta cada estación una sola vez por estado; C0 es un resumen y no se duplica. Cifras: estaciones (conectores individuales). Los datos antiguos no confirman disponibilidad actual. Último estado informado, no conectividad en tiempo real. Las notificaciones de estado se envían al cambiar; una fecha de estado antigua no indica desconexión. La frescura del origen y la conexión observada se evalúan por separado; la recepción de datos del origen no demuestra conectividad del cargador. Una falla con origen atrasado también puede contarse como dato incierto. Sin fecha original del estado, la fecha es desconocida.</span></div>
+<div class="panel-heading"><h2 id="operations-heading">Estado de los cargadores</h2>{{ panel_help('Estado de los cargadores', 'Estaciones (conectores individuales): C0 no se duplica. Se muestra el último estado, no una prueba de conexión actual. Una falla con origen atrasado también puede contarse como dato incierto.') }}</div>
 <p class="counts-legend">Cifras: estaciones (conectores individuales)</p><div class="cards operations-cards">
 <a class="operational-card operational-card--available" href="#connectors"><strong>{{ operational_counts.available.stations }} ({{ operational_counts.available.connectors }})</strong><span>Disponibles</span></a>
 <a class="operational-card operational-card--charging" href="{{ active_transactions_href|default('#connectors') }}"><strong>{{ operational_counts.charging.stations }} ({{ operational_counts.charging.connectors }})</strong><span>Cargando</span></a>
@@ -285,7 +286,7 @@ header{align-items:start;gap:.65rem}
 <a class="operational-card operational-card--uncertain" href="#connectors"><strong>{{ operational_counts.uncertain.stations }} ({{ operational_counts.uncertain.connectors }})</strong><span>Datos antiguos / otros</span></a>
 </div></section>
 
-<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading table-panel-heading"><div class="panel-heading"><h2>Conectores</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Conectores" aria-controls="help-connectors" aria-expanded="false" aria-describedby="help-connectors">ⓘ</button></span><span class="panel-help-text" id="help-connectors" role="tooltip">Conectado indica Sí o No cuando la observación del CSMS es vigente; Desconocido cuando el origen está atrasado o falta evidencia vigente. No es una prueba de red en tiempo real. La antigüedad del StatusNotification no indica por sí sola desconexión. Potencia: medida reciente o nominal configurada en CSMS (no es consumo actual). La capacidad de C0 es compartida y no debe sumarse con la de los conectores. Energía registrada: lectura acumulada de medidor (C0 = suma de conectores individuales), no consumo de la sesión. No sumar C0 nuevamente en totales. Cargas: total histórico de transacciones distintas por conector, incluidas sesiones abiertas y sin energía; C0 suma los conectores físicos. Recibido muestra la fecha original del último StatusNotification cuando existe; no la hora de recepción del snapshot, que solo indica actualización del export. Sin fecha original se muestra desconocido; las fechas originales permanecen en la API.</span></div>
+<div class="dashboard-grid"><section id="connectors" class="connectors-panel"><div class="transactions-heading table-panel-heading"><div class="panel-heading"><h2>Conectores</h2>{{ panel_help('Conectores', 'Estado: último informado; Recibido: fecha original del estado, no la hora de recepción del snapshot. Conectado: Sí/No según la observación vigente del CSMS, o Desconocido si falta evidencia. Potencia: medida reciente o capacidad nominal. Energía: medidor acumulado, no consumo de sesión. Cargas: transacciones históricas, incluso abiertas o sin energía. C0 resume la estación; no sumar sus valores a los de los conectores.') }}</div>
 <div class="connector-filters table-panel-actions" role="group" aria-label="Filtrar conectores">
 <button type="button" data-connector-view="individual" aria-pressed="{{ 'true' if connector_view == 'individual' else 'false' }}" class="{{ 'selected' if connector_view == 'individual' else '' }}">Individual</button>
 <span aria-hidden="true">|</span>
@@ -304,7 +305,7 @@ header{align-items:start;gap:.65rem}
 <td data-label="Medidor" class="numeric">{% set displayed_energy_wh = c.aggregate_energy_wh if c.connector_id == 0 and c.aggregate_energy_wh is defined else c.energy_wh %}{{ "%.2f"|format(displayed_energy_wh / 1000) ~ " kWh" if displayed_energy_wh is not none else "—" }}</td><td class="numeric connector-charge-count" data-label="Cargas">{{ c.charge_count|default(0) }}</td><td class="connector-last-charge" data-label="Última carga">{{ c.last_charge_at|display_date(timezone) if c.last_charge_at else "—" }}</td><td data-label="Recibido">{{ c.status_observed_at|display_date(timezone) if not c.status_time_unknown else "Desconocido" }}</td></tr>
 {% else %}<tr><td class="empty" colspan="10">Sin conectores registrados</td></tr>{% endfor %}</tbody></table></div>
 </section>
-<section class="transactions-panel" id="transactions"><div class="transactions-heading table-panel-heading"><div class="panel-heading"><h2>Sesiones de carga</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Transacciones recientes" aria-controls="help-transactions" aria-expanded="false" aria-describedby="help-transactions">ⓘ</button></span><span class="panel-help-text" id="help-transactions" role="tooltip">SoC: primera y última medición reportada; no se estiman valores ni se presupone una medición al cierre.</span></div>
+<section class="transactions-panel" id="transactions"><div class="transactions-heading table-panel-heading"><div class="panel-heading"><h2>Sesiones de carga</h2>{{ panel_help('Sesiones de carga', 'En curso: sesiones activas; Exitosas: energía final positiva; Fallidas: energía final cero. Sin energía final conocida, no se clasifican como exitosas ni fallidas. SoC: primera y última lectura recibidas, no necesariamente al cierre. La energía en vivo es estimada.') }}</div>
 <div class="transaction-filters table-panel-actions" role="group" aria-label="Filtrar transacciones por estado y energía final">
 <button type="button" data-tx-view="active" aria-pressed="{{ 'true' if tx_view == 'active' else 'false' }}" class="{{ 'selected' if tx_view == 'active' else '' }}">En curso ({{ transaction_counts.get("active", 0) }})</button>
 <span aria-hidden="true">|</span>
@@ -334,12 +335,12 @@ header{align-items:start;gap:.65rem}
 </div></nav>
 </section>
 {% if is_admin | default(true) %}
-<section class="sync-panel" id="synchronization"><div class="table-panel-heading"><div class="panel-heading"><h2>Sincronización</h2><span class="panel-help"><button type="button" class="panel-help-trigger" aria-label="Información sobre Sincronización" aria-controls="help-synchronization" aria-expanded="false" aria-describedby="help-synchronization">ⓘ</button></span><span class="panel-help-text" id="help-synchronization" role="tooltip">Ingestión local y recepción de réplica son distintas. Cadencia predeterminada: ingesta local (follow) cada 5 segundos y consulta del Forwarder en reposo cada 2 segundos. Los intervalos describen consultas; el ritmo de los datos depende del origen, la red y la configuración.</span></div></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
+<section class="sync-panel" id="synchronization"><div class="table-panel-heading"><div class="panel-heading"><h2>Sincronización</h2>{{ panel_help('Sincronización', 'Cursor: avance registrado por origen. Ingestión local: última incorporación de datos; recepción de réplica: última recepción desde el origen remoto. No indican por sí solas conexión del cargador.') }}</div></div><div class="scroll" tabindex="0" role="region" aria-label="Tabla de sincronización"><table><thead><tr><th>Origen</th><th>Cursor</th><th>Ingestión local</th><th>Recepción de réplica</th></tr></thead><tbody>
 {% for s in data.sources %}<tr><td>{{ s.source_id }}</td><td>{{ s.cursor }}</td><td>{{ s.last_ingested_at|display_date(timezone) if s.last_ingested_at else "No aplica / desconocido" }}</td><td>{{ s.last_replication_received_at|display_date(timezone) if s.last_replication_received_at else "No aplica / desconocido" }}</td></tr>{% else %}<tr><td class="empty" colspan="4">Sin orígenes</td></tr>{% endfor %}
 </tbody></table></div></section>
 {% if login_enabled and is_admin %}
 <section class="users-panel" id="dashboard-users" aria-labelledby="dashboard-users-heading">
-<div class="table-panel-heading"><div class="panel-heading"><h2 id="dashboard-users-heading">Usuarios con acceso</h2></div><div class="table-panel-actions"><a href="/accounts">Administrar</a></div></div>
+<div class="table-panel-heading"><div class="panel-heading"><h2 id="dashboard-users-heading">Usuarios con acceso</h2>{{ panel_help('Usuarios con acceso', 'Cuentas autorizadas, permisos y último acceso registrado. Una cuenta activa puede iniciar sesión; no implica que esté conectada ahora. Administrar permite gestionar las cuentas según tus permisos.') }}</div><div class="table-panel-actions"><a href="/accounts">Administrar</a></div></div>
 <div class="scroll" tabindex="0" role="region" aria-label="Usuarios autorizados para este dashboard">
 <table><thead><tr><th>Usuario</th>{% if is_central_admin %}<th>Dashboard</th>{% endif %}<th>Permisos</th><th>Último acceso</th><th>Cuenta</th></tr></thead>
 <tbody>{% for account in dashboard_accounts %}
@@ -351,35 +352,37 @@ header{align-items:start;gap:.65rem}
 {% endif %}
 {% endif %}</div></main>
 
+<dialog id="panel-help-dialog" class="panel-help-dialog" aria-labelledby="panel-help-title" aria-describedby="panel-help-description">
+  <div class="panel-help-dialog-heading"><h2 id="panel-help-title"></h2><button type="button" class="panel-help-close" aria-label="Cerrar información" autofocus>×</button></div>
+  <p id="panel-help-description"></p>
+</dialog>
+
 <script>
 (() => {
-  // Info icons: hover, keyboard focus, or tap/click; Escape and outside press close.
-  const helpIcons = [...document.querySelectorAll(".panel-help")];
-  const closeHelp = (except = null) => {
-    for (const item of helpIcons) {
-      if (item === except) continue;
-      item.classList.remove("is-open");
-      item.querySelector(".panel-help-trigger").setAttribute("aria-expanded", "false");
-    }
-  };
-  for (const item of helpIcons) {
-    const trigger = item.querySelector(".panel-help-trigger");
+  // Native modal keeps the dashboard geometry and scroll position unchanged.
+  const help = document.getElementById("panel-help-dialog");
+  const helpTitle = document.getElementById("panel-help-title");
+  const helpText = document.getElementById("panel-help-description");
+  let helpTrigger = null;
+  for (const trigger of document.querySelectorAll(".panel-help-trigger")) {
     trigger.addEventListener("click", () => {
-      const open = !item.classList.contains("is-open");
-      closeHelp(item);
-      item.classList.toggle("is-open", open);
-      trigger.setAttribute("aria-expanded", String(open));
-      if (!open) trigger.blur();
+      if (help.open) return;
+      helpTrigger = trigger;
+      helpTitle.textContent = trigger.dataset.helpTitle;
+      helpText.textContent = trigger.dataset.helpText;
+      help.showModal();
     });
   }
-  document.addEventListener("pointerdown", (event) => {
-    if (!event.target.closest(".panel-help")) closeHelp();
+  help.querySelector(".panel-help-close").addEventListener("click", () => help.close());
+  help.addEventListener("click", (event) => {
+    if (event.target !== help) return;
+    const bounds = help.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right ||
+        event.clientY < bounds.top || event.clientY > bounds.bottom) help.close();
   });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      closeHelp();
-      if (document.activeElement?.classList.contains("panel-help-trigger")) document.activeElement.blur();
-    }
+  help.addEventListener("close", () => {
+    helpTrigger?.focus({preventScroll: true});
+    helpTrigger = null;
   });
 
   const form = document.getElementById("dashboard-filters");

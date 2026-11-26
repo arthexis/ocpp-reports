@@ -115,6 +115,35 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 assert page.locator("a.charger-session-link").count() == 2  # charger and connector detail links
                 assert page.locator("a.status-session-link").count() == 1
                 assert "Ver carga actual" not in page.locator(".connectors-panel").inner_text()
+                # Opening help must not resize or reposition any dashboard panel.
+                dialog = page.locator("#panel-help-dialog")
+                geometry = """() => [...document.querySelectorAll('main section, main table')].map(
+                    el => { const r = el.getBoundingClientRect();
+                    return [r.x + scrollX, r.y + scrollY, r.width, r.height]; })"""
+                for trigger in page.locator(".panel-help-trigger").all():
+                    trigger.scroll_into_view_if_needed()
+                    before = page.evaluate(geometry)
+                    title = trigger.get_attribute("data-help-title")
+                    if mobile:
+                        trigger.tap()
+                    else:
+                        trigger.click()
+                    assert dialog.is_visible()
+                    assert dialog.get_by_role("heading", name=title).is_visible()
+                    assert page.evaluate(geometry) == before
+                    assert dialog.bounding_box()["width"] <= viewport["width"]
+                    if mobile:
+                        dialog.get_by_role("button", name="Cerrar información").tap()
+                    else:
+                        page.keyboard.press("Escape")
+                    assert not dialog.is_visible()
+                    assert page.evaluate(geometry) == before
+                    assert trigger.evaluate("el => document.activeElement === el")
+                trigger = page.locator(".panel-help-trigger").first
+                trigger.click()
+                assert dialog.is_visible()
+                page.mouse.click(2, 2)
+                assert not dialog.is_visible()
                 theme = page.evaluate("""() => {
                   const s = getComputedStyle(document.documentElement);
                   return Object.fromEntries(['--bg','--surface','--ink','--muted',
@@ -938,9 +967,9 @@ def test_accounts_shared_header_layout():
 def test_shared_table_heading_alignment_offline(tmp_path, monkeypatch):
     """Compare actual layout, not just CSS strings, in both color schemes."""
     playwright = pytest.importorskip("playwright.sync_api")
-    from test_dashboard_account_management import setup, login, ADMIN_PASS, ORIGIN
+    from test_dashboard_account_management import _setup, login, ADMIN_PASS, ORIGIN
 
-    _, app = setup(tmp_path, monkeypatch)
+    _, app = _setup(tmp_path, monkeypatch)
     with TestClient(app, base_url=ORIGIN) as client, playwright.sync_playwright() as p:
         login(client, "admin-main", ADMIN_PASS)
         browser = p.chromium.launch(headless=True, args=["--no-sandbox"])

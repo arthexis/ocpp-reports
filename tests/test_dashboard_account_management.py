@@ -18,7 +18,7 @@ OP_PASS = "Test-operator-password-2026"
 NEW_PASS = "Updated-operator-pass-2026"
 
 
-def setup(tmp_path, monkeypatch):
+def _setup(tmp_path, monkeypatch):
     auth = tmp_path / "accounts.sqlite"
     provision(auth, "admin-main", ADMIN_PASS, "admin", "administration")
     provision(auth, "operator-a", OP_PASS, "operator", "administration")
@@ -53,7 +53,7 @@ def post(client, path, csrf, **fields):
 
 
 def test_only_admin_sees_management_and_only_own_tenant(tmp_path, monkeypatch):
-    auth, app = setup(tmp_path, monkeypatch)
+    auth, app = _setup(tmp_path, monkeypatch)
     with TestClient(app, base_url=ORIGIN) as anonymous:
         assert anonymous.get("/accounts").status_code == 403
         assert anonymous.post("/accounts/create").status_code == 403
@@ -66,6 +66,8 @@ def test_only_admin_sees_management_and_only_own_tenant(tmp_path, monkeypatch):
         login(admin, "admin-main", ADMIN_PASS)
         assert 'id="dashboard-users"' in admin.get("/").text
         dashboard = admin.get("/").text
+        assert 'data-help-title="Usuarios con acceso"' in dashboard
+        assert dashboard.count('class="panel-help-trigger"') == 5
         assert dashboard.count('href="/accounts"') == 1
         assert '<div class="table-panel-actions"><a href="/accounts">Administrar</a></div>' in dashboard
         page = admin.get("/accounts")
@@ -114,7 +116,7 @@ def test_only_admin_sees_management_and_only_own_tenant(tmp_path, monkeypatch):
 
 
 def test_create_login_update_disable_delete_and_audit(tmp_path, monkeypatch):
-    auth, app = setup(tmp_path, monkeypatch)
+    auth, app = _setup(tmp_path, monkeypatch)
     with TestClient(app, base_url=ORIGIN) as admin:
         login(admin, "admin-main", ADMIN_PASS)
         csrf = token(admin)
@@ -159,7 +161,7 @@ def test_create_login_update_disable_delete_and_audit(tmp_path, monkeypatch):
 
 
 def test_reject_csrf_origin_malformed_duplicates_passwords_and_unsafe_roles(tmp_path, monkeypatch):
-    auth, app = setup(tmp_path, monkeypatch)
+    auth, app = _setup(tmp_path, monkeypatch)
     with TestClient(app, base_url=ORIGIN) as admin:
         login(admin, "admin-main", ADMIN_PASS)
         csrf = token(admin)
@@ -188,7 +190,7 @@ def test_reject_csrf_origin_malformed_duplicates_passwords_and_unsafe_roles(tmp_
 
 
 def test_self_lockout_protected_and_last_admin_retained(tmp_path, monkeypatch):
-    auth, app = setup(tmp_path, monkeypatch)
+    auth, app = _setup(tmp_path, monkeypatch)
     with TestClient(app, base_url=ORIGIN) as admin:
         login(admin, "admin-main", ADMIN_PASS)
         csrf = token(admin)
