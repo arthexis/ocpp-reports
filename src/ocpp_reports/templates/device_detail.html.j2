@@ -120,6 +120,7 @@ padding:.55rem .8rem;border-radius:8px;text-decoration:none;font-weight:650}
 @media(max-width:800px){.grid{grid-template-columns:1fr}section{padding:1rem}}
 @media(max-width:520px){.connector-list{grid-template-columns:1fr}table{font-size:.78rem}th,td{padding:.55rem .45rem}}
 @media(prefers-color-scheme:dark){th{background:#263647;color:#d7e5f5}.status{background:#354657;color:#e1e9f3}}
+{% include "table_panel.css.j2" %}
 </style></head><body>
 <a class="back-link" style="position:absolute;left:1rem;top:-5rem" href="#content">Ir al contenido</a>
 {% call detail_header(title, '/?tz=' ~ (timezone|urlencode) ~ '#connectors', 'Dashboard', 'Solo lectura · Estado y sesiones: refresco cada 5 s · ' ~ timezone, brand_image_url) %}
@@ -189,7 +190,7 @@ padding:.55rem .8rem;border-radius:8px;text-decoration:none;font-weight:650}
 </dl></article>
 {% else %}<p class="muted">Sin estado de conectores registrado; consulta las sesiones históricas.</p>{% endfor %}</div>
 </section>
-<section id="transactions" aria-labelledby="transactions-title"><h2 id="transactions-title">Sesiones de carga</h2>
+<section id="transactions" aria-labelledby="transactions-title"><h2 class="table-panel-heading" id="transactions-title">Sesiones de carga</h2>
 <div class="scroll" role="region" tabindex="0" aria-label="Sesiones de este {{ 'conector' if selected_connector_id is not none else 'cargador' }}">
 <table class="sessions-table"><thead><tr>{% if selected_connector_id is none %}<th>Conector</th>{% endif %}<th>ID</th><th>Estado</th><th class="session-start">Inicio</th><th>Fin</th><th class="session-duration">Duración</th><th class="numeric session-soc" title="Primera lectura SoC reportada">SoC inicial</th><th class="numeric session-soc" title="Última lectura SoC reportada, no necesariamente al cierre">SoC último</th><th class="numeric">Energía de sesión</th></tr></thead><tbody>
 {% for t in data.transactions %}<tr>{% if selected_connector_id is none %}<td><a href="/connectors/{{ source_id|urlencode }}/{{ charger_id|urlencode }}/{{ t.connector_id }}?tz={{ timezone|urlencode }}">{{ t.connector_id if t.connector_id is not none else '—' }}</a></td>{% endif %}
@@ -208,7 +209,7 @@ padding:.55rem .8rem;border-radius:8px;text-decoration:none;font-weight:650}
 {% if tx_page < tx_pages %}<a rel="next" href="{{ request.url.include_query_params(tx_page=tx_page+1) }}#transactions">Siguiente</a>{% endif %}
 </nav></section>
 {% if selected_connector_id is none %}
-<section id="events" aria-labelledby="events-title"><h2 id="events-title">Eventos registrados de {{ charger_id }}</h2>
+<section id="events" aria-labelledby="events-title"><h2 class="table-panel-heading" id="events-title">Eventos registrados de {{ charger_id }}</h2>
 <div class="scroll" tabindex="0" role="region" aria-label="Eventos registrados de este cargador">
 <table class="events-table"><thead><tr><th class="event-id">ID</th><th class="event-action">Acción</th><th class="event-date">Fecha</th><th class="event-count">Registros</th></tr></thead>
 <tbody id="live-event-groups">

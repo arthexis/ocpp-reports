@@ -17,7 +17,8 @@ def test_desktop_table_scrolls_within_panel_and_mobile_is_compact(dashboard_sour
     source = dashboard_source
     assert ".connectors-panel .scroll{width:100%;max-width:100%;min-width:0;overflow-x:auto" in source
     assert ".connectors-panel table{min-width:1140px}" in source
-    assert ".connectors-panel .transactions-heading{gap:.2rem;margin-bottom:.35rem}" in source
+    assert 'class="transactions-heading table-panel-heading"' in source
+    assert '{% include "table_panel.css.j2" %}' in source
     assert ".connectors-panel tbody tr{padding:.4rem;margin-bottom:.45rem}" in source
 
 

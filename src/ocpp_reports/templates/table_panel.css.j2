@@ -1,0 +1,18 @@
+/* Shared table-card heading geometry, independent of help and actions. */
+.table-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:.4rem .75rem;flex-wrap:wrap;min-width:0;min-height:2rem;margin:0 0 .75rem}
+.table-panel-heading .panel-heading{margin:0;min-height:2rem;flex:1 1 auto}
+.table-panel-heading h2,h2.table-panel-heading{font-size:1.05rem;line-height:1.45;margin:0;font-weight:700}
+h2.table-panel-heading{margin-bottom:.75rem}
+.table-panel-actions{display:inline-flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:.35rem;min-width:0;margin-left:auto;font-size:.85rem;line-height:1.45}
+.table-panel-actions button,.table-panel-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:2rem;padding:.2rem .3rem;font:inherit;font-weight:500;border:0;background:transparent;text-decoration:none;white-space:nowrap}
+.table-panel-actions button{color:var(--muted)}
+.table-panel-actions a,.table-panel-actions a:visited{color:var(--accent);text-decoration:underline;text-underline-offset:4px}
+.table-panel-actions button.selected{color:var(--accent);font-weight:750;text-decoration:underline;text-underline-offset:4px}
+.table-panel-actions button:hover,.table-panel-actions a:hover{color:var(--accent);text-decoration:underline;text-underline-offset:4px}
+@media(max-width:520px){
+  .table-panel-heading{gap:.25rem .5rem;margin-bottom:.5rem}
+  h2.table-panel-heading{margin-bottom:.5rem}
+  .table-panel-actions{gap:.15rem .3rem}
+  .table-panel-actions button,.table-panel-actions a{min-height:40px;padding:.25rem .35rem}
+  .table-panel-actions span[aria-hidden="true"]{display:none}
+}

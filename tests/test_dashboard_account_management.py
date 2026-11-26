@@ -67,7 +67,7 @@ def test_only_admin_sees_management_and_only_own_tenant(tmp_path, monkeypatch):
         assert 'id="dashboard-users"' in admin.get("/").text
         dashboard = admin.get("/").text
         assert dashboard.count('href="/accounts"') == 1
-        assert 'style="margin-left:auto">Administrar</a>' in dashboard
+        assert '<div class="table-panel-actions"><a href="/accounts">Administrar</a></div>' in dashboard
         page = admin.get("/accounts")
         assert "admin-main" in page.text and "operator-a" in page.text
         assert "hidden-other" not in page.text
