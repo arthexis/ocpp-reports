@@ -51,7 +51,10 @@ th{background:var(--bg)}td:first-child{font-weight:600}td:nth-child(2){overflow-
   </div>
 </section>
 <section aria-labelledby="snapshot-title">
-  <h2 class="table-panel-heading" id="snapshot-title">Captura del {{ selected.at|display_date(timezone) }}</h2>
+  <div class="table-panel-heading">
+    <h2 id="snapshot-title">Captura del {{ selected.at|display_date(timezone) }}</h2>
+    <div class="table-panel-actions"><a href="?tz={{ timezone|urlencode }}&amp;event_id={{ selected.source_event_id }}&amp;download=1">Descargar CSV</a></div>
+  </div>
   <p class="note muted">Evento #{{ selected.source_event_id }} ·
     {% if selected.coverage == 'full' %}Solicitud de todas las claves
     {% elif selected.coverage == 'partial' %}Solicitud de claves específicas

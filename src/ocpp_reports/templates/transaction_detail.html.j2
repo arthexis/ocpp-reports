@@ -115,16 +115,19 @@ main{max-width:1320px}
 </article>
 {% endif %}
 </div>
+{% else %}
+<p class="timeline-empty">Historial de mediciones no disponible para esta sesión. Se conservan los totales y métricas verificados arriba; no se genera una curva estimada.</p>
+{% endif %}
 <div class="timeline-evidence" tabindex="0" aria-label="Tabla de mediciones verificadas"><table>
-<thead><tr><th>Observada</th><th>Energía sesión (kWh)</th>{% if timeline_has_power %}<th>Potencia (kW)</th>{% endif %}{% if timeline_available.soc %}<th>SoC (%)</th>{% endif %}{% if timeline_available.voltage_v %}<th>Voltaje (V)</th>{% endif %}{% if timeline_available.current_import_a %}<th>Corriente (A)</th>{% endif %}{% if timeline_available.temperature_c %}<th>Temp. (°C)</th>{% endif %}</tr></thead>
+<thead><tr><th>Observada</th><th>Energía sesión (kWh)</th>{% if timeline_has_power %}<th>Potencia (kW)</th>{% endif %}{% if timeline_available.soc %}<th>SoC (%)</th>{% endif %}<th>Voltaje (V)</th><th>Corriente (A)</th><th>Temp. (°C)</th></tr></thead>
 <tbody>{% for point in timeline.points %}<tr>
 <td>{{ point.at|display_date(timezone) }}</td>
 <td>{{ '%.3f'|format(point.energy_kwh) if point.energy_kwh is not none else '—' }}</td>
 {% if timeline_has_power %}<td>{{ '%.3f'|format(point.power_kw) if point.power_kw is not none else '—' }}</td>{% endif %}
 {% if timeline_available.soc %}<td>{{ '%.1f'|format(point.soc) if point.soc is not none else '—' }}</td>{% endif %}
-{% if timeline_available.voltage_v %}<td>{{ '%.1f'|format(point.voltage_v) if point.voltage_v is not none else '—' }}</td>{% endif %}
-{% if timeline_available.current_import_a %}<td>{{ '%.2f'|format(point.current_import_a) if point.current_import_a is not none else '—' }}</td>{% endif %}
-{% if timeline_available.temperature_c %}<td>{{ '%.1f'|format(point.temperature_c) if point.temperature_c is not none else '—' }}</td>{% endif %}
+<td>{{ '%.1f'|format(point.voltage_v) if point.voltage_v is not none else '' }}</td>
+<td>{{ '%.2f'|format(point.current_import_a) if point.current_import_a is not none else '' }}</td>
+<td>{{ '%.1f'|format(point.temperature_c) if point.temperature_c is not none else '' }}</td>
 </tr>{% endfor %}</tbody></table></div>
 {% if timeline_available.current_offered_a %}
 <details class="timeline-offered"><summary>Corriente ofrecida por el cargador (A) — mediciones adicionales</summary>
@@ -132,9 +135,6 @@ main{max-width:1320px}
 <tbody>{% for point in timeline.points if point.current_offered_a is not none %}
 <tr><td>{{ point.at|display_date(timezone) }}</td><td>{{ '%.2f'|format(point.current_offered_a) }}</td></tr>
 {% endfor %}</tbody></table></div></details>
-{% endif %}
-{% else %}
-<p class="timeline-empty">Historial de mediciones no disponible para esta sesión. Se conservan los totales y métricas verificados arriba; no se genera una curva estimada.</p>
 {% endif %}
 {% if timeline.discontinuous %}<p class="stale" role="status">Discontinuidad del medidor detectada: se suspende la curva de energía posterior al reinicio o caída del contador.</p>{% endif %}
 {% if timeline.limited %}<p class="note">Vista parcial: se aplicó el límite de lectura/muestras; no se garantiza cobertura histórica completa.</p>{% endif %}

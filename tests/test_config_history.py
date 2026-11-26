@@ -1,5 +1,7 @@
 """Configuration history ingestion and collector replication use immutable event IDs."""
 import sqlite3
+import csv
+import io
 
 import pytest
 from fastapi.testclient import TestClient
@@ -138,6 +140,7 @@ def test_configuration_page_selects_historical_versions_and_is_source_scoped(tmp
     # reverse proxy uses Basic Auth. Configuration must fail closed.
     legacy = TestClient(create_app(database, allowed_source_ids=("a",)))
     assert legacy.get(configuration_url).status_code == 403
+    assert legacy.get(configuration_url + "?event_id=2&download=1").status_code == 403
     legacy_device = legacy.get(device_url)
     assert legacy_device.status_code == 200
     assert "/configuration?" not in legacy_device.text
@@ -163,6 +166,7 @@ def test_configuration_page_selects_historical_versions_and_is_source_scoped(tmp
             login(browser, username)
             assert browser.get(configuration_url).status_code == 403
             assert browser.get(configuration_url + "?event_id=2").status_code == 403
+            assert browser.get(configuration_url + "?event_id=2&download=1").status_code == 403
             device = browser.get(device_url)
             if username == "operator":
                 assert device.status_code == 200
@@ -181,6 +185,21 @@ def test_configuration_page_selects_historical_versions_and_is_source_scoped(tmp
         assert newest.headers["Cache-Control"] == "no-store"
         older = browser.get(configuration_url + "?event_id=2")
         assert older.status_code == 200 and "300" in older.text
+        assert 'event_id=2&amp;download=1">Descargar CSV</a>' in older.text
+        assert 'event_id=5&amp;download=1">Descargar CSV</a>' in newest.text
+        for event_id, expected in ((2, "300"), (5, "400")):
+            download = browser.get(configuration_url, params={"event_id": event_id, "download": 1})
+            assert download.status_code == 200
+            assert download.headers["content-type"].startswith("text/csv")
+            assert download.headers["content-disposition"] == (
+                f'attachment; filename="configuration-a-same-{event_id}.csv"')
+            assert download.headers["cache-control"] == "no-store"
+            assert list(csv.reader(io.StringIO(download.text))) == [
+                ["Clave", "Valor", "Solo lectura"], ["HeartbeatInterval", expected, "No"]]
+        for url in ("/chargers/b/same/configuration", "/chargers/a/other/configuration"):
+            assert browser.get(url + "?event_id=2&download=1").status_code == 404
+        assert browser.get(configuration_url + "?event_id=999&download=1").status_code == 404
+
         assert browser.get("/chargers/b/same/configuration").status_code == 404
         assert browser.get("/chargers/a/other/configuration").status_code == 404
         assert browser.get(configuration_url + "?event_id=999").status_code == 404
@@ -212,3 +231,21 @@ def test_unredacted_vendor_credential_is_rejected_before_persistence(vendor_key)
 ])
 def test_operational_key_is_permitted(ordinary_key):
     assert validate_snapshot(config(key=ordinary_key, value="42"))["configuration"][0]["value"] == "42"
+
+
+def test_configuration_csv_preserves_values_and_protects_spreadsheets():
+    from ocpp_reports.warehouse.config_history import render_snapshot_csv
+    snapshot = config()
+    snapshot["configuration"] = [
+        {"key": "Quoted", "value": 'á,"b"\r\nc', "readonly": True},
+        {"key": "Missing", "value": None, "readonly": False},
+        {"key": "Formula", "value": "=1+1", "readonly": False},
+        {"key": "@Key", "value": "[REDACTED]", "readonly": True},
+    ]
+    assert list(csv.reader(io.StringIO(render_snapshot_csv(snapshot)))) == [
+        ["Clave", "Valor", "Solo lectura"],
+        ["Quoted", 'á,"b"\r\nc', "Sí"],
+        ["Missing", "", "No"],
+        ["Formula", "'=1+1", "No"],
+        ["'@Key", "[REDACTED]", "Sí"],
+    ]

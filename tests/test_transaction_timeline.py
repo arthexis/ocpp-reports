@@ -158,6 +158,9 @@ def test_remote_only_empty_state_and_active_refresh(tmp_path):
     page = client.get("/transactions/a/cp/7")
     assert page.status_code == 200
     assert "Historial de mediciones no disponible" in page.text
+    assert "<th>Voltaje (V)</th>" in page.text
+    assert "<th>Corriente (A)</th>" in page.text
+    assert "<th>Temp. (°C)</th>" in page.text
     assert 'data-active="true"' in page.text
     assert '"transaction-timeline"' in page.text
     assert "window.setInterval(refreshTransaction, 15000)" in page.text
@@ -335,15 +338,22 @@ def test_electrical_telemetry_timeline_and_optional_offered_current(tmp_path):
                   "Corriente ofrecida (A)"):
         assert title in page.text
     assert "-4.5" in page.text
+    assert "<td>220.0</td>" in page.text
+    assert "<td>10.50</td>" in page.text
+    assert "<td>-4.5</td>" in page.text
+    assert "<td></td>" in page.text
 
-    # Readings absent from every point must not become misleading columns.
+    # Keep the three electrical columns stable even without readings.
     with sqlite3.connect(path) as db:
         db.execute("UPDATE energy_samples SET payload=json_remove(payload,"
                    " '$.voltage_v', '$.current_import_a', '$.current_offered_a',"
                    " '$.temperature_c', '$.soc', '$.soc_provenance')")
     empty = TestClient(web.create_app(path)).get("/transactions/a/cp/7")
-    assert "Voltaje (V)</th>" not in empty.text
-    assert "Temp. (°C)</th>" not in empty.text
+    assert "<th>Voltaje (V)</th>" in empty.text
+    assert "<td></td>" in empty.text
+    assert "<th>Temp. (°C)</th>" in empty.text
+    assert "<th>Corriente (A)</th>" in empty.text
+    assert empty.text.count("<td></td>") == 6
     assert "Corriente ofrecida por el cargador" not in empty.text
     assert "SoC (%)</th>" not in empty.text
 
