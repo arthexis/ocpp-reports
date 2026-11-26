@@ -313,7 +313,7 @@ def test_timeline_table_hides_power_only_when_unmeasured(tmp_path):
 def test_electrical_telemetry_timeline_and_optional_offered_current(tmp_path):
     path = _db(tmp_path)
     _bound(path)
-    _sample(path, 5, soc=45, soc_provenance="ocpp-meter-values",
+    _sample(path, 5, at="2026-01-01T12:05:23.456Z", soc=45, soc_provenance="ocpp-meter-values",
             voltage_v=220, current_import_a=10.5, current_offered_a=32,
             temperature_c=-4.5)
     _sample(path, 10, power_w=None, voltage_v=None, current_import_a=None,
@@ -340,6 +340,11 @@ def test_electrical_telemetry_timeline_and_optional_offered_current(tmp_path):
         assert title in page.text
     assert "-4.5" in page.text
     assert "<th>Energía (kWh)</th>" in page.text
+    assert "<td>2026-01-01 12:05:23 UTC</td>" in page.text
+    local = TestClient(web.create_app(path, timezones=("America/Monterrey",))).get(
+        "/transactions/a/cp/7?tz=America/Monterrey")
+    assert "<td>2026-01-01 06:05:23</td>" in local.text
+    assert "<dt>Inicio</dt><dd>2026-01-01 06:00</dd>" in local.text
     assert "<td>220.0</td>" in page.text
     assert "<td>10.50</td>\n<td>32.00</td>" in page.text
     assert 'class="timeline-offered"' not in page.text

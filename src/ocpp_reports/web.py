@@ -60,7 +60,8 @@ def dashboard_timezones(configured: tuple[str, ...]) -> tuple[str, ...]:
     return choices
 
 
-def display_date(value: str | None, zone: str) -> str:
+def display_date(value: str | None, zone: str, *, seconds: bool = False) -> str:
+    date_format = "%Y-%m-%d %H:%M:%S" if seconds else "%Y-%m-%d %H:%M"
     if not value:
         return "—"
     if not isinstance(value, str):
@@ -70,8 +71,8 @@ def display_date(value: str | None, zone: str) -> str:
     except ValueError:
         return "Fecha inválida"
     if parsed.tzinfo is None:
-        return parsed.strftime("%Y-%m-%d %H:%M") + " (zona desconocida)"
-    return parsed.astimezone(ZoneInfo(zone)).strftime("%Y-%m-%d %H:%M") + (" UTC" if zone == "UTC" else "")
+        return parsed.strftime(date_format) + " (zona desconocida)"
+    return parsed.astimezone(ZoneInfo(zone)).strftime(date_format) + (" UTC" if zone == "UTC" else "")
 
 
 def session_duration(start: str | None, stop: str | None) -> str:
