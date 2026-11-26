@@ -339,6 +339,7 @@ def test_electrical_telemetry_timeline_and_optional_offered_current(tmp_path):
                   "Ofrecida (A)"):
         assert title in page.text
     assert "-4.5" in page.text
+    assert "<th>Energía (kWh)</th>" in page.text
     assert "<td>220.0</td>" in page.text
     assert "<td>10.50</td>\n<td>32.00</td>" in page.text
     assert 'class="timeline-offered"' not in page.text

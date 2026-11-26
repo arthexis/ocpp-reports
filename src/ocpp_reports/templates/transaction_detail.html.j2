@@ -116,7 +116,7 @@ main{max-width:1320px}
 <p class="timeline-empty">Historial de mediciones no disponible para esta sesión. Se conservan los totales y métricas verificados arriba; no se genera una curva estimada.</p>
 {% endif %}
 <div class="timeline-evidence" tabindex="0" aria-label="Tabla de mediciones verificadas"><table>
-<thead><tr><th>Observada</th><th>Energía sesión (kWh)</th>{% if timeline_has_power %}<th>Potencia (kW)</th>{% endif %}{% if timeline_available.soc %}<th>SoC (%)</th>{% endif %}<th>Voltaje (V)</th><th>Corriente (A)</th><th>Ofrecida (A)</th><th>Temp. (°C)</th></tr></thead>
+<thead><tr><th>Observada</th><th>Energía (kWh)</th>{% if timeline_has_power %}<th>Potencia (kW)</th>{% endif %}{% if timeline_available.soc %}<th>SoC (%)</th>{% endif %}<th>Voltaje (V)</th><th>Corriente (A)</th><th>Ofrecida (A)</th><th>Temp. (°C)</th></tr></thead>
 <tbody>{% for point in timeline.points %}<tr>
 <td>{{ point.at|display_date(timezone) }}</td>
 <td>{{ '%.3f'|format(point.energy_kwh) if point.energy_kwh is not none else '—' }}</td>
