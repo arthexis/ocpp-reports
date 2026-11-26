@@ -32,6 +32,7 @@ a{color:var(--accent)}.action{margin-top:1rem;display:flex;gap:.7rem;align-items
 .checkbox input{margin-top:.3rem;accent-color:var(--danger)}
 @media(max-width:760px){.fields,.accounts{grid-template-columns:1fr}.card{padding:1rem}}
 @media(prefers-color-scheme:dark){:root{--danger:#ef6173}input:not([type=checkbox]),select{border-color:#63798d}button{color:#071320}}
+{% include "page_geometry.css.j2" %}
 </style></head>
 <body>
 {{ detail_header(title, '/', 'Dashboard', 'Administrar cuentas · Dashboard: ' ~ tenant ~ ' · Sesión: ' ~ actor, brand_image_url) }}

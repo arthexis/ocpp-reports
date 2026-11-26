@@ -181,3 +181,19 @@ def one_snapshot(database: str | Path, source: str, charger: str, event_id: int)
             if row:
                 return json.loads(row[0])
     return None
+
+
+def render_snapshot_csv(snapshot: dict) -> str:
+    """Export the selected stored configuration table, with safe spreadsheet cells."""
+    import csv
+    import io
+
+    from ..csv_rendering import _safe
+
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(("Clave", "Valor", "Solo lectura"))
+    for row in snapshot["configuration"]:
+        writer.writerow((_safe(row["key"]), _safe(row["value"]),
+                         "Sí" if row["readonly"] else "No"))
+    return output.getvalue()

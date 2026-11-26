@@ -18,7 +18,7 @@ from .warehouse.active_sessions import is_active_session
 from .warehouse.event_groups import (event_groups_page, event_group_details,
                                      latest_heartbeat_at, latest_charger_receipt_at)
 from .warehouse.charger_energy import charger_energy_30_days
-from .warehouse.config_history import list_snapshots, one_snapshot
+from .warehouse.config_history import list_snapshots, one_snapshot, render_snapshot_csv
 from .warehouse.transaction_pagination import latest_completed_charges, connector_charge_counts
 from .warehouse.charger_csv import CSV_PROFILES, charger_transactions, render_charger_csv
 from .dashboard_login import dashboard_account_directory, COOKIE
@@ -60,7 +60,8 @@ def dashboard_timezones(configured: tuple[str, ...]) -> tuple[str, ...]:
     return choices
 
 
-def display_date(value: str | None, zone: str) -> str:
+def display_date(value: str | None, zone: str, *, seconds: bool = False) -> str:
+    date_format = "%Y-%m-%d %H:%M:%S" if seconds else "%Y-%m-%d %H:%M"
     if not value:
         return "—"
     if not isinstance(value, str):
@@ -70,8 +71,8 @@ def display_date(value: str | None, zone: str) -> str:
     except ValueError:
         return "Fecha inválida"
     if parsed.tzinfo is None:
-        return parsed.strftime("%Y-%m-%d %H:%M") + " (zona desconocida)"
-    return parsed.astimezone(ZoneInfo(zone)).strftime("%Y-%m-%d %H:%M") + (" UTC" if zone == "UTC" else "")
+        return parsed.strftime(date_format) + " (zona desconocida)"
+    return parsed.astimezone(ZoneInfo(zone)).strftime(date_format) + (" UTC" if zone == "UTC" else "")
 
 
 def session_duration(start: str | None, stop: str | None) -> str:
@@ -906,7 +907,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     def charger_config_history(
         request: Request, source_id: str, charger_id: str,
         tz: str | None = None, event_id: int | None = Query(None, ge=1),
-        page: int = Query(1, ge=1, le=1000),
+        page: int = Query(1, ge=1, le=1000), download: bool = False,
     ):
         """Administrator-only, evidence-backed GetConfiguration history."""
         if not _can_view_configuration(request):
@@ -926,9 +927,19 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             raise HTTPException(503, "Configuration history unavailable") from exc
         if selected is None:
             raise HTTPException(404, "Configuration history not found")
+        if download:
+            safe_source = re.sub(r"[^A-Za-z0-9._-]", "_", source_id)[:64]
+            safe_charger = re.sub(r"[^A-Za-z0-9._-]", "_", charger_id)[:80]
+            filename = (f"configuration-{safe_source}-{safe_charger}-"
+                        f"{selected['source_event_id']}.csv")
+            return Response(
+                content=render_snapshot_csv(selected), media_type="text/csv; charset=utf-8",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                         "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+            )
         return templates.TemplateResponse(
             request, "charger_configuration.html.j2",
-            {"title": title, "source_id": source_id, "charger_id": charger_id,
+            {"title": title, "brand_image_url": brand_image_url, "source_id": source_id, "charger_id": charger_id,
              "selected": selected, "versions": versions, "has_next": has_next,
              "page": page, "timezone": zone},
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
@@ -950,7 +961,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         details = hours_fields(current.get("contact_hours") if current else None)
         return templates.TemplateResponse(
             request, "charger_site.html.j2",
-            {"title": title, "source_id": source_id, "charger_id": charger_id,
+            {"title": title, "brand_image_url": brand_image_url, "source_id": source_id, "charger_id": charger_id,
              "site": current or {}, "days": list(zip(DAYS, DAY_NAMES)),
              "hours": details, "other_sites": editable_sites(warehouse, allowed_source_ids),
              "customers": editable_customers(warehouse, allowed_source_ids)},

@@ -158,6 +158,10 @@ def test_remote_only_empty_state_and_active_refresh(tmp_path):
     page = client.get("/transactions/a/cp/7")
     assert page.status_code == 200
     assert "Historial de mediciones no disponible" in page.text
+    assert "<th>Voltaje (V)</th>" in page.text
+    assert "<th>Corriente (A)</th>" in page.text
+    assert "<th>Ofrecida (A)</th>" in page.text
+    assert "<th>Temp. (°C)</th>" in page.text
     assert 'data-active="true"' in page.text
     assert '"transaction-timeline"' in page.text
     assert "window.setInterval(refreshTransaction, 15000)" in page.text
@@ -309,7 +313,7 @@ def test_timeline_table_hides_power_only_when_unmeasured(tmp_path):
 def test_electrical_telemetry_timeline_and_optional_offered_current(tmp_path):
     path = _db(tmp_path)
     _bound(path)
-    _sample(path, 5, soc=45, soc_provenance="ocpp-meter-values",
+    _sample(path, 5, at="2026-01-01T12:05:23.456Z", soc=45, soc_provenance="ocpp-meter-values",
             voltage_v=220, current_import_a=10.5, current_offered_a=32,
             temperature_c=-4.5)
     _sample(path, 10, power_w=None, voltage_v=None, current_import_a=None,
@@ -332,19 +336,34 @@ def test_electrical_telemetry_timeline_and_optional_offered_current(tmp_path):
         "/transactions/a/cp/7")
     assert page.status_code == 200
     for title in ("SoC (%)", "Voltaje (V)", "Corriente (A)", "Temp. (°C)",
-                  "Corriente ofrecida (A)"):
+                  "Ofrecida (A)"):
         assert title in page.text
     assert "-4.5" in page.text
+    assert "<th>Energía (kWh)</th>" in page.text
+    assert "<td>2026-01-01 12:05:23 UTC</td>" in page.text
+    local = TestClient(web.create_app(path, timezones=("America/Monterrey",))).get(
+        "/transactions/a/cp/7?tz=America/Monterrey")
+    assert "<td>2026-01-01 06:05:23</td>" in local.text
+    assert "<dt>Inicio</dt><dd>2026-01-01 06:00</dd>" in local.text
+    assert "<td>220.0</td>" in page.text
+    assert "<td>10.50</td>\n<td>32.00</td>" in page.text
+    assert 'class="timeline-offered"' not in page.text
+    assert "<td>-4.5</td>" in page.text
+    assert "<td></td>" in page.text
 
-    # Readings absent from every point must not become misleading columns.
+    # Keep all four electrical columns stable even without readings.
     with sqlite3.connect(path) as db:
         db.execute("UPDATE energy_samples SET payload=json_remove(payload,"
                    " '$.voltage_v', '$.current_import_a', '$.current_offered_a',"
                    " '$.temperature_c', '$.soc', '$.soc_provenance')")
     empty = TestClient(web.create_app(path)).get("/transactions/a/cp/7")
-    assert "Voltaje (V)</th>" not in empty.text
-    assert "Temp. (°C)</th>" not in empty.text
-    assert "Corriente ofrecida por el cargador" not in empty.text
+    assert "<th>Voltaje (V)</th>" in empty.text
+    assert "<td></td>" in empty.text
+    assert "<th>Temp. (°C)</th>" in empty.text
+    assert "<th>Corriente (A)</th>" in empty.text
+    assert empty.text.count("<td></td>") == 8
+    assert "<th>Ofrecida (A)</th>" in empty.text
+    assert 'class="timeline-offered"' not in empty.text
     assert "SoC (%)</th>" not in empty.text
 
 

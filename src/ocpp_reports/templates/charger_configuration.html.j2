@@ -20,8 +20,9 @@ th{background:var(--bg)}td:first-child{font-weight:600}td:nth-child(2){overflow-
 @media(max-width:600px){main{padding:.8rem}section{padding:.8rem}th,td{font-size:.8rem;padding:.5rem .25rem}}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5}}
 {% include "table_panel.css.j2" %}
+{% include "page_geometry.css.j2" %}
 </style></head><body>
-{{ detail_header('Configuración · ' ~ charger_id, '/chargers/' ~ (source_id|urlencode) ~ '/' ~ (charger_id|urlencode) ~ '?tz=' ~ (timezone|urlencode), 'Cargador') }}
+{{ detail_header(title, '/chargers/' ~ (source_id|urlencode) ~ '/' ~ (charger_id|urlencode) ~ '?tz=' ~ (timezone|urlencode), 'Cargador', 'Configuración · ' ~ charger_id, brand_image_url) }}
 <main>
 <section aria-labelledby="history-title">
   <h2 id="history-title">Historial GetConfiguration</h2>
@@ -51,7 +52,10 @@ th{background:var(--bg)}td:first-child{font-weight:600}td:nth-child(2){overflow-
   </div>
 </section>
 <section aria-labelledby="snapshot-title">
-  <h2 class="table-panel-heading" id="snapshot-title">Captura del {{ selected.at|display_date(timezone) }}</h2>
+  <div class="table-panel-heading">
+    <h2 id="snapshot-title">Captura del {{ selected.at|display_date(timezone) }}</h2>
+    <div class="table-panel-actions"><a href="?tz={{ timezone|urlencode }}&amp;event_id={{ selected.source_event_id }}&amp;download=1">Descargar CSV</a></div>
+  </div>
   <p class="note muted">Evento #{{ selected.source_event_id }} ·
     {% if selected.coverage == 'full' %}Solicitud de todas las claves
     {% elif selected.coverage == 'partial' %}Solicitud de claves específicas

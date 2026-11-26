@@ -89,6 +89,7 @@ def test_tablet_header_and_tables_preserve_mobile_and_desktop_semantics(dashboar
     assert '<td data-label="Estado">' in source
     assert '<td data-label="Medidor"' in source
     assert "<h2>Sesiones de carga</h2>" in source
+    assert 'SoC %</th><th class="numeric">Energía</th>' in source
     assert '<p class="note" id="transaction-history-help">' not in source
     assert '<th>Inicio</th>' in source  # hidden in tablet/mobile
     assert ".transactions-panel th:nth-child(1),.transactions-panel tbody td:nth-child(1)," in source

@@ -1,0 +1,7 @@
+/* One horizontal content rail for every dashboard and detail view.
+   Percentages use the actual layout viewport (including scrollbar gutters). */
+:root{--page-max-width:1320px;--page-gutter:1.25rem}
+html{scrollbar-gutter:stable}
+main{max-width:var(--page-max-width);margin-inline:auto;padding-inline:var(--page-gutter)}
+body>header{padding-inline:max(var(--page-gutter),calc((100% - var(--page-max-width))/2 + var(--page-gutter)))}
+@media(max-width:800px){:root{--page-gutter:.75rem}}

@@ -61,11 +61,9 @@ main{max-width:1320px}
 .timeline-evidence table{width:100%;border-collapse:collapse;font-size:.83rem}
 .timeline-evidence th,.timeline-evidence td{padding:.45rem;text-align:left;border-bottom:1px solid var(--line)}
 .timeline-evidence th{position:sticky;top:0;background:var(--surface)}
-.timeline-offered{margin-top:.65rem;color:var(--muted);font-size:.84rem}
-.timeline-offered summary{cursor:pointer;padding:.4rem;min-height:36px}
-.timeline-offered .timeline-evidence{margin-top:.4rem}
 .timeline-empty{padding:1rem;background:var(--bg);border-radius:8px;color:var(--muted)}
 @media(max-width:540px){.timeline-card{padding:.8rem}.timeline-plot{padding:.5rem}}
+{% include "page_geometry.css.j2" %}
 </style></head><body>
 <a class="skip-link" href="#content">Ir al contenido</a>
 {{ detail_header(title, back_href|default('/?tz=' ~ (timezone|urlencode) ~ '#transactions'), subtitle='Panel de sesiones · Solo lectura' ~ (' · Consulta cada 15 s' if refresh_active else ''), logo_url=brand_image_url) }}
@@ -75,15 +73,14 @@ main{max-width:1320px}
 <h2 id="transaction-heading">Transacción #{{ transaction.id }}</h2>
 <p class="note">{{ transaction.location }} · {{ transaction.charger_id }} · Conector {{ transaction.connector_id if transaction.connector_id is defined and transaction.connector_id is not none else "desconocido" }}</p>
 <p id="transaction-status" aria-live="polite"><span class="status {{ 'status--active' if refresh_active else 'status--ok' if (transaction.state or '')|lower in ['closed','stopped','completed'] else 'status--historic' }}">{{ transaction.state or "Desconocido" }}</span>
-{% if refresh_active %}<span class="note refresh-note">En curso · consulta cada 15 s (sin garantía de telemetría nueva)</span>{% endif %}</p>
+{% if refresh_active %}<span class="note refresh-note">En curso · consulta cada 15 s</span>{% endif %}</p>
 </section>
 <section class="card" id="transaction-energy" aria-label="Energía de sesión"><div class="metric-label">Energía de sesión</div>
 {% if transaction.energy_wh is defined and transaction.energy_wh is not none %}
 <div class="big">{{ "%.2f"|format(transaction.energy_wh / 1000) }} kWh</div>
 <div class="note">Final · medición al cierre</div>
 {% elif refresh_active and transaction.live_energy_wh is defined and transaction.live_energy_wh is not none %}
-<div class="big">{{ "%.2f"|format(transaction.live_energy_wh / 1000) }} kWh</div>
-<div class="note">Estimada{% if transaction.live_energy_stale %} · medición antigua / no verificada{% else %} · medición reciente{% endif %}</div>
+<div class="big" title="Estimada{% if transaction.live_energy_stale %} · medición antigua / no verificada{% else %} · medición reciente{% endif %}">{{ "%.2f"|format(transaction.live_energy_wh / 1000) }} kWh</div>
 <div class="note">Última medición: {{ transaction.live_energy_observed_at|display_date(timezone) if transaction.live_energy_observed_at else "Desconocida" }}</div>
 {% elif refresh_active %}
 <div class="big">—</div><div class="note">Energía final pendiente · estimación no disponible</div>
@@ -115,33 +112,27 @@ main{max-width:1320px}
 </article>
 {% endif %}
 </div>
-<div class="timeline-evidence" tabindex="0" aria-label="Tabla de mediciones verificadas"><table>
-<thead><tr><th>Observada</th><th>Energía sesión (kWh)</th>{% if timeline_has_power %}<th>Potencia (kW)</th>{% endif %}{% if timeline_available.soc %}<th>SoC (%)</th>{% endif %}{% if timeline_available.voltage_v %}<th>Voltaje (V)</th>{% endif %}{% if timeline_available.current_import_a %}<th>Corriente (A)</th>{% endif %}{% if timeline_available.temperature_c %}<th>Temp. (°C)</th>{% endif %}</tr></thead>
-<tbody>{% for point in timeline.points %}<tr>
-<td>{{ point.at|display_date(timezone) }}</td>
-<td>{{ '%.3f'|format(point.energy_kwh) if point.energy_kwh is not none else '—' }}</td>
-{% if timeline_has_power %}<td>{{ '%.3f'|format(point.power_kw) if point.power_kw is not none else '—' }}</td>{% endif %}
-{% if timeline_available.soc %}<td>{{ '%.1f'|format(point.soc) if point.soc is not none else '—' }}</td>{% endif %}
-{% if timeline_available.voltage_v %}<td>{{ '%.1f'|format(point.voltage_v) if point.voltage_v is not none else '—' }}</td>{% endif %}
-{% if timeline_available.current_import_a %}<td>{{ '%.2f'|format(point.current_import_a) if point.current_import_a is not none else '—' }}</td>{% endif %}
-{% if timeline_available.temperature_c %}<td>{{ '%.1f'|format(point.temperature_c) if point.temperature_c is not none else '—' }}</td>{% endif %}
-</tr>{% endfor %}</tbody></table></div>
-{% if timeline_available.current_offered_a %}
-<details class="timeline-offered"><summary>Corriente ofrecida por el cargador (A) — mediciones adicionales</summary>
-<div class="timeline-evidence"><table><thead><tr><th>Observada</th><th>Corriente ofrecida (A)</th></tr></thead>
-<tbody>{% for point in timeline.points if point.current_offered_a is not none %}
-<tr><td>{{ point.at|display_date(timezone) }}</td><td>{{ '%.2f'|format(point.current_offered_a) }}</td></tr>
-{% endfor %}</tbody></table></div></details>
-{% endif %}
 {% else %}
 <p class="timeline-empty">Historial de mediciones no disponible para esta sesión. Se conservan los totales y métricas verificados arriba; no se genera una curva estimada.</p>
 {% endif %}
+<div class="timeline-evidence" tabindex="0" aria-label="Tabla de mediciones verificadas"><table>
+<thead><tr><th>Observada</th><th>Energía (kWh)</th>{% if timeline_has_power %}<th>Potencia (kW)</th>{% endif %}{% if timeline_available.soc %}<th>SoC (%)</th>{% endif %}<th>Voltaje (V)</th><th>Corriente (A)</th><th>Ofrecida (A)</th><th>Temp. (°C)</th></tr></thead>
+<tbody>{% for point in timeline.points %}<tr>
+<td>{{ point.at|display_date(timezone, seconds=true) }}</td>
+<td>{{ '%.3f'|format(point.energy_kwh) if point.energy_kwh is not none else '—' }}</td>
+{% if timeline_has_power %}<td>{{ '%.3f'|format(point.power_kw) if point.power_kw is not none else '—' }}</td>{% endif %}
+{% if timeline_available.soc %}<td>{{ '%.1f'|format(point.soc) if point.soc is not none else '—' }}</td>{% endif %}
+<td>{{ '%.1f'|format(point.voltage_v) if point.voltage_v is not none else '' }}</td>
+<td>{{ '%.2f'|format(point.current_import_a) if point.current_import_a is not none else '' }}</td>
+<td>{{ '%.2f'|format(point.current_offered_a) if point.current_offered_a is not none else '' }}</td>
+<td>{{ '%.1f'|format(point.temperature_c) if point.temperature_c is not none else '' }}</td>
+</tr>{% endfor %}</tbody></table></div>
 {% if timeline.discontinuous %}<p class="stale" role="status">Discontinuidad del medidor detectada: se suspende la curva de energía posterior al reinicio o caída del contador.</p>{% endif %}
 {% if timeline.limited %}<p class="note">Vista parcial: se aplicó el límite de lectura/muestras; no se garantiza cobertura histórica completa.</p>{% endif %}
 </section>
 <section class="card session-details" id="transaction-session-data"><h2>Datos de la sesión</h2><dl>
 <div><dt>Origen</dt><dd>{{ transaction.source_id }}</dd></div>
-<div><dt>Cargador</dt><dd>{{ transaction.charger_id }}</dd></div>
+<div><dt>Tarjeta RFID</dt><dd>{{ transaction.rfid|e if transaction.rfid is string and transaction.rfid|trim else "—" }}</dd></div>
 <div><dt>Inicio</dt><dd>{{ transaction.started_at|display_date(timezone) }}</dd></div>
 <div><dt>Fin</dt><dd>{{ transaction.stopped_at|display_date(timezone) if transaction.stopped_at else "Activa / sin cierre" }}</dd></div>
 <div><dt>{{ "Duración transcurrida (aprox.)" if refresh_active else "Duración final" }}</dt><dd>{{ elapsed_duration if refresh_active else transaction.started_at|session_duration(transaction.stopped_at) if transaction.stopped_at else "—" }}</dd></div>

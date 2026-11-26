@@ -349,7 +349,7 @@ def _scoped_visible_events(db: sqlite3.Connection, source_id: str, charger_id: s
 
 def _scoped_group_records(db: sqlite3.Connection, source_id: str,
                           charger_id: str, zone: str):
-    """Group StatusNotification *exchanges* by local minute, Heartbeats by day.
+    """Group StatusNotification exchanges by minute, Heartbeats by day, and MeterValues by session.
 
     One expanded group shows every connector, status, error and response ID
     separately; it never deduplicates state transitions. Historical records
@@ -371,6 +371,14 @@ def _scoped_group_records(db: sqlite3.Connection, source_id: str,
             # day's group, without inventing a request/response association.
             previous_legacy_key = None
             key = heartbeat_days.setdefault(day, ("heartbeat", row["event_id"]))
+        elif (action == "MeterValues" and payload.get("kind") == "meter_values"
+                and direction == "in" and type(payload.get("transaction_id")) is int
+                and type(payload.get("connector_id")) is int):
+            # Keep the measurements for each known session together even
+            # when Heartbeats or other actions occur between its samples.
+            # Missing identity or unpaired replies remain separate evidence.
+            previous_legacy_key = None
+            key = ("meter-session", payload["connector_id"], payload["transaction_id"])
         elif direction not in ("in", "out") and not inferred:
             if legacy_key is None or legacy_key != previous_legacy_key:
                 legacy_run += 1
