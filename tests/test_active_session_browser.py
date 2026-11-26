@@ -115,8 +115,9 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                 assert page.locator("a.charger-session-link").count() == 2  # charger and connector detail links
                 assert page.locator("a.status-session-link").count() == 1
                 assert "Ver carga actual" not in page.locator(".connectors-panel").inner_text()
-                # Opening help must not resize or reposition any dashboard panel.
+                # Both help modes preserve dashboard geometry.
                 dialog = page.locator("#panel-help-dialog")
+                tooltip = page.locator("#panel-help-tooltip")
                 geometry = """() => [...document.querySelectorAll('main section, main table')].map(
                     el => { const r = el.getBoundingClientRect();
                     return [r.x + scrollX, r.y + scrollY, r.width, r.height]; })"""
@@ -126,24 +127,47 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                     title = trigger.get_attribute("data-help-title")
                     if mobile:
                         trigger.tap()
-                    else:
-                        trigger.click()
-                    assert dialog.is_visible()
-                    assert dialog.get_by_role("heading", name=title).is_visible()
-                    assert page.evaluate(geometry) == before
-                    assert dialog.bounding_box()["width"] <= viewport["width"]
-                    if mobile:
+                        assert dialog.is_visible()
+                        assert dialog.get_by_role("heading", name=title).is_visible()
+                        assert not tooltip.is_visible()
+                        assert page.evaluate(geometry) == before
+                        assert dialog.bounding_box()["width"] <= viewport["width"]
                         dialog.get_by_role("button", name="Cerrar información").tap()
+                        assert not dialog.is_visible()
+                        assert trigger.evaluate("el => document.activeElement === el")
                     else:
+                        trigger.hover()
+                        assert tooltip.is_visible()
+                        assert tooltip.inner_text() == trigger.get_attribute("data-help-text")
+                        assert not dialog.is_visible()
+                        assert page.evaluate(geometry) == before
+                        bounds = tooltip.bounding_box()
+                        assert bounds["x"] >= 0 and bounds["y"] >= 0
+                        assert bounds["x"] + bounds["width"] <= viewport["width"]
+                        assert bounds["y"] + bounds["height"] <= viewport["height"]
+                        tooltip.hover()
+                        assert tooltip.is_visible()
+                        page.mouse.move(2, 2)
+                        assert not tooltip.is_visible()
+                        trigger.hover()
                         page.keyboard.press("Escape")
-                    assert not dialog.is_visible()
+                        assert not tooltip.is_visible()
                     assert page.evaluate(geometry) == before
-                    assert trigger.evaluate("el => document.activeElement === el")
                 trigger = page.locator(".panel-help-trigger").first
-                trigger.click()
-                assert dialog.is_visible()
-                page.mouse.click(2, 2)
-                assert not dialog.is_visible()
+                trigger.scroll_into_view_if_needed()
+                if mobile:
+                    trigger.tap()
+                    assert dialog.is_visible()
+                    page.touchscreen.tap(2, 2)
+                    assert not dialog.is_visible()
+                else:
+                    page.mouse.move(2, 2)
+                    page.keyboard.press("Tab")
+                    trigger.focus()
+                    assert tooltip.is_visible()
+                    assert trigger.get_attribute("aria-describedby") == "panel-help-tooltip"
+                    page.keyboard.press("Escape")
+                    assert not tooltip.is_visible()
                 theme = page.evaluate("""() => {
                   const s = getComputedStyle(document.documentElement);
                   return Object.fromEntries(['--bg','--surface','--ink','--muted',
