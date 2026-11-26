@@ -920,11 +920,15 @@ def test_accounts_shared_header_layout():
             back = page.locator(".site-header .back-link")
             heading = page.locator(".site-header h1")
             assert back.get_attribute("href") == "/"
-            assert heading.inner_text() == "Administrar cuentas"
+            assert heading.inner_text() == "Reports"
+            assert "Administrar cuentas" in page.locator(".detail-header-subtitle").inner_text()
             b, h = back.bounding_box(), heading.bounding_box()
             assert h["x"] + h["width"] <= b["x"]
             assert b["y"] < h["y"] + h["height"] and h["y"] < b["y"] + b["height"]
             assert b["height"] >= 44
+            card = page.locator("main > .card").first.bounding_box()
+            assert abs(h["x"] - card["x"]) <= 1
+            assert abs(b["x"] + b["width"] - card["x"] - card["width"]) <= 1
             assert page.locator(".site-header").evaluate("(e) => e.scrollWidth <= e.clientWidth")
             page.close()
         browser.close()

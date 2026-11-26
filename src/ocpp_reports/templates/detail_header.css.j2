@@ -1,4 +1,4 @@
-.site-header{background:var(--nav,#203247);color:white;padding:1.2rem max(1.25rem,calc((100vw - 1280px)/2));display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.site-header{background:var(--nav,#203247);color:white;padding:1.2rem max(1.25rem,calc((100% - 1280px)/2));display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
 .detail-header-primary{display:flex;align-items:center;gap:1rem;flex:1 1 auto;min-width:0;max-width:100%}
 .site-header .brand{min-width:0;flex:1}
 .site-header h1{margin:0;font-size:1.45rem;letter-spacing:-.03em;overflow-wrap:anywhere}
@@ -9,4 +9,5 @@
 .detail-header-primary>.back-link{flex:0 0 auto;max-width:50%;overflow-wrap:anywhere}
 .back-link:hover,.back-link:focus-visible{background:#ffffff18;text-decoration:underline}
 .header-actions{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-left:auto}
-@media(max-width:540px){.site-header{padding:.65rem .9rem;gap:.55rem}.detail-header-primary{gap:.55rem}.site-header h1{font-size:1.12rem}.detail-header-subtitle{font-size:.76rem}.detail-header-primary>.back-link{font-size:.85rem}}
+@media(max-width:800px){.site-header{padding-left:.75rem;padding-right:.75rem}}
+@media(max-width:540px){.site-header{padding:.65rem .75rem;gap:.55rem}.detail-header-primary{gap:.55rem}.site-header h1{font-size:1.12rem}.detail-header-subtitle{font-size:.76rem}.detail-header-primary>.back-link{font-size:.85rem}}

@@ -29,7 +29,7 @@ def setup(tmp_path, monkeypatch):
         ensure_collector_schema(db)
     monkeypatch.setenv("OCPP_REPORTS_AUTH_DATABASE", str(auth))
     monkeypatch.setenv("OCPP_REPORTS_AUTH_TENANT", "administration")
-    app = create_app(warehouse)
+    app = create_app(warehouse, title="Reports", brand_image_url="/assets/brand-light.png")
     return auth, app
 
 
@@ -79,6 +79,8 @@ def test_only_admin_sees_management_and_only_own_tenant(tmp_path, monkeypatch):
         assert "Selecciona un usuario para editarlo" in page.text
         assert "Solo los administradores pueden crear" not in page.text
         assert 'class="back-link" href="/"' in page.text
+        assert 'class="brand-logo" src="/assets/brand-light.png"' in page.text
+        assert 'Administrar cuentas' in page.text
         assert 'action="/accounts/update"' not in page.text
         assert 'action="/accounts/delete"' not in page.text
         selected = admin.get("/accounts?user=operator-a").text
