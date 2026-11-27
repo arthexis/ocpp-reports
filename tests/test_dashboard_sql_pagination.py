@@ -225,3 +225,16 @@ def test_rfid_history_missing_location_does_not_display_satellite(tmp_path):
     history = TestClient(create_app(dbpath, allowed_source_ids=("local",))).get("/rfid", params={"rfid": "card"})
     assert history.status_code == 200
     assert "<td>—</td><td>cp-local</td>" in history.text
+
+
+def test_rfid_pages_escape_authorization_tag(tmp_path):
+    dbpath = tmp_path / "warehouse.sqlite"
+    _seed(dbpath, local=1, remote=0)
+    tag = '<TEST&RFID>'
+    with sqlite3.connect(dbpath) as db:
+        db.execute("UPDATE current_transactions SET payload=json_set(payload, '$.rfid', ?)", (tag,))
+    client = TestClient(create_app(dbpath, allowed_source_ids=("local",)))
+    for response in (client.get("/?tx_view=all"), client.get("/rfid", params={"rfid": tag})):
+        assert response.status_code == 200
+        assert tag not in response.text
+        assert "&lt;TEST&amp;RFID&gt;" in response.text
