@@ -1125,12 +1125,14 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         return {"transaction": transaction, "timezone": selected_zone}
 
     @app.get("/rfid", response_class=HTMLResponse)
-    def rfid_page(request: Request, rfid: str = Query(..., min_length=1),
-                  tz: str | None = None, page: int = Query(1, ge=1)):
+    def rfid_page(request: Request, rfid: str | None = Query(None, min_length=1),
+                  otros: bool = False, tz: str | None = None, page: int = Query(1, ge=1)):
         selected_zone = tz or zones[0]
         if selected_zone not in zones:
             raise HTTPException(422, "Unsupported dashboard timezone")
-        if not rfid.strip():
+        if (rfid is None) == (not otros):
+            raise HTTPException(422, "Select RFID or Otros")
+        if rfid is not None and not rfid.strip():
             raise HTTPException(404, "Card not found")
         try:
             with sqlite3.connect(warehouse.resolve().as_uri() + "?mode=ro", uri=True) as db:
@@ -1140,7 +1142,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                 result = query_transaction_page(
                     db, tables, source_id=None, charger_id=None, allowed_source_ids=allowed_source_ids,
                     term="", status="", location="", date_from="", date_to="", zone=selected_zone,
-                    view="all", page=page, rfid=rfid, card_history=True,
+                    view="all", page=page, rfid=rfid, card_history=True, others=otros,
                 )
         except (OSError, sqlite3.Error, ValueError) as exc:
             raise HTTPException(503, "Warehouse unavailable") from exc
@@ -1160,7 +1162,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             point["y"] = (205 - 180 * point["cumulative_kwh"] / peak
                           if point["cumulative_kwh"] is not None else None)
         return templates.TemplateResponse(request, "rfid_detail.html.j2", {
-            "title": title, "brand_image_url": brand_image_url, "rfid": rfid,
+            "title": title, "brand_image_url": brand_image_url, "rfid": rfid, "otros": otros,
             "timezone": selected_zone, "result": result, "points": points, "peak": peak,
             "energy_kwh": cumulative_kwh,
         }, headers={"Cache-Control": "no-store"})
