@@ -24,6 +24,32 @@ def _local_day(value: object, zone: ZoneInfo) -> str | None:
         return None
 
 
+def _card_locations(db, tables, identities):
+    """Resolve configured location by source and charger, never source as fallback."""
+    locations = {}
+    identities = sorted(set(identities))
+    for offset in range(0, len(identities), 200):
+        batch = identities[offset:offset + 200]
+        predicate = " OR ".join("(a.source_id=? AND a.charger_id=?)" for _ in batch)
+        values = [value for identity in batch for value in identity]
+        if "collector_charger_locations" in tables:
+            locations.update({
+                (r[0], r[1]): r[2] for r in db.execute(
+                    "SELECT a.source_id,a.charger_id,a.location FROM collector_charger_locations a WHERE "
+                    + predicate, values)
+            })
+        if {"report_sites", "report_site_assignments"}.issubset(tables):
+            locations.update({
+                (r[0], r[1]): r[2] for r in db.execute(
+                    "SELECT a.source_id,a.charger_id,s.location_name FROM report_site_assignments a"
+                    " JOIN report_sites s ON s.site_id=a.site_id"
+                    " WHERE s.location_name IS NOT NULL AND TRIM(s.location_name)<>'' AND ("
+                    + predicate + ")", values)
+            })
+    return {key: label if isinstance(label, str) and label.strip()
+            and label.strip() != key[0] else None for key, label in locations.items()}
+
+
 def transaction_page(
     db: sqlite3.Connection, tables: set[str], *,
     source_id: str | None, charger_id: str | None,
@@ -32,6 +58,7 @@ def transaction_page(
     date_from: str, date_to: str, zone: str,
     view: str, page: int, page_size: int = 20, connector_id: int | None = None,
     card_summary: bool = False, rfid: str | None = None, card_history: bool = False,
+    others: bool = False,
 ) -> dict:
     if view not in ("success", "failed", "all", "active"):
         raise ValueError("Invalid transaction view")
@@ -47,6 +74,9 @@ def transaction_page(
     if date_from and date_to and date_from > date_to:
         raise ValueError("Date range start must not exceed end")
     timezone = ZoneInfo(zone)
+    if others and rfid is not None:
+        raise ValueError("RFID and Otros are mutually exclusive")
+    db.create_function("dashboard_rfid", 1, lambda s: s if isinstance(s, str) and s.strip() else None)
     db.create_function("dashboard_casefold", 1, lambda s: str(s or "").casefold())
     db.create_function("dashboard_local_day", 1, lambda s: _local_day(s, timezone))
 
@@ -116,8 +146,12 @@ def transaction_page(
             " instr(dashboard_casefold(json_extract(x.payload,'$.state')),?)>0)"
         )
         filter_args.extend([term] * 4)
-    if rfid is not None:
-        filters.append("json_type(x.payload,'$.rfid')='text' AND json_extract(x.payload,'$.rfid')=?")
+    tag_expression = ("CASE WHEN json_type(x.payload,'$.rfid')='text'"
+                      " THEN dashboard_rfid(json_extract(x.payload,'$.rfid')) END")
+    if others:
+        filters.append("(" + tag_expression + ") IS NULL")
+    elif rfid is not None:
+        filters.append("(" + tag_expression + ")=?")
         filter_args.append(rfid)
     if connector_id is not None:
         # Filter before counts and LIMIT on *both* local and replicated rows.
@@ -162,13 +196,25 @@ def transaction_page(
     parameters = [*args, *filter_args]
     extras = {}
     if card_summary:
-        extras["cards"] = [dict(row) for row in db.execute(
-            sql + "SELECT json_extract(payload, '$.rfid') AS rfid, SUM(success) AS charges,"
-            " SUM(CASE WHEN success=1 THEN json_extract(payload, '$.energy_wh') ELSE 0 END)/1000.0 AS energy_kwh,"
-            " MAX(strftime('%Y-%m-%dT%H:%M:%fZ',json_extract(payload,'$.started_at'))) AS last_access_at"
-            " FROM classified WHERE json_type(payload, '$.rfid')='text'"
-            " AND trim(json_extract(payload, '$.rfid'))<>'' GROUP BY rfid"
-            " ORDER BY energy_kwh DESC, rfid", parameters)]
+        cards = [dict(row) for row in db.execute(
+            sql + ", tagged AS (SELECT source_id,charger_id,tx_id,success,payload,"
+            " CASE WHEN json_type(payload,'$.rfid')='text'"
+            " THEN dashboard_rfid(json_extract(payload,'$.rfid')) END AS rfid,"
+            " strftime('%Y-%m-%dT%H:%M:%fZ',json_extract(payload,'$.started_at')) AS access_at"
+            " FROM classified), ranked AS (SELECT *,"
+            " SUM(success) OVER (PARTITION BY rfid) AS charges,"
+            " SUM(CASE WHEN success=1 THEN json_extract(payload,'$.energy_wh') ELSE 0 END)"
+            " OVER (PARTITION BY rfid)/1000.0 AS energy_kwh,"
+            " ROW_NUMBER() OVER (PARTITION BY rfid ORDER BY access_at DESC,"
+            " source_id,charger_id,tx_id DESC) AS rank FROM tagged)"
+            " SELECT rfid,charges,energy_kwh,access_at AS last_access_at,source_id,charger_id"
+            " FROM ranked WHERE rank=1 ORDER BY rfid IS NULL,energy_kwh DESC,rfid", parameters)]
+        locations = _card_locations(db, tables, ((c["source_id"], c["charger_id"]) for c in cards
+                                                  if c["last_access_at"] and c["charger_id"] is not None))
+        for card in cards:
+            identity = (card.pop("source_id"), card.pop("charger_id"))
+            card["last_location"] = locations.get(identity) if card["last_access_at"] else None
+        extras["cards"] = cards
     if card_history:
         extras["card_points"] = [dict(row) for row in db.execute(
             sql + "SELECT tx_id AS id, source_id, charger_id, sort_at AS at,"
@@ -192,31 +238,10 @@ def transaction_page(
     transactions = [{**json.loads(r["payload"]), "source_id": r["source_id"]}
                     for r in rows]
     if card_history and rows:
-        # Resolve only the current page's source-scoped charger identities.
-        # Shared site metadata overrides the collector location, as on the
-        # dashboard; never substitute a satellite name for a missing site.
-        identities = sorted({(r["source_id"], r["charger_id"]) for r in rows})
-        predicate = " OR ".join("(a.source_id=? AND a.charger_id=?)" for _ in identities)
-        values = [value for identity in identities for value in identity]
-        locations = {}
-        if "collector_charger_locations" in tables:
-            locations.update({
-                (r[0], r[1]): r[2] for r in db.execute(
-                    "SELECT a.source_id,a.charger_id,a.location FROM collector_charger_locations a WHERE "
-                    + predicate, values)
-            })
-        if {"report_sites", "report_site_assignments"}.issubset(tables):
-            locations.update({
-                (r[0], r[1]): r[2] for r in db.execute(
-                    "SELECT a.source_id,a.charger_id,s.location_name FROM report_site_assignments a"
-                    " JOIN report_sites s ON s.site_id=a.site_id"
-                    " WHERE s.location_name IS NOT NULL AND TRIM(s.location_name)<>'' AND ("
-                    + predicate + ")", values)
-            })
+        locations = _card_locations(db, tables, ((r["source_id"], r["charger_id"]) for r in rows
+                                                  if r["charger_id"] is not None))
         for transaction, row in zip(transactions, rows):
-            label = locations.get((row["source_id"], row["charger_id"]))
-            transaction["location"] = (label if isinstance(label, str) and label.strip()
-                                       and label.strip() != row["source_id"] else None)
+            transaction["location"] = locations.get((row["source_id"], row["charger_id"]))
     return {**extras, "transactions": transactions, "counts": counts, "page": page,
             "pages": pages, "total": total}
 

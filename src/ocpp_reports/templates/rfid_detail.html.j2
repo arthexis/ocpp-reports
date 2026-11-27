@@ -12,7 +12,7 @@
 </style></head><body>
 {{ detail_header(title, '/?tz=' ~ (timezone|urlencode) ~ '#rfid-cards', 'Dashboard', 'Historial de tarjeta RFID · ' ~ timezone, brand_image_url) }}
 <main>
-<section><h1>Tarjeta RFID: {{ rfid |e }}</h1><p>{{ result.counts.success }} cargas exitosas · {{ "%.2f"|format(energy_kwh) }} kWh · {{ result.total }} sesiones</p></section>
+<section><h1>{% if otros %}Otros{% else %}Tarjeta RFID: {{ rfid |e }}{% endif %}</h1>{% if otros %}<p class="muted">Sesiones sin RFID registrado.</p>{% endif %}<p>{{ result.counts.success }} cargas exitosas · {{ "%.2f"|format(energy_kwh) }} kWh · {{ result.total }} sesiones</p></section>
 <section><h2>Energía acumulada (kWh)</h2><p class="muted">Cada punto suma el consumo final conocido de la sesión al total acumulado, en orden cronológico. Las sesiones sin energía final no aportan un valor ni un punto; el total puede ser parcial.</p>
 <div class="scroll" tabindex="0"><svg viewBox="0 0 750 240" role="img" aria-label="Energía acumulada por sesión en kWh">
 <path d="M65 25V205H710" fill="none" stroke="currentColor"/><text x="60" y="30" text-anchor="end">{{ "%.1f"|format(peak) }}</text><text x="60" y="205" text-anchor="end">0</text>

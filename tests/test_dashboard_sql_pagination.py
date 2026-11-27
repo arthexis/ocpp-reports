@@ -159,7 +159,7 @@ def test_rfid_summary_and_history_are_scoped_and_not_page_limited(tmp_path):
     result = _page(dbpath, card_summary=True, page_size=10)
     assert result["transaction_pagination"]["cards"] == [
         {"rfid": "A/B+&", "charges": 26, "energy_kwh": 26.0,
-         "last_access_at": "2026-10-30T12:00:00.000Z"}
+         "last_access_at": "2026-10-30T12:00:00.000Z", "last_location": "East"}
     ]
     client = TestClient(create_app(dbpath, allowed_source_ids=("local",)))
     dashboard = client.get("/?tx_view=all")
@@ -205,7 +205,7 @@ def test_rfid_last_access_uses_session_start_and_cumulative_energy(tmp_path):
     })
     assert result["transaction_pagination"]["cards"] == [
         {"rfid": "card", "charges": 2, "energy_kwh": 4.0,
-         "last_access_at": "2026-10-30T15:30:00.000Z"}
+         "last_access_at": "2026-10-30T15:30:00.000Z", "last_location": "East"}
     ]
     history = TestClient(create_app(dbpath, allowed_source_ids=("local",))).get("/rfid", params={"rfid": "card"})
     assert history.status_code == 200
@@ -238,3 +238,26 @@ def test_rfid_pages_escape_authorization_tag(tmp_path):
         assert response.status_code == 200
         assert tag not in response.text
         assert "&lt;TEST&amp;RFID&gt;" in response.text
+
+
+def test_otros_is_separate_from_literal_card_and_last_location_is_scoped(tmp_path):
+    dbpath = tmp_path / "warehouse.sqlite"
+    _seed(dbpath, local=4, remote=1)
+    with sqlite3.connect(dbpath) as db:
+        for n, tag in [(1, None), (2, "  "), (3, "Otros"), (4, "\t")]:
+            db.execute("UPDATE current_transactions SET payload=json_set(payload,'$.rfid',?) WHERE transaction_id=?", (tag,n))
+    client = TestClient(create_app(dbpath, allowed_source_ids=("local",)))
+    dashboard = client.get("/?tx_view=all")
+    assert dashboard.status_code == 200
+    assert "<th>Último acceso</th><th>Ubicación</th>" in dashboard.text
+    assert "otros=true" in dashboard.text
+    other = client.get("/rfid", params={"otros": "true"})
+    assert other.status_code == 200
+    assert "<h1>Otros</h1>" in other.text
+    assert "3 sesiones" in other.text
+    assert "cp-remote" not in other.text
+    assert "<td>East</td><td>cp-local</td>" in other.text
+    literal = client.get("/rfid", params={"rfid": "Otros"})
+    assert literal.status_code == 200 and "1 sesiones" in literal.text
+    assert client.get("/rfid", params={"otros": "true", "rfid": "Otros"}).status_code == 422
+    assert client.get("/rfid").status_code == 422
