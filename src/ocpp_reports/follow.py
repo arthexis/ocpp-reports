@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import time
 from datetime import datetime, timezone
@@ -121,6 +122,24 @@ def sync_page(database: Path, page: dict[str, Any]) -> int:
     return ingest_page(database, page, project=project)
 
 
+def _retry_sqlite_contention(operation: Callable[[], Any], sleep: Callable[[float], None]) -> Any:
+    """Retry only transient SQLite BUSY/LOCKED, with bounded backoff.
+
+    Each operation owns its transaction. Its context manager rolls back a
+    failed write, and sync_page reuses immutable producer evidence/cursors.
+    No integrity, identity or other operational error is swallowed.
+    """
+    for attempt in range(4):
+        try:
+            return operation()
+        except sqlite3.OperationalError as exc:
+            code = getattr(exc, "sqlite_errorcode", None)
+            if code is None or (code & 0xff) not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED) or attempt == 3:
+                raise
+            logging.getLogger(__name__).warning("SQLite contention during ingestion; retry %d/3", attempt + 1)
+            sleep(0.25 * (2 ** attempt))
+
+
 def follow(database: Path, data_dir: Path, *, interval: float = 5.0,
            limit: int = 500, once: bool = False,
            producer: Callable[..., dict[str, Any]] | None = None,
@@ -139,11 +158,11 @@ def follow(database: Path, data_dir: Path, *, interval: float = 5.0,
         # Source identity comes from producer; never infer it from hostname.
         identity = producer(data_dir, after=0, limit=1)["data"]["source_id"]
         while True:
-            cursor = source_cursor(database, identity)
+            cursor = _retry_sqlite_contention(lambda: source_cursor(database, identity), sleep)
             page = producer(data_dir, after=cursor, limit=limit)
             if page["data"]["source_id"] != identity:
                 raise ValueError("CSMS source identity changed during synchronization")
-            new_cursor = sync_page(database, page)
+            new_cursor = _retry_sqlite_contention(lambda: sync_page(database, page), sleep)
             if new_cursor < cursor or (page["data"]["cursor"]["more"] and new_cursor == cursor):
                 raise ValueError("CSMS cursor did not progress")
             if not page["data"]["cursor"]["more"]:
