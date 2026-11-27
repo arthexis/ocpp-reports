@@ -164,7 +164,8 @@ def transaction_page(
     if card_summary:
         extras["cards"] = [dict(row) for row in db.execute(
             sql + "SELECT json_extract(payload, '$.rfid') AS rfid, SUM(success) AS charges,"
-            " SUM(CASE WHEN success=1 THEN json_extract(payload, '$.energy_wh') ELSE 0 END)/1000.0 AS energy_kwh"
+            " SUM(CASE WHEN success=1 THEN json_extract(payload, '$.energy_wh') ELSE 0 END)/1000.0 AS energy_kwh,"
+            " MAX(strftime('%Y-%m-%dT%H:%M:%fZ',json_extract(payload,'$.started_at'))) AS last_access_at"
             " FROM classified WHERE json_type(payload, '$.rfid')='text'"
             " AND trim(json_extract(payload, '$.rfid'))<>'' GROUP BY rfid"
             " ORDER BY energy_kwh DESC, rfid", parameters)]
@@ -172,7 +173,7 @@ def transaction_page(
         extras["card_points"] = [dict(row) for row in db.execute(
             sql + "SELECT tx_id AS id, source_id, charger_id, sort_at AS at,"
             " CASE WHEN success=1 OR failed=1 THEN json_extract(payload, '$.energy_wh')/1000.0 END AS kwh"
-            " FROM classified ORDER BY sort_at,source_id,charger_id,tx_id", parameters)]
+            " FROM classified ORDER BY julianday(sort_at),source_id,charger_id,tx_id", parameters)]
     count = db.execute(
         sql + "SELECT COUNT(*),COALESCE(SUM(success),0),COALESCE(SUM(failed),0),COALESCE(SUM(ongoing),0) FROM classified",
         parameters,

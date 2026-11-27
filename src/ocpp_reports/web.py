@@ -1147,14 +1147,22 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         if not result["total"]:
             raise HTTPException(404, "Card not found")
         points = result["card_points"]
-        peak = max(1, max((point["kwh"] or 0 for point in points), default=0))
+        cumulative_kwh = 0.0
+        for point in points:
+            if point["kwh"] is not None:
+                cumulative_kwh += point["kwh"]
+                point["cumulative_kwh"] = cumulative_kwh
+            else:
+                point["cumulative_kwh"] = None
+        peak = max(1, cumulative_kwh)
         for i, point in enumerate(points):
-            point["x"] = 45 + 665 * i / max(1, len(points) - 1)
-            point["y"] = 205 - 180 * point["kwh"] / peak if point["kwh"] is not None else None
+            point["x"] = 65 + 645 * i / max(1, len(points) - 1)
+            point["y"] = (205 - 180 * point["cumulative_kwh"] / peak
+                          if point["cumulative_kwh"] is not None else None)
         return templates.TemplateResponse(request, "rfid_detail.html.j2", {
             "title": title, "brand_image_url": brand_image_url, "rfid": rfid,
             "timezone": selected_zone, "result": result, "points": points, "peak": peak,
-            "energy_kwh": sum(point["kwh"] or 0 for point in points),
+            "energy_kwh": cumulative_kwh,
         }, headers={"Cache-Control": "no-store"})
 
     @app.get("/transactions/{source_id}/{charger_id}/{transaction_id}", response_class=HTMLResponse)

@@ -158,7 +158,8 @@ def test_rfid_summary_and_history_are_scoped_and_not_page_limited(tmp_path):
         db.execute("UPDATE collector_latest SET payload=json_set(payload, '$.rfid', 'A/B+&')")
     result = _page(dbpath, card_summary=True, page_size=10)
     assert result["transaction_pagination"]["cards"] == [
-        {"rfid": "A/B+&", "charges": 26, "energy_kwh": 26.0}
+        {"rfid": "A/B+&", "charges": 26, "energy_kwh": 26.0,
+         "last_access_at": "2026-10-30T12:00:00.000Z"}
     ]
     client = TestClient(create_app(dbpath, allowed_source_ids=("local",)))
     dashboard = client.get("/?tx_view=all")
@@ -169,5 +170,42 @@ def test_rfid_summary_and_history_are_scoped_and_not_page_limited(tmp_path):
     assert history.status_code == 200
     assert "25 sesiones" in history.text
     assert history.text.count("<circle ") == 25
+    assert "<polyline " in history.text
+    assert "23.00 kWh acumulados" in history.text
+    assert "Último acceso" in dashboard.text
     assert "cp-remote" not in history.text
     assert client.get("/rfid", params={"rfid": "unknown"}).status_code == 404
+
+
+def test_rfid_last_access_uses_session_start_and_cumulative_energy(tmp_path):
+    dbpath = tmp_path / "warehouse.sqlite"
+    _seed(dbpath, local=4, remote=1)
+    with sqlite3.connect(dbpath) as db:
+        for n, start, stop, energy in [
+            (1, "2026-10-30T10:00:00Z", "2026-10-30T11:00:00Z", 1500),
+            (2, "2026-10-30T11:00:00Z", "2026-10-30T12:00:00Z", 2500),
+            (3, "2026-10-30T13:00:00Z", "2026-10-30T14:00:00Z", 0),
+            (4, "2026-10-30T09:30:00-06:00", None, None),
+        ]:
+            payload = _record(n, start=start, stop=stop, energy=energy)
+            payload["rfid"] = "card"
+            if n == 4:
+                payload.update(state="open", active=True)
+            db.execute("UPDATE current_transactions SET payload=? WHERE transaction_id=?",
+                       (json.dumps(payload), n))
+        db.execute("UPDATE collector_latest SET payload=json_set(payload, '$.rfid', 'card', '$.started_at', '2026-11-01T00:00:00Z')")
+    result = snapshot(dbpath, allowed_source_ids=("local",), transaction_pagination={
+        "term": "", "status": "", "location": "", "date_from": "", "date_to": "",
+        "zone": "UTC", "view": "success", "page": 1, "card_summary": True,
+    })
+    assert result["transaction_pagination"]["cards"] == [
+        {"rfid": "card", "charges": 2, "energy_kwh": 4.0,
+         "last_access_at": "2026-10-30T15:30:00.000Z"}
+    ]
+    history = TestClient(create_app(dbpath, allowed_source_ids=("local",))).get("/rfid", params={"rfid": "card"})
+    assert history.status_code == 200
+    assert history.text.count("<circle ") == 3
+    assert "1.50 kWh acumulados" in history.text
+    assert "2.50 kWh de sesión · 4.00 kWh acumulados" in history.text
+    assert "0.00 kWh de sesión · 4.00 kWh acumulados" in history.text
+    assert "<polyline " in history.text
