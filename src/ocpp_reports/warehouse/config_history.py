@@ -24,9 +24,12 @@ _SENSITIVE = (
 
 def _secret_key(key: str) -> bool:
     name = "".join(char for char in key.lower() if char.isalnum())
+    # Explicitly visible operational keys; retain the broad secret rules for all others.
+    if name in {"ssid", "apssid", "simurfid"}:
+        return False
     return (name in {"rfidtagfreecharging", "tykey",
                      "lpin", "simpin", "simcardpin", "pincode",
-                     "luser", "vpnuser", "simurfid", "key", "ssid", "apssid"}
+                     "luser", "vpnuser", "key"}
             or (name.startswith("key") and name[3:].isdigit())
             or any(fragment in name for fragment in _SENSITIVE))
 

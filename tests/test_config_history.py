@@ -218,7 +218,7 @@ def test_configuration_route_is_read_only_by_explicit_auth_policy():
 
 @pytest.mark.parametrize("vendor_key", [
     "KEY1", "KEY2", "KEY3", "KEY24", "lPin", "enSoftKey",
-    "EncryptKey", "simuRFID", "SSID", "apSSID", "lUser", "vpnUser",
+    "EncryptKey", "lUser", "vpnUser", "SSIDPassword", "apSSIDToken", "simuRFIDPassword", "wPwd",
     "vpnPsk", "apPwd", "rfidtagfreecharging",
 ])
 def test_unredacted_vendor_credential_is_rejected_before_persistence(vendor_key):
@@ -252,3 +252,10 @@ def test_configuration_csv_preserves_values_and_protects_spreadsheets():
         ["Formula", "'=1+1", "No"],
         ["'@Key", "[REDACTED]", "Sí"],
     ]
+
+
+@pytest.mark.parametrize("key", ["SSID", "apSSID", "simuRFID", "sSiD"])
+def test_explicit_configuration_visibility_exceptions(key):
+    item = validate_snapshot(config(key=key, value="synthetic-operational-value"))
+    assert item["configuration"][0]["value"] == "synthetic-operational-value"
+    assert validate_snapshot(config(key=key, value="[REDACTED]"))["configuration"][0]["value"] == "[REDACTED]"
