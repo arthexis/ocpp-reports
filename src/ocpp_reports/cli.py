@@ -20,17 +20,18 @@ def config_history_import(
     page_file: Path = typer.Option(..., "--page", help="CSMS --config-history -j JSON page"),
     database: Path = typer.Option(..., "--database", help="Reports warehouse SQLite"),
     apply: bool = typer.Option(False, "--apply", help="Insert immutable snapshots; default is dry-run"),
+    reconcile: bool = typer.Option(False, "--reconcile", help="Append verified disclosure overlays to existing snapshots"),
 ) -> None:
     """Explicit bounded backfill, independent of the ordinary event cursor."""
     from .warehouse.config_history import import_history_page
     try:
         with page_file.open("r", encoding="utf-8") as stream:
             page = json.load(stream)
-        count = import_history_page(database, page, apply=apply)
+        count = import_history_page(database, page, apply=apply, reconcile=reconcile)
     except (OSError, ValueError, sqlite3.Error, json.JSONDecodeError) as exc:
         typer.echo(f"Configuration history import refused: {exc}", err=True)
         raise typer.Exit(2) from exc
-    typer.echo(json.dumps({"scanned": count, "applied": apply}, sort_keys=True))
+    typer.echo(json.dumps({"pending" if reconcile else "scanned": count, "applied": apply}, sort_keys=True))
 
 app.add_typer(mail_app, name="mail")
 from .dashboard_accounts_cli import app as dashboard_accounts_app

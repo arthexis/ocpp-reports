@@ -5,6 +5,7 @@ stored evidence; source/event identity survives replay and historical backfill.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from pathlib import Path
@@ -22,11 +23,21 @@ _SENSITIVE = (
 )
 
 
+VISIBLE_KEYS = frozenset({"ssid", "apssid", "simurfid"})
+
+
+def _normalized(key: str) -> str:
+    return "".join(char for char in key.lower() if char.isalnum())
+
+
 def _secret_key(key: str) -> bool:
-    name = "".join(char for char in key.lower() if char.isalnum())
+    name = _normalized(key)
+    # Explicitly visible operational keys; retain the broad secret rules for all others.
+    if name in VISIBLE_KEYS:
+        return False
     return (name in {"rfidtagfreecharging", "tykey",
                      "lpin", "simpin", "simcardpin", "pincode",
-                     "luser", "vpnuser", "simurfid", "key", "ssid", "apssid"}
+                     "luser", "vpnuser", "key"}
             or (name.startswith("key") and name[3:].isdigit())
             or any(fragment in name for fragment in _SENSITIVE))
 
@@ -75,6 +86,54 @@ def _canonical(value: dict[str, Any]) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
 
+def configuration_overlay(base_payload: str, record: dict) -> dict:
+    """Verify a strictly additive disclosure against the exact immutable base."""
+    base = validate_snapshot(json.loads(base_payload))
+    if (not isinstance(record, dict)
+            or set(record) != {"source_event_id", "base_sha256", "fields"}
+            or type(record["source_event_id"]) is not int
+            or record["source_event_id"] != base["source_event_id"]
+            or record["base_sha256"] != hashlib.sha256(base_payload.encode()).hexdigest()
+            or not isinstance(record["fields"], dict) or not record["fields"]):
+        raise ValueError("Invalid configuration enrichment identity")
+    fields = record["fields"]
+    rows = {row["key"]: row for row in base["configuration"]}
+    for key, value in fields.items():
+        if (key not in rows or _normalized(key) not in VISIBLE_KEYS
+                or rows[key]["value"] != REDACTED or value == REDACTED
+                or value is not None and not isinstance(value, str)):
+            raise ValueError("Invalid configuration enrichment field")
+        rows[key]["value"] = value
+    return validate_snapshot(base)
+
+
+def _enrichment_record(base_payload: str, fresh: dict) -> dict | None:
+    base = validate_snapshot(json.loads(base_payload))
+    original = {row["key"]: row for row in base["configuration"]}
+    fields = {row["key"]: row["value"] for row in fresh["configuration"]
+              if row["key"] in original and _normalized(row["key"]) in VISIBLE_KEYS
+              and original[row["key"]]["value"] == REDACTED
+              and row["value"] != REDACTED}
+    record = {"source_event_id": base["source_event_id"],
+              "base_sha256": hashlib.sha256(base_payload.encode()).hexdigest(),
+              "fields": fields}
+    projected = configuration_overlay(base_payload, record) if fields else base
+    if projected != fresh:
+        raise ValueError("Historical configuration does not match immutable evidence")
+    return record if fields else None
+
+
+def _read_enriched(db, tables, table, source, event_id, payload):
+    overlay_table = ("configuration_enrichments" if table == "configuration_snapshots"
+                     else "collector_configuration_enrichments")
+    if overlay_table in tables:
+        row = db.execute(f"SELECT payload FROM {overlay_table} WHERE source_id=? AND source_event_id=?",
+                         (source, event_id)).fetchone()
+        if row:
+            return configuration_overlay(payload, json.loads(row[0]))
+    return json.loads(payload)
+
+
 def insert_snapshot(db: sqlite3.Connection, source: str, snapshot: dict[str, Any]) -> bool:
     item = validate_snapshot(snapshot)
     encoded = _canonical(item)
@@ -93,7 +152,8 @@ def insert_snapshot(db: sqlite3.Connection, source: str, snapshot: dict[str, Any
     return True
 
 
-def import_history_page(database: str | Path, page: dict[str, Any], *, apply: bool = False) -> int:
+def import_history_page(database: str | Path, page: dict[str, Any], *, apply: bool = False,
+                        reconcile: bool = False) -> int:
     """Validate a bounded backfill page; never change the ordinary source cursor."""
     if not isinstance(page, dict) or page.get("schema") != SCHEMA:
         raise ValueError("Invalid historical configuration export schema")
@@ -112,6 +172,8 @@ def import_history_page(database: str | Path, page: dict[str, Any], *, apply: bo
     event_ids = [s["source_event_id"] for s in normalized]
     if event_ids != sorted(set(event_ids)) or any(not after < key <= end for key in event_ids):
         raise ValueError("Invalid historical event order")
+    if reconcile:
+        return reconcile_history(database, data["source_id"], normalized, apply=apply)
     if not apply:
         return len(normalized)
     if not Path(database).is_file():
@@ -128,6 +190,44 @@ def import_history_page(database: str | Path, page: dict[str, Any], *, apply: bo
         for item in normalized:
             insert_snapshot(db, data["source_id"], item)
     return len(normalized)
+
+
+def reconcile_history(database, source, items, *, apply=False):
+    """Append verified disclosure overlays only, with a read-only preview."""
+    path = Path(database).resolve()
+    if not path.is_file():
+        raise ValueError("Reconciliation requires an existing Reports warehouse")
+    with sqlite3.connect(path.as_uri() + ("?mode=rw" if apply else "?mode=ro"), uri=True) as db:
+        if not apply:
+            db.execute("PRAGMA query_only=ON")
+        db.execute("BEGIN IMMEDIATE" if apply else "BEGIN")
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if not {"sources", "configuration_snapshots"} <= tables:
+            raise ValueError("Local source-scoped warehouse required")
+        if apply and "configuration_enrichments" not in tables:
+            raise ValueError("Deploy configuration enrichment schema before --apply")
+        if not db.execute("SELECT 1 FROM sources WHERE source_id=?", (source,)).fetchone():
+            raise ValueError("Backfill source is not registered in this local warehouse")
+        count = 0
+        for item in items:
+            event = item["source_event_id"]
+            base = db.execute("SELECT payload FROM configuration_snapshots WHERE source_id=? AND source_event_id=?",
+                              (source, event)).fetchone()
+            if not base:
+                continue  # Reconcile existing snapshots only; ordinary import is separate.
+            record = _enrichment_record(base[0], item)
+            prior = (db.execute("SELECT payload FROM configuration_enrichments WHERE source_id=? AND source_event_id=?",
+                                (source, event)).fetchone() if "configuration_enrichments" in tables else None)
+            if prior:
+                if not record or prior[0] != _canonical(record):
+                    raise ValueError("Conflicting immutable configuration enrichment")
+                continue
+            if record:
+                count += 1
+                if apply:
+                    db.execute("INSERT INTO configuration_enrichments VALUES (?,?,?)",
+                               (source, event, _canonical(record)))
+        return count
 
 
 def list_snapshots(database: str | Path, source: str, charger: str, *, limit: int = 25,
@@ -154,10 +254,13 @@ def list_snapshots(database: str | Path, source: str, charger: str, *, limit: in
                 "WHERE source_id=? AND charger_id=? ORDER BY source_event_id DESC LIMIT ?",
                 (source, charger, bound),
             ).fetchall())
-    distinct: dict[int, dict] = {}
-    for rows in streams:
-        for event_id, payload in rows:
-            distinct.setdefault(event_id, json.loads(payload))
+        distinct: dict[int, dict] = {}
+        names = [table for table in ("configuration_snapshots", "collector_configuration_snapshots")
+                 if table in tables]
+        for table, rows in zip(names, streams):
+            for event_id, payload in rows:
+                if event_id not in distinct:
+                    distinct[event_id] = _read_enriched(db, tables, table, source, event_id, payload)
     ordered = [distinct[key] for key in sorted(distinct, reverse=True)]
     selected = ordered[offset:offset + limit + 1]
     return selected[:limit], len(selected) > limit
@@ -179,7 +282,7 @@ def one_snapshot(database: str | Path, source: str, charger: str, event_id: int)
                 (source, charger, event_id),
             ).fetchone()
             if row:
-                return json.loads(row[0])
+                return _read_enriched(db, tables, table, source, event_id, row[0])
     return None
 
 

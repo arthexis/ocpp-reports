@@ -218,7 +218,7 @@ def test_configuration_route_is_read_only_by_explicit_auth_policy():
 
 @pytest.mark.parametrize("vendor_key", [
     "KEY1", "KEY2", "KEY3", "KEY24", "lPin", "enSoftKey",
-    "EncryptKey", "simuRFID", "SSID", "apSSID", "lUser", "vpnUser",
+    "EncryptKey", "lUser", "vpnUser", "SSIDPassword", "apSSIDToken", "simuRFIDPassword", "wPwd",
     "vpnPsk", "apPwd", "rfidtagfreecharging",
 ])
 def test_unredacted_vendor_credential_is_rejected_before_persistence(vendor_key):
@@ -252,3 +252,57 @@ def test_configuration_csv_preserves_values_and_protects_spreadsheets():
         ["Formula", "'=1+1", "No"],
         ["'@Key", "[REDACTED]", "Sí"],
     ]
+
+
+@pytest.mark.parametrize("key", ["SSID", "apSSID", "simuRFID", "sSiD"])
+def test_explicit_configuration_visibility_exceptions(key):
+    item = validate_snapshot(config(key=key, value="synthetic-operational-value"))
+    assert item["configuration"][0]["value"] == "synthetic-operational-value"
+    assert validate_snapshot(config(key=key, value="[REDACTED]"))["configuration"][0]["value"] == "[REDACTED]"
+
+
+def test_configuration_disclosure_overlay_keeps_original_and_replicates(tmp_path):
+    import json
+    from ocpp_reports.changefeed import changes_page
+    local = tmp_path / "local.db"
+    remote = tmp_path / "remote.db"
+    _prepared_warehouse(local)
+    old = config(key="SSID", value="[REDACTED]")
+    fresh = config(key="SSID", value="synthetic-network")
+    import_history_page(local, history(old), apply=True)
+    with sqlite3.connect(local) as db:
+        original = db.execute("SELECT payload FROM configuration_snapshots").fetchone()[0]
+    assert import_history_page(local, history(fresh), reconcile=True) == 1
+    assert one_snapshot(local, "source-a", "cp-1", 2) == old
+    assert import_history_page(local, history(fresh), reconcile=True, apply=True) == 1
+    assert import_history_page(local, history(fresh), reconcile=True, apply=True) == 0
+    assert one_snapshot(local, "source-a", "cp-1", 2) == fresh
+    assert list_snapshots(local, "source-a", "cp-1")[0] == [fresh]
+    with sqlite3.connect(local) as db:
+        assert db.execute("SELECT payload FROM configuration_snapshots").fetchone()[0] == original
+        assert db.execute("SELECT cursor FROM sources").fetchone()[0] == 27
+        assert db.execute("SELECT COUNT(*) FROM replication_changes").fetchone()[0] == 2
+    with pytest.raises(ValueError):
+        import_history_page(local, history(config(key="SSID", value="different")), reconcile=True, apply=True)
+    app = TestClient(create_collector(remote, {"source-a": "token"}))
+    auth = {"Authorization": "Bearer token"}
+    batch = changes_page(local, "source-a")
+    assert app.post("/api/replication", json=batch, headers=auth).status_code == 200
+    assert app.post("/api/replication", json=batch, headers=auth).status_code == 200
+    assert one_snapshot(remote, "source-a", "cp-1", 2) == fresh
+    with sqlite3.connect(remote) as db:
+        assert db.execute("SELECT payload FROM collector_configuration_snapshots").fetchone()[0] == original
+        assert db.execute("SELECT COUNT(*) FROM collector_configuration_enrichments").fetchone()[0] == 1
+    assert one_snapshot(remote, "foreign", "cp-1", 2) is None
+
+
+@pytest.mark.parametrize("key", ["wPwd", "apPwd", "HeartbeatInterval"])
+def test_configuration_overlay_rejects_unapproved_fields(key):
+    import hashlib
+    import json
+    from ocpp_reports.warehouse.config_history import configuration_overlay
+    base = json.dumps(config(key=key, value="[REDACTED]"))
+    record = {"source_event_id": 2, "base_sha256": hashlib.sha256(base.encode()).hexdigest(),
+              "fields": {key: "synthetic-value"}}
+    with pytest.raises(ValueError):
+        configuration_overlay(base, record)

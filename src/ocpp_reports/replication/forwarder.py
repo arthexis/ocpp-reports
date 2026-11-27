@@ -94,7 +94,7 @@ def forward_once(database: Path, state: Path, source_id: str, endpoint: str,
         client = httpx.Client(timeout=10)
     try:
         historical_kinds = {change["kind"] for change in batch["changes"]} & {
-            "meter_sample", "meter_enrichment", "config_snapshot"}
+            "meter_sample", "meter_enrichment", "config_snapshot", "config_enrichment"}
         if historical_kinds:
             # Never advance a cursor through new evidence the remote Collector
             # cannot persist. Deploy a capable consumer before its producer.

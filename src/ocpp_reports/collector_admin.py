@@ -19,7 +19,7 @@ import sqlite3
 from .warehouse.collector_schema import ensure_collector_schema
 
 DATA_TABLES = ("collector_changes", "collector_latest", "collector_cursors")
-OPTIONAL_HISTORY_TABLES = ("collector_meter_samples", "collector_meter_enrichments", "collector_configuration_snapshots")
+OPTIONAL_HISTORY_TABLES = ("collector_meter_samples", "collector_meter_enrichments", "collector_configuration_snapshots", "collector_configuration_enrichments")
 HOLD_TABLE = "collector_source_holds"
 RECEIPT_TABLE = "collector_receipts"
 LOCATION_TABLE = "collector_charger_locations"
@@ -31,6 +31,7 @@ LOCAL_COLUMNS = {
     "events": ["source_id", "event_id", "payload"],
     "energy_samples": ["source_id", "event_id", "sample_index", "payload"],
     "configuration_snapshots": ["source_id", "charger_id", "source_event_id", "at", "payload"],
+    "configuration_enrichments": ["source_id", "source_event_id", "payload"],
     "sample_enrichments": ["source_id", "event_id", "sample_index", "payload"],
     "meter_replication_sources": ["source_id", "enabled"],
     "current_transactions": ["source_id", "charger_id", "transaction_id", "page_after",
@@ -46,6 +47,7 @@ LOCAL_COLUMNS = {
 LOCAL_TRIGGERS = {
     "replicate_event_insert": "events",
     "replicate_configuration_snapshot_insert": "configuration_snapshots",
+    "replicate_configuration_enrichment_insert": "configuration_enrichments",
     "replicate_energy_sample_insert": "energy_samples",
     "replicate_sample_enrichment_insert": "sample_enrichments",
     "replicate_transaction_insert": "current_transactions",
@@ -83,7 +85,7 @@ def _check_schema(db: sqlite3.Connection, *, legacy_status: bool = False) -> Non
         raise ValueError("Unrecognized collector tables; reset requires schema review")
     local_tables = tables.intersection(LOCAL_COLUMNS)
     if local_tables and not (set(LOCAL_COLUMNS) -
-                             {"connector_state", "connector_ratings", "sample_enrichments", "meter_replication_sources", "configuration_snapshots"}).issubset(local_tables):
+                             {"connector_state", "connector_ratings", "sample_enrichments", "meter_replication_sources", "configuration_snapshots", "configuration_enrichments"}).issubset(local_tables):
         raise ValueError("Incomplete local ingestion schema; reset requires schema review")
     for name, table in db.execute("SELECT name,tbl_name FROM sqlite_master WHERE type='trigger'"):
         # Local ingestion triggers cannot fire on collector-only deletions.
@@ -104,6 +106,8 @@ def _check_schema(db: sqlite3.Connection, *, legacy_status: bool = False) -> Non
         **({OPTIONAL_HISTORY_TABLES[2]: ["source_id", "charger_id", "source_event_id",
                                         "at", "payload"]}
            if OPTIONAL_HISTORY_TABLES[2] in tables else {}),
+        **({OPTIONAL_HISTORY_TABLES[3]: ["source_id", "source_event_id", "payload"]}
+           if OPTIONAL_HISTORY_TABLES[3] in tables else {}),
         HOLD_TABLE: ["source_id", "held_at"],
         **({RECEIPT_TABLE: ["source_id", "received_at", "sequence"]} if RECEIPT_TABLE in tables else {}),
         **({LOCATION_TABLE: ["source_id", "charger_id", "location"]} if LOCATION_TABLE in tables else {}),

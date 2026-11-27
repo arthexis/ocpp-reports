@@ -13,7 +13,7 @@ from pathlib import Path
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from ..warehouse.collector_schema import ensure_collector_schema
-from ..warehouse.config_history import validate_snapshot
+from ..warehouse.config_history import validate_snapshot, configuration_overlay
 from ..contracts.csms_export import validate_meter_fields, _timestamp
 from ..warehouse.history_enrichment import verified_overlay, EXTRA
 
@@ -85,7 +85,7 @@ class SourceHeldError(ValueError):
 def accept_batch(database: Path, batch: Batch) -> int:
     if batch.schema_ != "ocpp-reports/replication/v1":
         raise ValueError("Unsupported replication schema")
-    if any(change.kind not in {"event", "transaction", "connector", "rating", "meter_sample", "meter_enrichment", "config_snapshot"} for change in batch.changes):
+    if any(change.kind not in {"event", "transaction", "connector", "rating", "meter_sample", "meter_enrichment", "config_snapshot", "config_enrichment"} for change in batch.changes):
         raise ValueError("Unsupported change kind")
     positions = [change.sequence for change in batch.changes]
     if positions != sorted(set(positions)) or any(n <= batch.after for n in positions):
@@ -133,6 +133,21 @@ def accept_batch(database: Path, batch: Batch) -> int:
                     (batch.source_id, item["charger_id"], item["source_event_id"],
                      item["at"], _canonical(item)),
                 )
+            if change.kind == "config_enrichment":
+                event = change.payload.get("source_event_id")
+                if type(event) is not int or event <= 0 or change.record_key != str(event):
+                    raise ValueError("Invalid configuration enrichment identity")
+                base = db.execute("SELECT payload FROM collector_configuration_snapshots WHERE source_id=? AND source_event_id=?",
+                                  (batch.source_id, event)).fetchone()
+                if base is None:
+                    raise ValueError("Missing immutable configuration base")
+                configuration_overlay(base[0], change.payload)
+                prior = db.execute("SELECT payload FROM collector_configuration_enrichments WHERE source_id=? AND source_event_id=?",
+                                   (batch.source_id, event)).fetchone()
+                if prior and prior[0] != encoded:
+                    raise ValueError("Conflicting immutable configuration enrichment")
+                db.execute("INSERT OR IGNORE INTO collector_configuration_enrichments VALUES (?,?,?)",
+                           (batch.source_id, event, encoded))
             if change.kind == "meter_sample":
                 event, index, charger, connector, transaction, stamp = _meter_identity(change)
                 prior = db.execute(
@@ -179,7 +194,7 @@ def accept_batch(database: Path, batch: Batch) -> int:
                            (batch.source_id, event, index, encoded))
             db.execute("INSERT INTO collector_changes VALUES (?,?,?,?,?)",
                        (batch.source_id, change.sequence, change.kind, change.record_key, encoded))
-            if change.kind not in {"meter_sample", "meter_enrichment", "config_snapshot"}:
+            if change.kind not in {"meter_sample", "meter_enrichment", "config_snapshot", "config_enrichment"}:
                 db.execute("""INSERT INTO collector_latest VALUES (?,?,?,?,?)
                     ON CONFLICT(source_id,kind,record_key) DO UPDATE SET
                     sequence=excluded.sequence,payload=excluded.payload
@@ -244,7 +259,7 @@ def create_collector(database: str | Path, credentials: dict[str, str]) -> FastA
         if query.capabilities is not None:
             result["supported_kinds"] = [
                 "event", "transaction", "connector", "rating",
-                "meter_sample", "meter_enrichment", "config_snapshot",
+                "meter_sample", "meter_enrichment", "config_snapshot", "config_enrichment",
             ]
         return result
 

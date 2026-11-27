@@ -26,6 +26,10 @@ def ensure_collector_schema(db: sqlite3.Connection) -> None:
             source_event_id INTEGER NOT NULL, at TEXT NOT NULL, payload TEXT NOT NULL,
             PRIMARY KEY(source_id,source_event_id)
         )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS collector_configuration_enrichments (
+            source_id TEXT NOT NULL, source_event_id INTEGER NOT NULL, payload TEXT NOT NULL,
+            PRIMARY KEY(source_id,source_event_id)
+        )""")
         db.execute("""CREATE INDEX IF NOT EXISTS idx_collector_config_charger
             ON collector_configuration_snapshots(source_id,charger_id,source_event_id DESC)""")
         db.execute("""CREATE TABLE IF NOT EXISTS collector_meter_samples (
