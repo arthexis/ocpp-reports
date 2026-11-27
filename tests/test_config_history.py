@@ -182,8 +182,8 @@ def test_configuration_page_selects_historical_versions_and_is_source_scoped(tmp
             assert newest.headers["Cache-Control"] == "no-store"
             older = browser.get(configuration_url + "?event_id=2")
             assert older.status_code == 200 and "300" in older.text
-            assert 'event_id=2&amp;download=1">Descargar CSV</a>' in older.text
-            assert 'event_id=5&amp;download=1">Descargar CSV</a>' in newest.text
+            assert 'event_id=2&amp;download=1"><svg aria-hidden="true"' in older.text
+            assert 'event_id=5&amp;download=1"><svg aria-hidden="true"' in newest.text
             for event_id, expected in ((2, "300"), (5, "400")):
                 download = browser.get(configuration_url, params={"event_id": event_id, "download": 1})
                 assert download.status_code == 200

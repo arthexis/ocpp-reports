@@ -1094,6 +1094,24 @@ def test_all_views_share_branded_content_rails(tmp_path, monkeypatch):
                         b = back.bounding_box()
                         assert abs(b["x"]+b["width"]-bounds[1]) <= 1, (width,path,b,bounds)
                     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2"), (width,path)
+                    if path.endswith("/configuration"):
+                        field = page.locator("#key-filter")
+                        caption = page.locator("label[for=key-filter] .filter-caption")
+                        download = page.get_by_role("link", name="Descargar CSV", exact=True)
+                        assert field.is_visible() and caption.is_visible() and download.is_visible()
+                        assert download.locator("svg").count() == 1
+                        f, c, d = field.bounding_box(), caption.bounding_box(), download.bounding_box()
+                        assert f["x"] + f["width"] <= d["x"] + 1
+                        assert c["y"] >= f["y"] + f["height"] - 1
+                        assert caption.evaluate("(e) => parseFloat(getComputedStyle(e).fontSize)") < field.evaluate("(e) => parseFloat(getComputedStyle(e).fontSize)")
+                        for scheme, expected in (("light", "rgb(246, 248, 251)"), ("dark", "rgb(38, 54, 71)")):
+                            page.emulate_media(color_scheme=scheme)
+                            assert page.locator("#keys th").first.evaluate("(e) => getComputedStyle(e).backgroundColor") == expected
+                        page.emulate_media(color_scheme="light")
+                        field.fill("nonexistent-parameter")
+                        assert page.locator("#keys tbody tr:visible").count() == 0
+                        field.fill("")
+                        assert page.locator("#keys tbody tr:visible").count() > 0
                 context.close()
         finally:
             browser.close()
