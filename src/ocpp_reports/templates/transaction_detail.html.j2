@@ -71,7 +71,7 @@ main{max-width:1320px}
 <div class="overview">
 <section class="detail-heading" aria-labelledby="transaction-heading">
 <h2 id="transaction-heading">Transacción #{{ transaction.id }}</h2>
-<p class="note">{{ transaction.location }} · {{ transaction.charger_id }} · Conector {{ transaction.connector_id if transaction.connector_id is defined and transaction.connector_id is not none else "desconocido" }}</p>
+<p class="note">{% if transaction.location != transaction.source_id %}{{ transaction.location }} · {% endif %}{{ transaction.charger_id }} · Conector {{ transaction.connector_id if transaction.connector_id is defined and transaction.connector_id is not none else "desconocido" }}</p>
 <p id="transaction-status" aria-live="polite"><span class="status {{ 'status--active' if refresh_active else 'status--ok' if (transaction.state or '')|lower in ['closed','stopped','completed'] else 'status--historic' }}">{{ transaction.state or "Desconocido" }}</span>
 {% if refresh_active %}<span class="note refresh-note">En curso · consulta cada 15 s</span>{% endif %}</p>
 </section>
@@ -131,8 +131,7 @@ main{max-width:1320px}
 {% if timeline.limited %}<p class="note">Vista parcial: se aplicó el límite de lectura/muestras; no se garantiza cobertura histórica completa.</p>{% endif %}
 </section>
 <section class="card session-details" id="transaction-session-data"><h2>Datos de la sesión</h2><dl>
-<div><dt>Origen</dt><dd>{{ transaction.source_id }}</dd></div>
-<div><dt>Tarjeta RFID</dt><dd>{{ transaction.rfid|e if transaction.rfid is string and transaction.rfid|trim else "—" }}</dd></div>
+<div><dt>Tarjeta RFID</dt><dd>{% if transaction.rfid is string and transaction.rfid|trim %}<a href="/rfid?{{ {'rfid': transaction.rfid, 'tz': timezone}|urlencode|e }}">{{ transaction.rfid |e }}</a>{% else %}—{% endif %}</dd></div>
 <div><dt>Inicio</dt><dd>{{ transaction.started_at|display_date(timezone) }}</dd></div>
 <div><dt>Fin</dt><dd>{{ transaction.stopped_at|display_date(timezone) if transaction.stopped_at else "Activa / sin cierre" }}</dd></div>
 <div><dt>{{ "Duración transcurrida (aprox.)" if refresh_active else "Duración final" }}</dt><dd>{{ elapsed_duration if refresh_active else transaction.started_at|session_duration(transaction.stopped_at) if transaction.stopped_at else "—" }}</dd></div>

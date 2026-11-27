@@ -10,7 +10,7 @@ def test_mobile_header_preserves_search_and_timezone_controls(empty_dashboard_ht
     assert "min-height:44px" in compact
     assert 'id="dashboard-search"' in html
     assert 'name="filter"' in html
-    assert 'placeholder="Origen, cargador, ubicación o estado"' in html
+    assert 'placeholder="Cargador, ubicación o estado"' in html
     assert '<label for="dashboard-search"><input' in html
     assert '<span class="filter-caption">Filtrar</span></label>' in html
     assert 'id="timezone-choice"' in html

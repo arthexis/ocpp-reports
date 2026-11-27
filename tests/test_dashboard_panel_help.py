@@ -2,7 +2,7 @@
 def test_dashboard_panel_explanations_share_dialog(empty_dashboard_html):
     html = empty_dashboard_html
     for label in ("Estado de los cargadores", "Conectores",
-                  "Sesiones de carga", "Sincronización"):
+                  "Sesiones de carga", "Tarjetas RFID"):
         assert f'aria-label="Información sobre {label}"' in html
         assert f'data-help-title="{label}"' in html
     assert html.count('class="panel-help-trigger"') == 4
@@ -22,4 +22,4 @@ def test_dashboard_panel_explanations_share_dialog(empty_dashboard_html):
     assert 'energía final cero' in html
     assert 'Desconocido si falta evidencia' in html
     assert 'medidor acumulado' in html
-    assert 'última recepción desde el origen remoto' in html
+    assert 'Último acceso: inicio de la sesión más reciente' in html

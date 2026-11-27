@@ -35,7 +35,7 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
     assert 'name="filter"' in html and 'name="location"' not in html
     assert 'name="status"' not in html and 'name="date_from"' not in html
     assert 'name="date_to"' not in html and 'id="reset-filters"' not in html
-    assert html.index('id="connectors"') < html.index('id="synchronization"')
+    assert html.index('id="connectors"') < html.index('id="rfid-cards"')
     card_classes = ["operational-card--available", "operational-card--charging",
                     "operational-card--fault", "operational-card--uncertain"]
     card_positions = [html.index('class="operational-card ' + name + '"') for name in card_classes]
@@ -46,7 +46,7 @@ def test_status_first_and_historic_fault_not_hidden(monkeypatch, tmp_path):
     assert 'data-label="Snapshot recibido"' not in html
     assert '<th>Snapshot recibido</th>' not in html
     assert 'Estado reportado' not in html
-    assert html.index('class="transactions-panel"') < html.index('id="synchronization"')
+    assert html.index('class="transactions-panel"') < html.index('id="rfid-cards"')
     assert "cp-fault" in html and "Faulted" in html
     assert "Falla / no disponible (último estado)" in html
     assert "Una falla con origen atrasado también puede contarse como dato incierto" in html
@@ -180,7 +180,8 @@ def test_status_provenance_does_not_freshen_with_snapshots(monkeypatch, tmp_path
     assert web.display_date(original, "UTC") in html
     assert 'data-label="Snapshot recibido"' not in html
     assert '<th>Snapshot recibido</th>' not in html
-    assert "Recepción de réplica" in html
+    assert "Recepción de réplica" not in html
+    assert "Tarjetas RFID" in html
     assert '0 (0)</strong><span>Disponibles' in html
     assert '1 (1)</strong><span>Falla' in html
     assert '0 (0)</strong><span>Datos antiguos' in html

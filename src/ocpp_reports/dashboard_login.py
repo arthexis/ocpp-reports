@@ -97,6 +97,7 @@ def prune_expired_sessions(path, *, now=None):
 # Every registered dashboard route must be classified before authentication is enabled.
 _ROUTE_PERMISSIONS = {
     ("/", "GET"): Permission.DASHBOARD_VIEW,
+    ("/rfid", "GET"): Permission.TRANSACTIONS_VIEW,
     ("/assets/brand.png", "GET"): Permission.DASHBOARD_VIEW,
     ("/assets/brand-light.png", "GET"): Permission.DASHBOARD_VIEW,
     **{(path, "GET"): Permission.DASHBOARD_VIEW for path in (

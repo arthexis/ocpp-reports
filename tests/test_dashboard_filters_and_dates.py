@@ -36,7 +36,7 @@ def test_all_dashboard_tables_shorten_dates_but_api_preserves_original(monkeypat
     client = TestClient(web.create_app(tmp_path / "unused", allowed_source_ids=("node-a",)))
     page = client.get("/")
     assert page.status_code == 200
-    assert page.text.count("2026-10-30 22:18 UTC") >= 5  # no dashboard events
+    assert page.text.count("2026-10-30 22:18 UTC") >= 3  # connector receipt and session start/end; no synchronization panel
     assert at not in page.text
     assert client.get("/api/snapshot").json()["connectors"][0]["observed_at"] == at
     assert client.get("/?source_id=other").status_code == 403

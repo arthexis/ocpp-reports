@@ -161,7 +161,12 @@ def test_session_details_show_scoped_rfid_for_local_and_replicated_transactions(
                          (13, "—"), (14, "—")):
         page = client.get(f"/transactions/a/cp/{tx}")
         assert page.status_code == 200
-        assert f"<dt>Tarjeta RFID</dt><dd>{expected}</dd>" in page.text
+        if expected == "—":
+            assert "<dt>Tarjeta RFID</dt><dd>—</dd>" in page.text
+        else:
+            assert '<dt>Tarjeta RFID</dt><dd><a href="/rfid?' in page.text
+            assert f">{expected}</a></dd>" in page.text
+        assert "<dt>Origen</dt>" not in page.text
         assert "<dt>Cargador</dt>" not in page.text
         assert "OTHER-TENANT" not in page.text
         assert "<TEST&RFID>" not in page.text

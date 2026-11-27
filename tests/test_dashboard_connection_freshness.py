@@ -127,7 +127,8 @@ def test_connector_search_preserves_original_source_freshness(dashboard_client_f
     assert not _has_badge(DashboardHTML(page.text), "Estado", "Origen sin fecha")
     assert not _has_badge(DashboardHTML(page.text), "Estado", "Origen atrasado")
     assert web.display_date(data["connectors"][0]["status_observed_at"], "UTC") in page.text
-    assert "Sin orígenes" in page.text
+    assert "Sin tarjetas RFID" in page.text
+    assert "Sincronización" not in page.text
     assert client.get("/api/snapshot").json()["sources"][0]["source_id"] == "site-a"
 
 
