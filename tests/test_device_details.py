@@ -50,7 +50,7 @@ def test_charger_and_connector_pages_are_distinct_and_tenant_safe(tmp_path):
     assert "Eventos registrados de same" in charger.text
     assert "Conectores del cargador" in charger.text
     assert "Sesiones de carga" in charger.text
-    assert "Origen a" in charger.text
+    assert "Origen a" not in charger.text
     assert "Sincronización" not in charger.text
     assert "4</strong>" in charger.text  # source a, two connectors x two sessions
     assert "never-expose" not in charger.text

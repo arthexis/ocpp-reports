@@ -174,6 +174,8 @@ def test_rfid_summary_and_history_are_scoped_and_not_page_limited(tmp_path):
     assert "23.00 kWh acumulados" in history.text
     assert "Último acceso" in dashboard.text
     assert "<th>Ubicación</th><th>Cargador</th>" in history.text
+    assert "<th>Fin</th><th>Duración</th>" in history.text
+    assert "<td>1:00:00</td>" in history.text
     assert "<td>East</td><td>cp-local</td>" in history.text
     assert "West Calzada" not in history.text
     assert "cp-remote" not in history.text

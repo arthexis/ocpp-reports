@@ -215,7 +215,7 @@ def test_offline_chromium_mobile_and_desktop(tmp_path):
                     assert boxes[0]["x"] < boxes[1]["x"] < boxes[2]["x"]
                 # Session metadata uses two columns on phones/tablets, three on wide screens.
                 fields = page.locator("#transaction-session-data dl > div")
-                assert fields.count() == 6
+                assert fields.count() == 5
                 field_boxes = [fields.nth(i).bounding_box() for i in range(4)]
                 assert all(field_boxes)
                 assert abs(field_boxes[0]["y"] - field_boxes[1]["y"]) < 3
@@ -1009,7 +1009,7 @@ def test_shared_table_heading_alignment_offline(tmp_path, monkeypatch):
                     page = context.new_page()
                     page.route("**/*", _offline_route(client, {"GET": 0}))
                     page.goto("http://reports.test/", wait_until="load")
-                    panels = ("#connectors", "#transactions", "#synchronization", "#dashboard-users")
+                    panels = ("#connectors", "#transactions", "#rfid-cards", "#dashboard-users")
                     for panel in panels:
                         heading = page.locator(panel + " .table-panel-heading")
                         assert heading.count() == 1
@@ -1027,7 +1027,7 @@ def test_shared_table_heading_alignment_offline(tmp_path, monkeypatch):
                         "el => getComputedStyle(el).paddingLeft") for panel in panels]
                     assert len(set(insets)) == 1, (width, scheme, insets)
                     if width >= 1200:
-                        left = page.locator("#synchronization thead").bounding_box()
+                        left = page.locator("#rfid-cards thead").bounding_box()
                         right = page.locator("#dashboard-users thead").bounding_box()
                         assert abs(left["y"] - right["y"]) <= 1, (width, scheme, left, right)
                         for panel in panels:

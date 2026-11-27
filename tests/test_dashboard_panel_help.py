@@ -22,4 +22,4 @@ def test_dashboard_panel_explanations_share_dialog(empty_dashboard_html):
     assert 'energía final cero' in html
     assert 'Desconocido si falta evidencia' in html
     assert 'medidor acumulado' in html
-    assert 'última recepción desde el origen remoto' in html
+    assert 'Último acceso: inicio de la sesión más reciente' in html
