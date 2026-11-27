@@ -45,9 +45,11 @@ def snapshot(source: Path, destination: Path, *, seconds: float = 90) -> dict:
             src.execute("PRAGMA query_only=ON")
             with closing(sqlite3.connect(temp, timeout=0.2)) as dst:
                 src.backup(dst, pages=64, progress=progress, sleep=0.05)
+                if dst.execute('PRAGMA journal_mode=DELETE').fetchone() != ('delete',):
+                    raise ValueError('cannot finalize standalone backup')
         remaining()
         # Validate only the closed, detached backup; no production reader lock.
-        with closing(sqlite3.connect(temp.as_uri() + "?mode=ro", uri=True, timeout=0.2)) as copy:
+        with closing(sqlite3.connect(temp.as_uri() + "?mode=ro&immutable=1", uri=True, timeout=0.2)) as copy:
             copy.set_progress_handler(lambda: int(time.monotonic() >= deadline), 10000)
             if copy.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
                 raise ValueError("snapshot integrity check failed")
