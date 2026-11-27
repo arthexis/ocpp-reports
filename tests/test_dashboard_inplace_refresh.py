@@ -24,7 +24,7 @@ def test_dashboard_polls_data_in_place_without_meta_refresh(monkeypatch, tmp_pat
     for selector in (
         '".operations-cards"', '".connectors-panel tbody"',
         '".transactions-panel tbody"', '".transactions-panel .transaction-pagination"',
-        '".sync-panel tbody"',
+        '".rfid-panel tbody"',
     ):
         assert selector in html
     assert 'eventRegion.querySelector("details[open]")' not in html

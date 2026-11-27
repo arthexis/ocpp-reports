@@ -148,3 +148,26 @@ def test_dashboard_10_rows_does_not_change_20_row_device_detail(tmp_path):
     assert "1–20 de 27" in device.text
     assert device.text.count('href="/transactions/local/cp-local/') == 20
     assert client.get("/chargers/local/cp-local?tx_page=2").status_code == 200
+
+
+def test_rfid_summary_and_history_are_scoped_and_not_page_limited(tmp_path):
+    dbpath = tmp_path / "warehouse.sqlite"
+    _seed(dbpath, local=25, remote=3)
+    with sqlite3.connect(dbpath) as db:
+        db.execute("UPDATE current_transactions SET payload=json_set(payload, '$.rfid', 'A/B+&')")
+        db.execute("UPDATE collector_latest SET payload=json_set(payload, '$.rfid', 'A/B+&')")
+    result = _page(dbpath, card_summary=True, page_size=10)
+    assert result["transaction_pagination"]["cards"] == [
+        {"rfid": "A/B+&", "charges": 26, "energy_kwh": 26.0}
+    ]
+    client = TestClient(create_app(dbpath, allowed_source_ids=("local",)))
+    dashboard = client.get("/?tx_view=all")
+    assert dashboard.status_code == 200
+    assert "<th>ID</th><th>RFID</th>" in dashboard.text
+    assert "Tarjetas RFID" in dashboard.text
+    history = client.get("/rfid", params={"rfid": "A/B+&"})
+    assert history.status_code == 200
+    assert "25 sesiones" in history.text
+    assert history.text.count("<circle ") == 25
+    assert "cp-remote" not in history.text
+    assert client.get("/rfid", params={"rfid": "unknown"}).status_code == 404

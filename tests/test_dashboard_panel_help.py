@@ -2,7 +2,7 @@
 def test_dashboard_panel_explanations_share_dialog(empty_dashboard_html):
     html = empty_dashboard_html
     for label in ("Estado de los cargadores", "Conectores",
-                  "Sesiones de carga", "Sincronización"):
+                  "Sesiones de carga", "Tarjetas RFID"):
         assert f'aria-label="Información sobre {label}"' in html
         assert f'data-help-title="{label}"' in html
     assert html.count('class="panel-help-trigger"') == 4
