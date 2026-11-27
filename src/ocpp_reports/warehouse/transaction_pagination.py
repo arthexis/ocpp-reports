@@ -31,6 +31,7 @@ def transaction_page(
     term: str, status: str, location: str,
     date_from: str, date_to: str, zone: str,
     view: str, page: int, page_size: int = 20, connector_id: int | None = None,
+    card_summary: bool = False, rfid: str | None = None, card_history: bool = False,
 ) -> dict:
     if view not in ("success", "failed", "all", "active"):
         raise ValueError("Invalid transaction view")
@@ -93,7 +94,7 @@ def transaction_page(
         )
         args.extend(source_args)
     if not branches:
-        return {"transactions": [], "counts": {"all": 0, "success": 0, "failed": 0, "active": 0},
+        return {"cards": [], "card_points": [], "transactions": [], "counts": {"all": 0, "success": 0, "failed": 0, "active": 0},
                 "page": 1, "pages": 1, "total": 0}
 
     location_join = (
@@ -115,6 +116,9 @@ def transaction_page(
             " instr(dashboard_casefold(json_extract(x.payload,'$.state')),?)>0)"
         )
         filter_args.extend([term] * 4)
+    if rfid is not None:
+        filters.append("json_type(x.payload,'$.rfid')='text' AND json_extract(x.payload,'$.rfid')=?")
+        filter_args.append(rfid)
     if connector_id is not None:
         # Filter before counts and LIMIT on *both* local and replicated rows.
         # Require JSON integer to avoid coercing arbitrary strings to C0.
@@ -156,6 +160,19 @@ def transaction_page(
         " FROM projected x " + location_join + filter_clause + ") "
     )
     parameters = [*args, *filter_args]
+    extras = {}
+    if card_summary:
+        extras["cards"] = [dict(row) for row in db.execute(
+            sql + "SELECT json_extract(payload, '$.rfid') AS rfid, SUM(success) AS charges,"
+            " SUM(CASE WHEN success=1 THEN json_extract(payload, '$.energy_wh') ELSE 0 END)/1000.0 AS energy_kwh"
+            " FROM classified WHERE json_type(payload, '$.rfid')='text'"
+            " AND trim(json_extract(payload, '$.rfid'))<>'' GROUP BY rfid"
+            " ORDER BY energy_kwh DESC, rfid", parameters)]
+    if card_history:
+        extras["card_points"] = [dict(row) for row in db.execute(
+            sql + "SELECT tx_id AS id, source_id, charger_id, sort_at AS at,"
+            " CASE WHEN success=1 OR failed=1 THEN json_extract(payload, '$.energy_wh')/1000.0 END AS kwh"
+            " FROM classified ORDER BY sort_at,source_id,charger_id,tx_id", parameters)]
     count = db.execute(
         sql + "SELECT COUNT(*),COALESCE(SUM(success),0),COALESCE(SUM(failed),0),COALESCE(SUM(ongoing),0) FROM classified",
         parameters,
@@ -171,7 +188,7 @@ def transaction_page(
         + " ORDER BY sort_at DESC,source_id,charger_id,tx_id DESC LIMIT ? OFFSET ?",
         [*parameters, page_size, (page - 1) * page_size],
     ).fetchall()
-    return {"transactions": [{**json.loads(r["payload"]), "source_id": r["source_id"]}
+    return {**extras, "transactions": [{**json.loads(r["payload"]), "source_id": r["source_id"]}
                               for r in rows], "counts": counts, "page": page,
             "pages": pages, "total": total}
 

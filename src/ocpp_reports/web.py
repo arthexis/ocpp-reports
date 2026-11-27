@@ -19,7 +19,7 @@ from .warehouse.event_groups import (event_groups_page, event_group_details,
                                      latest_heartbeat_at, latest_charger_receipt_at)
 from .warehouse.charger_energy import charger_energy_30_days
 from .warehouse.config_history import list_snapshots, one_snapshot, render_snapshot_csv
-from .warehouse.transaction_pagination import latest_completed_charges, connector_charge_counts
+from .warehouse.transaction_pagination import latest_completed_charges, connector_charge_counts, transaction_page as query_transaction_page
 from .warehouse.charger_csv import CSV_PROFILES, charger_transactions, render_charger_csv
 from .dashboard_login import dashboard_account_directory, COOKIE
 from .dashboard_account_management import (AccountError, csrf_token, list_tenant_accounts,
@@ -656,7 +656,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         # Filter and paginate transactions inside SQLite, before decoding JSON.
         sql_page = dict(term=filter, status=status, location=location,
                         date_from=date_from, date_to=date_to, zone=tz,
-                        view=tx_view, page=tx_page, page_size=10)
+                        view=tx_view, page=tx_page, page_size=10, card_summary=True)
         snapshot_started = perf_counter()
         data = read(source_id, charger_id, 100, transaction_pagination=sql_page, skip_events=True)
         snapshot_duration_ms = (perf_counter() - snapshot_started) * 1000
@@ -758,7 +758,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
                                            "active_transactions_href": active_transactions_href,
                                            "transaction_counts": transaction_counts,
                                            "tx_page": tx_page, "tx_pages": tx_pages,
-                                           "tx_total": tx_total})
+                                           "tx_total": tx_total, "rfid_cards": (paginated or {}).get("cards", [])})
         template_duration_ms = (perf_counter() - template_started) * 1000
         timings = [f"snapshot;dur={snapshot_duration_ms:.1f}"]
         if group_duration_ms is not None:
@@ -1123,6 +1123,39 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         if transaction is None:
             raise HTTPException(404, "Transaction not found")
         return {"transaction": transaction, "timezone": selected_zone}
+
+    @app.get("/rfid", response_class=HTMLResponse)
+    def rfid_page(request: Request, rfid: str = Query(..., min_length=1),
+                  tz: str | None = None, page: int = Query(1, ge=1)):
+        selected_zone = tz or zones[0]
+        if selected_zone not in zones:
+            raise HTTPException(422, "Unsupported dashboard timezone")
+        if not rfid.strip():
+            raise HTTPException(404, "Card not found")
+        try:
+            with sqlite3.connect(warehouse.resolve().as_uri() + "?mode=ro", uri=True) as db:
+                db.row_factory = sqlite3.Row
+                db.execute("PRAGMA query_only=ON")
+                tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                result = query_transaction_page(
+                    db, tables, source_id=None, charger_id=None, allowed_source_ids=allowed_source_ids,
+                    term="", status="", location="", date_from="", date_to="", zone=selected_zone,
+                    view="all", page=page, rfid=rfid, card_history=True,
+                )
+        except (OSError, sqlite3.Error, ValueError) as exc:
+            raise HTTPException(503, "Warehouse unavailable") from exc
+        if not result["total"]:
+            raise HTTPException(404, "Card not found")
+        points = result["card_points"]
+        peak = max(1, max((point["kwh"] or 0 for point in points), default=0))
+        for i, point in enumerate(points):
+            point["x"] = 45 + 665 * i / max(1, len(points) - 1)
+            point["y"] = 205 - 180 * point["kwh"] / peak if point["kwh"] is not None else None
+        return templates.TemplateResponse(request, "rfid_detail.html.j2", {
+            "title": title, "brand_image_url": brand_image_url, "rfid": rfid,
+            "timezone": selected_zone, "result": result, "points": points, "peak": peak,
+            "energy_kwh": sum(point["kwh"] or 0 for point in points),
+        }, headers={"Cache-Control": "no-store"})
 
     @app.get("/transactions/{source_id}/{charger_id}/{transaction_id}", response_class=HTMLResponse)
     def transaction_page(request: Request, source_id: str, charger_id: str,
