@@ -189,8 +189,35 @@ def transaction_page(
         + " ORDER BY sort_at DESC,source_id,charger_id,tx_id DESC LIMIT ? OFFSET ?",
         [*parameters, page_size, (page - 1) * page_size],
     ).fetchall()
-    return {**extras, "transactions": [{**json.loads(r["payload"]), "source_id": r["source_id"]}
-                              for r in rows], "counts": counts, "page": page,
+    transactions = [{**json.loads(r["payload"]), "source_id": r["source_id"]}
+                    for r in rows]
+    if card_history and rows:
+        # Resolve only the current page's source-scoped charger identities.
+        # Shared site metadata overrides the collector location, as on the
+        # dashboard; never substitute a satellite name for a missing site.
+        identities = sorted({(r["source_id"], r["charger_id"]) for r in rows})
+        predicate = " OR ".join("(a.source_id=? AND a.charger_id=?)" for _ in identities)
+        values = [value for identity in identities for value in identity]
+        locations = {}
+        if "collector_charger_locations" in tables:
+            locations.update({
+                (r[0], r[1]): r[2] for r in db.execute(
+                    "SELECT a.source_id,a.charger_id,a.location FROM collector_charger_locations a WHERE "
+                    + predicate, values)
+            })
+        if {"report_sites", "report_site_assignments"}.issubset(tables):
+            locations.update({
+                (r[0], r[1]): r[2] for r in db.execute(
+                    "SELECT a.source_id,a.charger_id,s.location_name FROM report_site_assignments a"
+                    " JOIN report_sites s ON s.site_id=a.site_id"
+                    " WHERE s.location_name IS NOT NULL AND TRIM(s.location_name)<>'' AND ("
+                    + predicate + ")", values)
+            })
+        for transaction, row in zip(transactions, rows):
+            label = locations.get((row["source_id"], row["charger_id"]))
+            transaction["location"] = (label if isinstance(label, str) and label.strip()
+                                       and label.strip() != row["source_id"] else None)
+    return {**extras, "transactions": transactions, "counts": counts, "page": page,
             "pages": pages, "total": total}
 
 

@@ -173,6 +173,9 @@ def test_rfid_summary_and_history_are_scoped_and_not_page_limited(tmp_path):
     assert "<polyline " in history.text
     assert "23.00 kWh acumulados" in history.text
     assert "Último acceso" in dashboard.text
+    assert "<th>Ubicación</th><th>Cargador</th>" in history.text
+    assert "<td>East</td><td>cp-local</td>" in history.text
+    assert "West Calzada" not in history.text
     assert "cp-remote" not in history.text
     assert client.get("/rfid", params={"rfid": "unknown"}).status_code == 404
 
@@ -209,3 +212,14 @@ def test_rfid_last_access_uses_session_start_and_cumulative_energy(tmp_path):
     assert "2.50 kWh de sesión · 4.00 kWh acumulados" in history.text
     assert "0.00 kWh de sesión · 4.00 kWh acumulados" in history.text
     assert "<polyline " in history.text
+
+
+def test_rfid_history_missing_location_does_not_display_satellite(tmp_path):
+    dbpath = tmp_path / "warehouse.sqlite"
+    _seed(dbpath, local=1, remote=0)
+    with sqlite3.connect(dbpath) as db:
+        db.execute("UPDATE current_transactions SET payload=json_set(payload, '$.rfid', 'card')")
+        db.execute("DELETE FROM collector_charger_locations WHERE source_id='local'")
+    history = TestClient(create_app(dbpath, allowed_source_ids=("local",))).get("/rfid", params={"rfid": "card"})
+    assert history.status_code == 200
+    assert "<td>—</td><td>cp-local</td>" in history.text
