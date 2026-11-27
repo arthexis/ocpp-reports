@@ -13,13 +13,28 @@ h2{font-size:1.2rem;margin:0 0 .7rem}.muted{color:var(--muted)}.note{font-size:.
 .controls{display:flex;align-items:end;gap:.8rem;flex-wrap:wrap}.controls label{display:flex;flex:1;min-width:220px;flex-direction:column;gap:.4rem;font-weight:600}
 select,input,button{font:inherit;padding:.55rem;border-radius:8px;min-height:44px;border:1px solid var(--line)}
 button{background:var(--accent);color:#fff;cursor:pointer;border-color:var(--accent)}
-.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--line);padding:.7rem .55rem;overflow-wrap:anywhere}
-th{background:var(--bg)}td:first-child{font-weight:600}td:nth-child(2){overflow-wrap:anywhere;white-space:pre-wrap}
+.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:.87rem}th,td{text-align:left;border-bottom:1px solid var(--line);padding:.75rem .65rem;overflow-wrap:anywhere}
+th{font-weight:650;background:#f6f8fb;color:#34455a}tbody tr:last-child td{border-bottom:0}td:first-child{font-weight:600}td:nth-child(2){overflow-wrap:anywhere;white-space:pre-wrap}
 .pages{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-top:1rem}
 .pages a{padding:.4rem .65rem;border:1px solid var(--line);border-radius:7px}
 @media(max-width:600px){main{padding:.8rem}section{padding:.8rem}th,td{font-size:.8rem;padding:.5rem .25rem}}
-@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5}}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5}th{background:#263647;color:#d7e5f5}#key-filter{background:#243345;color:var(--ink)}}
 {% include "table_panel.css.j2" %}
+.snapshot-heading{align-items:flex-start}
+.snapshot-heading .snapshot-info{min-width:0;flex:1 1 auto}
+.snapshot-info .note{margin:.3rem 0 0}
+.snapshot-heading .table-panel-actions{align-items:flex-start;gap:.65rem;flex-wrap:nowrap;max-width:100%}
+.key-search{display:flex;flex-direction:column;gap:.2rem;min-width:0;color:var(--muted);font-size:.75rem;font-weight:600}
+#key-filter{width:min(240px,34vw);min-width:0;min-height:36px;font-size:.85rem;padding:.4rem .55rem}
+.snapshot-heading .download-csv{min-height:36px;gap:.4rem}
+.download-csv svg{width:1rem;height:1rem;flex:none}
+@media(max-width:600px){
+  .snapshot-heading .snapshot-info{flex-basis:100%}
+  .snapshot-heading .table-panel-actions{width:100%;justify-content:flex-end}
+  .key-search{flex:1 1 auto;max-width:240px}
+  #key-filter{width:100%}
+  .snapshot-heading .download-csv{min-height:40px}
+}
 {% include "page_geometry.css.j2" %}
 </style></head><body>
 {{ detail_header(title, '/chargers/' ~ (source_id|urlencode) ~ '/' ~ (charger_id|urlencode) ~ '?tz=' ~ (timezone|urlencode), 'Cargador', 'Configuración · ' ~ charger_id, brand_image_url) }}
@@ -52,17 +67,20 @@ th{background:var(--bg)}td:first-child{font-weight:600}td:nth-child(2){overflow-
   </div>
 </section>
 <section aria-labelledby="snapshot-title">
-  <div class="table-panel-heading">
-    <h2 id="snapshot-title">Captura del {{ selected.at|display_date(timezone) }}</h2>
-    <div class="table-panel-actions"><a href="?tz={{ timezone|urlencode }}&amp;event_id={{ selected.source_event_id }}&amp;download=1">Descargar CSV</a></div>
+  <div class="table-panel-heading snapshot-heading">
+    <div class="snapshot-info">
+      <h2 id="snapshot-title">Captura del {{ selected.at|display_date(timezone) }}</h2>
+      <p class="note muted">Evento #{{ selected.source_event_id }} ·
+        {% if selected.coverage == 'full' %}Solicitud de todas las claves
+        {% elif selected.coverage == 'partial' %}Solicitud de claves específicas
+        {% else %}No se pudo determinar el alcance original{% endif %}
+      </p>
+    </div>
+    <div class="table-panel-actions">
+      <label for="key-filter" class="key-search"><input id="key-filter" type="search" placeholder="Nombre de clave" autocomplete="off"><span class="filter-caption">Buscar parámetro</span></label>
+      <a class="download-csv" href="?tz={{ timezone|urlencode }}&amp;event_id={{ selected.source_event_id }}&amp;download=1"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></svg>Descargar CSV</a>
+    </div>
   </div>
-  <p class="note muted">Evento #{{ selected.source_event_id }} ·
-    {% if selected.coverage == 'full' %}Solicitud de todas las claves
-    {% elif selected.coverage == 'partial' %}Solicitud de claves específicas
-    {% else %}No se pudo determinar el alcance original{% endif %}
-  </p>
-  <label for="key-filter">Buscar parámetro</label>
-  <input id="key-filter" type="search" placeholder="Nombre de clave" autocomplete="off">
   <div class="scroll" role="region" aria-label="Valores de configuración" tabindex="0">
     <table id="keys"><thead><tr><th>Clave</th><th>Valor</th><th>Solo lectura</th></tr></thead>
       <tbody>{% for row in selected.configuration %}
