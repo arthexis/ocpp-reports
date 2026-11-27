@@ -89,10 +89,10 @@ def test_collector_history_is_not_latest_projection_and_replays_idempotently(tmp
         assert conn.execute("SELECT COUNT(*) FROM collector_latest").fetchone()[0] == 0
 
 
-def test_admin_role_can_view_configuration_but_operator_cannot():
+def test_admin_and_operator_can_view_configuration_but_user_cannot():
     from ocpp_reports.dashboard_auth import _ROLE_PERMISSIONS
     assert Permission.CONFIGURATION_VIEW in _ROLE_PERMISSIONS[Role.ADMIN]
-    assert Permission.CONFIGURATION_VIEW not in _ROLE_PERMISSIONS[Role.OPERATOR]
+    assert Permission.CONFIGURATION_VIEW in _ROLE_PERMISSIONS[Role.OPERATOR]
     assert Permission.CONFIGURATION_VIEW not in _ROLE_PERMISSIONS[Role.USER]
 
 
@@ -129,7 +129,9 @@ def test_configuration_page_selects_historical_versions_and_is_source_scoped(tmp
     seed(database)  # source a / charger same, with a real device detail page
     page = history(
         {**config(2), "charger_id": "same"},
-        {**config(5, "400"), "charger_id": "same"},
+        {**config(5, "400"), "charger_id": "same",
+         "configuration": [{"key": "HeartbeatInterval", "value": "400", "readonly": False},
+                           {"key": "Descripción", "value": "Estación México — 中文", "readonly": True}]},
     )
     page["data"]["source_id"] = "a"
     import_history_page(database, page, apply=True)
@@ -162,51 +164,52 @@ def test_configuration_page_selects_historical_versions_and_is_source_scoped(tmp
 
     with TestClient(app, base_url="https://reports.example.test") as browser:
         assert browser.get(configuration_url).status_code == 403
-        for username in ("operator", "basic"):
+        login(browser, "basic")
+        assert browser.get(configuration_url).status_code == 403
+        assert browser.get(configuration_url + "?event_id=2").status_code == 403
+        assert browser.get(configuration_url + "?event_id=2&download=1").status_code == 403
+        assert browser.get(device_url).status_code == 403
+        browser.post("/logout", follow_redirects=False)
+
+        for username in ("operator", "administrator"):
             login(browser, username)
-            assert browser.get(configuration_url).status_code == 403
-            assert browser.get(configuration_url + "?event_id=2").status_code == 403
-            assert browser.get(configuration_url + "?event_id=2&download=1").status_code == 403
             device = browser.get(device_url)
+            assert device.status_code == 200
+            assert "/chargers/a/same/configuration?" in device.text
+            newest = browser.get(configuration_url)
+            assert newest.status_code == 200
+            assert "400" in newest.text and "GetConfiguration" in newest.text
+            assert newest.headers["Cache-Control"] == "no-store"
+            older = browser.get(configuration_url + "?event_id=2")
+            assert older.status_code == 200 and "300" in older.text
+            assert 'event_id=2&amp;download=1">Descargar CSV</a>' in older.text
+            assert 'event_id=5&amp;download=1">Descargar CSV</a>' in newest.text
+            for event_id, expected in ((2, "300"), (5, "400")):
+                download = browser.get(configuration_url, params={"event_id": event_id, "download": 1})
+                assert download.status_code == 200
+                assert download.headers["content-type"].startswith("text/csv")
+                assert download.headers["content-disposition"] == (
+                    f'attachment; filename="configuration-a-same-{event_id}.csv"')
+                assert download.headers["cache-control"] == "no-store"
+                assert download.content.startswith(b"\xef\xbb\xbf")
+                assert list(csv.reader(io.StringIO(download.content.decode("utf-8-sig")))) == [
+                    ["Clave", "Valor", "Solo lectura"], ["HeartbeatInterval", expected, "No"]] + (
+                    [["Descripción", "Estación México — 中文", "Sí"]] if event_id == 5 else [])
+            for url in ("/chargers/b/same/configuration", "/chargers/a/other/configuration"):
+                assert browser.get(url + "?event_id=2&download=1").status_code == 404
+            assert browser.get(configuration_url + "?event_id=999&download=1").status_code == 404
+
+            assert browser.get("/chargers/b/same/configuration").status_code == 404
+            assert browser.get("/chargers/a/other/configuration").status_code == 404
+            assert browser.get(configuration_url + "?event_id=999").status_code == 404
+            assert "/configuration?" not in browser.get("/connectors/a/same/1").text
             if username == "operator":
-                assert device.status_code == 200
-                assert "/configuration?" not in device.text
-            else:
-                assert device.status_code == 403
+                assert browser.get("/accounts").status_code == 403
+                assert browser.get("/chargers/a/same/site").status_code == 403
             browser.post("/logout", follow_redirects=False)
 
-        login(browser, "administrator")
-        device = browser.get(device_url)
-        assert device.status_code == 200
-        assert "/chargers/a/same/configuration?" in device.text
-        newest = browser.get(configuration_url)
-        assert newest.status_code == 200
-        assert "400" in newest.text and "GetConfiguration" in newest.text
-        assert newest.headers["Cache-Control"] == "no-store"
-        older = browser.get(configuration_url + "?event_id=2")
-        assert older.status_code == 200 and "300" in older.text
-        assert 'event_id=2&amp;download=1">Descargar CSV</a>' in older.text
-        assert 'event_id=5&amp;download=1">Descargar CSV</a>' in newest.text
-        for event_id, expected in ((2, "300"), (5, "400")):
-            download = browser.get(configuration_url, params={"event_id": event_id, "download": 1})
-            assert download.status_code == 200
-            assert download.headers["content-type"].startswith("text/csv")
-            assert download.headers["content-disposition"] == (
-                f'attachment; filename="configuration-a-same-{event_id}.csv"')
-            assert download.headers["cache-control"] == "no-store"
-            assert list(csv.reader(io.StringIO(download.text))) == [
-                ["Clave", "Valor", "Solo lectura"], ["HeartbeatInterval", expected, "No"]]
-        for url in ("/chargers/b/same/configuration", "/chargers/a/other/configuration"):
-            assert browser.get(url + "?event_id=2&download=1").status_code == 404
-        assert browser.get(configuration_url + "?event_id=999&download=1").status_code == 404
 
-        assert browser.get("/chargers/b/same/configuration").status_code == 404
-        assert browser.get("/chargers/a/other/configuration").status_code == 404
-        assert browser.get(configuration_url + "?event_id=999").status_code == 404
-        assert "/configuration?" not in browser.get("/connectors/a/same/1").text
-
-
-def test_configuration_route_is_admin_only_by_explicit_auth_policy():
+def test_configuration_route_is_read_only_by_explicit_auth_policy():
     from ocpp_reports.dashboard_login import route_permission
     assert route_permission("/chargers/source-a/cp-1/configuration", "GET") == Permission.CONFIGURATION_VIEW
     assert route_permission("/chargers/source-a/cp-1/configuration", "POST") is None
