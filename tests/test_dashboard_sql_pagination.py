@@ -176,7 +176,7 @@ def test_rfid_summary_and_history_are_scoped_and_not_page_limited(tmp_path):
     assert "<th>Ubicación</th><th>Cargador</th>" in history.text
     assert "<th>Fin</th><th>Duración</th>" in history.text
     assert "<td>1:00:00</td>" in history.text
-    assert "<td>East</td><td>cp-local</td>" in history.text
+    assert '<td>East</td><td><a href="/chargers/local/cp-local?tz=' in history.text
     assert "West Calzada" not in history.text
     assert "cp-remote" not in history.text
     assert client.get("/rfid", params={"rfid": "unknown"}).status_code == 404
@@ -224,7 +224,7 @@ def test_rfid_history_missing_location_does_not_display_satellite(tmp_path):
         db.execute("DELETE FROM collector_charger_locations WHERE source_id='local'")
     history = TestClient(create_app(dbpath, allowed_source_ids=("local",))).get("/rfid", params={"rfid": "card"})
     assert history.status_code == 200
-    assert "<td>—</td><td>cp-local</td>" in history.text
+    assert '<td>—</td><td><a href="/chargers/local/cp-local?tz=' in history.text
 
 
 def test_rfid_pages_escape_authorization_tag(tmp_path):
@@ -256,7 +256,7 @@ def test_otros_is_separate_from_literal_card_and_last_location_is_scoped(tmp_pat
     assert "<h1>Otros</h1>" in other.text
     assert "3 sesiones" in other.text
     assert "cp-remote" not in other.text
-    assert "<td>East</td><td>cp-local</td>" in other.text
+    assert '<td>East</td><td><a href="/chargers/local/cp-local?tz=' in other.text
     literal = client.get("/rfid", params={"rfid": "Otros"})
     assert literal.status_code == 200 and "1 sesiones" in literal.text
     assert client.get("/rfid", params={"otros": "true", "rfid": "Otros"}).status_code == 422
