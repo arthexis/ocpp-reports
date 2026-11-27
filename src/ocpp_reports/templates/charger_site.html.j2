@@ -24,7 +24,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111923;--surface:#1b2734;--ink:#e8eef6;--muted:#a5b3c3;--line:#344557;--nav:#0c1520;--accent:#5da5f5}}
 {% include "page_geometry.css.j2" %}
 </style></head><body>
-{{ detail_header(title, '/chargers/' ~ (source_id|urlencode) ~ '/' ~ (charger_id|urlencode), 'Cargador', 'Editar datos de ubicación · Origen ' ~ source_id ~ ' · Cargador ' ~ charger_id, brand_image_url) }}
+{{ detail_header(title, '/chargers/' ~ (source_id|urlencode) ~ '/' ~ (charger_id|urlencode), 'Cargador', 'Editar datos de ubicación · Cargador ' ~ charger_id, brand_image_url) }}
 <main>
 <section aria-labelledby="metadata-title"><h2 id="metadata-title">Cliente y sucursal</h2>
 <p class="muted">Esta información es administrativa y compartida por todos los cargadores asignados a la misma ubicación. Los campos pueden quedar vacíos.</p>

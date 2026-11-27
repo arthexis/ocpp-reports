@@ -130,7 +130,7 @@ padding:.55rem .8rem;border-radius:8px;text-decoration:none;font-weight:650}
 {% endcall %}
 <main id="content">
 <section aria-labelledby="device-title"><h2 class="identity" id="device-title">{% if selected_connector_id is none %}Cargador {{ charger_id }}{% else %}Cargador {{ charger_id }} · Conector {{ selected_connector_id }}{% endif %}</h2>
-<p class="muted">{{ location }} · Origen {{ source_id }}</p>
+{% if location and location != source_id %}<p class="muted">{{ location }}</p>{% endif %}
 <div class="stats"><div class="stat"><span class="note">Sesiones registradas</span><strong>{{ tx_total }}</strong></div>
 <div class="stat"><span class="note">Conectores visibles</span><strong>{{ physical_connector_count }}</strong></div>
 <div class="stat"><span class="note">Último Heartbeat</span><strong>{{ heartbeat_at|display_date(timezone) if heartbeat_at else 'Sin fecha' }}</strong></div>
