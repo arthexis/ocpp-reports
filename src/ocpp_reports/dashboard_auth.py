@@ -27,7 +27,8 @@ class Permission(StrEnum):
 
 _ROLE_PERMISSIONS = {
     Role.ADMIN: frozenset(Permission),
-    Role.OPERATOR: frozenset({Permission.DASHBOARD_VIEW, Permission.TRANSACTIONS_VIEW, Permission.CONNECTORS_VIEW}),
+    Role.OPERATOR: frozenset({Permission.DASHBOARD_VIEW, Permission.TRANSACTIONS_VIEW,
+                              Permission.CONNECTORS_VIEW, Permission.CONFIGURATION_VIEW}),
     Role.USER: frozenset({Permission.OWN_SESSION_VIEW}),
 }
 

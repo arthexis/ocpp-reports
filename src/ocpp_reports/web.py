@@ -434,7 +434,7 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
     templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
     def _can_view_configuration(request: Request) -> bool:
-        """Require an authenticated administrator in this dashboard tenant.
+        """Require an authenticated configuration reader in this dashboard tenant.
 
         Legacy Basic Auth does not assign application roles, so it cannot
         authorize access to configuration history.
@@ -909,9 +909,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
         tz: str | None = None, event_id: int | None = Query(None, ge=1),
         page: int = Query(1, ge=1, le=1000), download: bool = False,
     ):
-        """Administrator-only, evidence-backed GetConfiguration history."""
+        """Read-only, tenant-scoped evidence-backed GetConfiguration history."""
         if not _can_view_configuration(request):
-            raise HTTPException(403, "Configuration history requires administrator access")
+            raise HTTPException(403, "Configuration history requires an authorized account")
         if (not source_id.strip() or not charger_id.strip()
                 or allowed_source_ids is not None and source_id not in allowed_source_ids):
             raise HTTPException(404, "Configuration history not found")
@@ -933,7 +933,9 @@ def create_app(database: str | Path, *, allowed_source_ids: tuple[str, ...] | No
             filename = (f"configuration-{safe_source}-{safe_charger}-"
                         f"{selected['source_event_id']}.csv")
             return Response(
-                content=render_snapshot_csv(selected), media_type="text/csv; charset=utf-8",
+                # UTF-8 BOM enables Excel's direct CSV-open encoding detection.
+                content=render_snapshot_csv(selected).encode("utf-8-sig"),
+                media_type="text/csv; charset=utf-8",
                 headers={"Content-Disposition": f'attachment; filename="{filename}"',
                          "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
             )

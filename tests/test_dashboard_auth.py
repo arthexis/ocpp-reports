@@ -14,8 +14,10 @@ def test_admin_preserves_all_permissions_within_tenant(permission):
 
 def test_operator_cannot_read_internal_reports():
     operator = principal(Role.OPERATOR)
-    for permission in (Permission.DASHBOARD_VIEW, Permission.TRANSACTIONS_VIEW, Permission.CONNECTORS_VIEW):
+    for permission in (Permission.DASHBOARD_VIEW, Permission.TRANSACTIONS_VIEW,
+                       Permission.CONNECTORS_VIEW, Permission.CONFIGURATION_VIEW):
         assert authorized(operator, permission, tenant_id='tenant-a')
+        assert not authorized(operator, permission, tenant_id='tenant-b')
     for permission in (Permission.EVENTS_VIEW, Permission.SOURCES_VIEW, Permission.USERS_MANAGE):
         assert not authorized(operator, permission, tenant_id='tenant-a')
 
