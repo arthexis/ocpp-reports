@@ -1097,3 +1097,40 @@ def test_all_views_share_branded_content_rails(tmp_path, monkeypatch):
                 context.close()
         finally:
             browser.close()
+
+
+def test_rfid_history_table_matches_dashboard_and_links_offline(tmp_path):
+    playwright = pytest.importorskip("playwright.sync_api")
+    db_path = tmp_path / "synthetic-rfid.sqlite"
+    _seed(db_path)
+    tx, _ = _data()
+    tx["rfid"] = "test-card"
+    _replace(db_path, transaction=tx)
+    client = TestClient(create_app(db_path, allowed_source_ids=("a",)))
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            for width in (390, 1440):
+                for scheme in ("light", "dark"):
+                    context = browser.new_context(viewport={"width": width, "height": 844}, color_scheme=scheme)
+                    page = context.new_page()
+                    page.route("**/*", _offline_route(client, {"GET": 0}))
+                    page.goto("http://reports.test/?tx_view=all", wait_until="load")
+                    colors = "(e) => {const s=getComputedStyle(e);return [s.backgroundColor,s.color,s.fontWeight]}"
+                    header = page.locator("#transactions th").first.evaluate(colors)
+                    badge = page.locator("#transactions td .status").first.evaluate(colors)
+                    page.goto("http://reports.test/rfid?rfid=test-card", wait_until="load")
+                    assert page.locator("table th").first.evaluate(colors) == header
+                    assert page.locator("table td .status").first.evaluate(colors) == badge
+                    assert page.locator("table td .status--active").count() == 1
+                    assert page.get_by_role("link", name="Ver cargador cp", exact=True).get_attribute("href").startswith("/chargers/a/cp?tz=")
+                    assert page.get_by_role("link", name="Ver conector 1 del cargador cp", exact=True).get_attribute("href").startswith("/connectors/a/cp/1?tz=")
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
+                    page.get_by_role("link", name="Ver cargador cp", exact=True).click()
+                    assert urlsplit(page.url).path == "/chargers/a/cp"
+                    page.go_back(wait_until="load")
+                    page.get_by_role("link", name="Ver conector 1 del cargador cp", exact=True).click()
+                    assert urlsplit(page.url).path == "/connectors/a/cp/1"
+                    context.close()
+        finally:
+            browser.close()
